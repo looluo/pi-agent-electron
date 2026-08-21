@@ -1,6 +1,6 @@
 # 07: slice 6: verification gate
 
-Status: open
+Status: claimed
 
 Blocked by: 06
 

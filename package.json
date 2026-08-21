@@ -12,10 +12,13 @@
     "package:dir": "electron-vite build && electron-builder --win --dir --config.npmRebuild=false --publish never",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test \"pi-web/src/**/*.test.mjs\""
+    "test": "node --experimental-strip-types --test \"pi-web/src/**/*.test.mjs\"",
+    "test:e2e": "electron-vite build && playwright test",
+    "package:zip": "npm run package:dir && powershell -Command \"Compress-Archive -Path release/win-unpacked/* -DestinationPath release/Pi-Agent-App-0.9.0-portable.zip -Force\""
   },
   "devDependencies": {
     "@lobehub/icons": "^5.6.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25",
