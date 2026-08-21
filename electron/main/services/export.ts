@@ -227,6 +227,10 @@ async function exportSession(filePath: string, outputPath: string): Promise<void
         ...process.env,
         PI_OFFLINE: "1",
         PI_SKIP_VERSION_CHECK: "1",
+        // In the packaged app process.execPath is the Electron binary; without
+        // this it would boot a second Chromium instance sharing the userData
+        // dir (cache lock conflicts). RUN_AS_NODE executes cli.js as plain Node.
+        ELECTRON_RUN_AS_NODE: "1",
       },
       maxBuffer: 1024 * 1024,
     });

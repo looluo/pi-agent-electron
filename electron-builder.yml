@@ -7,8 +7,23 @@
   },
   "files": [
     "out/**",
-    "package.json"
+    "package.json",
+    "!**/*.map",
+    "!**/*.d.ts",
+    "!node_modules/@earendil-works/pi-coding-agent/node_modules/**",
+    "!node_modules/@earendil-works/pi-coding-agent/docs/**",
+    "!node_modules/@earendil-works/pi-coding-agent/examples/**",
+    "!node_modules/@earendil-works/pi-coding-agent/CHANGELOG.md",
+    "!node_modules/@mariozechner/clipboard-darwin-*",
+    "!node_modules/@mariozechner/clipboard-linux*",
+    "!node_modules/**/{README,README.*,CHANGELOG,CHANGELOG.*,HISTORY,LICENSE,LICENCE}*"
   ],
+  "electronLanguages": [
+    "zh-CN",
+    "en-US"
+  ],
+  "compression": "maximum",
+  "asarUnpack": [],
   "win": {
     "icon": "build/icon.ico",
     "target": [
