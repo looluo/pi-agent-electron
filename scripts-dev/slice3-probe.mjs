@@ -59,12 +59,12 @@ async function main() {
   const config = await evalJs("window.pi.modelsConfigGet()");
   step("models-config get", typeof config === "object" && config !== null, Object.keys(config ?? {}).slice(0, 5).join(","));
 
-  // models-config put round-trip (write same content back)
-  const put = await evalJs("window.pi.modelsConfigPut(window.pi.modelsConfigGet.__last ?? undefined)") ;
-  void put;
-
+  // models-config put round-trip (guarded: only writes a shape that passed validation)
   const putResult = await evalJs(`(async () => {
     const current = await window.pi.modelsConfigGet();
+    if (!current || typeof current !== "object" || !current.providers) {
+      return { status: 400, body: { error: "skipped: read shape invalid" } };
+    }
     return window.pi.modelsConfigPut(current);
   })()`);
   step("models-config put", putResult?.status === 200, JSON.stringify(putResult?.body));

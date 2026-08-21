@@ -147,8 +147,21 @@ export function modelsConfigGet(): Record<string, unknown> {
   return readModelsConfig() as unknown as Record<string, unknown>;
 }
 
-/** PUT /api/models-config */
-export function modelsConfigPut(body: Record<string, unknown>): StatusBody {
+/** PUT /api/models-config — rejects bodies without a providers record. */
+export function modelsConfigPut(body: Record<string, unknown> | undefined | null): StatusBody {
+  // Upstream parity note: the HTTP route would 500 on a missing body; the IPC
+  // boundary must not default undefined → {} (that shape is schema-invalid
+  // and once wiped a user's models.json via a stray probe call).
+  if (
+    typeof body !== "object"
+    || body === null
+    || Array.isArray(body)
+    || typeof (body as Record<string, unknown>).providers !== "object"
+    || (body as Record<string, unknown>).providers === null
+    || Array.isArray((body as Record<string, unknown>).providers)
+  ) {
+    return { status: 400, body: { error: "models.json requires a providers object" } };
+  }
   try {
     writeModelsConfig(body);
     return { status: 200, body: { success: true } };

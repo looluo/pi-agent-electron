@@ -30,7 +30,7 @@ function registerModelsAuthHandlers(): void {
   // models
   ipcMain.handle("pi:models", (_e, cwd: string | null) => modelsGet(cwd));
   ipcMain.handle("pi:models-config:get", () => modelsConfigGet());
-  ipcMain.handle("pi:models-config:put", (_e, body: Record<string, unknown>) => modelsConfigPut(body ?? {}));
+  ipcMain.handle("pi:models-config:put", (_e, body: Record<string, unknown> | undefined | null) => modelsConfigPut(body));
   ipcMain.handle("pi:models-config:test", (_e, body: Record<string, unknown>) => modelsTest(body ?? {}));
   ipcMain.handle("pi:models-config:discover", (_e, body: Record<string, unknown>) => modelsDiscover(body ?? {}));
   ipcMain.handle("pi:models-config:catalog", (_e, q: string, provider: string, limit: number) =>
