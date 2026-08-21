@@ -1,0 +1,21 @@
+{
+  "appId": "com.pi.agent.app",
+  "productName": "Pi Agent App",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "out/**",
+    "package.json"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "dir",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "npmRebuild": false
+}

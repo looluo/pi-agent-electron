@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "types": ["vite/client"],
+    "paths": {
+      "@/*": ["./pi-web/*"],
+      "@shared/*": ["./src/shared/*"],
+      "next/navigation": ["./pi-web/src/next-navigation.ts"]
+    },
+    "target": "ES2022"
+  },
+  "include": [
+    "pi-web/src/**/*.ts",
+    "pi-web/src/**/*.tsx",
+    "pi-web/components/**/*",
+    "pi-web/hooks/**/*",
+    "pi-web/lib/**/*",
+    "src/shared/**/*"
+  ],
+  "exclude": ["node_modules", "out", "pi-web/app", "pi-web/public/sw.js"]
+}
