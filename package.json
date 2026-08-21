@@ -3,7 +3,7 @@
   "version": "0.9.0",
   "private": true,
   "description": "Pi Agent App - Electron desktop app for the pi coding agent",
-  "main": "out/main/main.js",
+  "main": "out/main/main.mjs",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",

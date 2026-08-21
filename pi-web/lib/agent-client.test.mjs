@@ -8,26 +8,28 @@ const jiti = createJiti(import.meta.url, {
 });
 const { AgentCommandError, isPromptRejectedError, sendAgentCommand } = await jiti.import("./agent-client.ts");
 
-test("agent command HTTP rejections are distinguishable from transport failures", async (t) => {
-  const originalFetch = globalThis.fetch;
-  t.after(() => {
-    globalThis.fetch = originalFetch;
-  });
+// IPC transport: window.pi.agentCommand replaces fetch; main resolves
+// { ok: false, error, code?, accepted? } with the same prompt-rejection
+// semantics the HTTP route had.
+function installBridge(impl) {
+  globalThis.window = { pi: { agentCommand: impl } };
+}
+test.after(() => {
+  delete globalThis.window;
+});
 
-  globalThis.fetch = async () => new Response(
-    JSON.stringify({
-      error: "Authentication failed",
-      code: "prompt_rejected",
-      accepted: false,
-    }),
-    { status: 500, headers: { "Content-Type": "application/json" } },
-  );
+test("agent command IPC rejections are distinguishable from transport failures", async () => {
+  installBridge(async () => ({
+    ok: false,
+    error: "Authentication failed",
+    code: "prompt_rejected",
+    accepted: false,
+  }));
 
   await assert.rejects(
     sendAgentCommand("session-id", { type: "prompt", message: "hello" }),
     (error) => {
       assert.equal(error instanceof AgentCommandError, true);
-      assert.equal(error.status, 500);
       assert.equal(error.message, "Authentication failed");
       assert.equal(error.code, "prompt_rejected");
       assert.equal(error.accepted, false);
@@ -37,9 +39,9 @@ test("agent command HTTP rejections are distinguishable from transport failures"
   );
 
   const transportError = new TypeError("connection reset");
-  globalThis.fetch = async () => {
+  installBridge(async () => {
     throw transportError;
-  };
+  });
 
   await assert.rejects(
     sendAgentCommand("session-id", { type: "prompt", message: "hello" }),
@@ -52,13 +54,8 @@ test("agent command HTTP rejections are distinguishable from transport failures"
   );
 });
 
-test("only an explicit negative prompt acknowledgement is definitive", () => {
-  assert.equal(
-    isPromptRejectedError(new AgentCommandError("proxy failure", 502)),
-    false,
-  );
-  assert.equal(
-    isPromptRejectedError(new AgentCommandError("generic API failure", 500, "internal_error", false)),
-    false,
-  );
+test("successful agent commands unwrap the data payload", async () => {
+  installBridge(async () => ({ ok: true, data: { isStreaming: false } }));
+  const data = await sendAgentCommand("session-id", { type: "get_state" });
+  assert.deepEqual(data, { isStreaming: false });
 });

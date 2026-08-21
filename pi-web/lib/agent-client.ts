@@ -1,16 +1,16 @@
-// Client-side helper for POST /api/agent/[id].
+// Client-side helper for the agent:command dispatch channel.
 //
-// Every /api/agent/[id] route returns one of:
-//   { success: true, data: <result> }
-//   { error: string }              (non-2xx)
+// Main returns one of:
+//   { ok: true, data: <result> }
+//   { ok: false, error, code?, accepted?, notFound? }
 //
-// Call sites previously repeated the same 5-line fetch block 13× in
-// hooks/useAgentSession.ts. This helper collapses that down to one line.
+// Same call sites as the retired fetch helper; AgentCommandError keeps the
+// code/accepted semantics prompt rejection handling depends on.
 
 export class AgentCommandError extends Error {
   constructor(
     message: string,
-    public readonly status: number,
+    public readonly notFound: boolean = false,
     public readonly code?: string,
     public readonly accepted?: boolean,
   ) {
@@ -29,25 +29,9 @@ export async function sendAgentCommand<T = unknown>(
   sessionId: string,
   command: Record<string, unknown>,
 ): Promise<T> {
-  const res = await fetch(`/api/agent/${encodeURIComponent(sessionId)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(command),
-  });
-  const body = (await res.json().catch(() => ({}))) as {
-    success?: boolean;
-    data?: T;
-    error?: string;
-    code?: string;
-    accepted?: boolean;
-  };
-  if (!res.ok || body.error) {
-    throw new AgentCommandError(
-      body.error ?? `HTTP ${res.status}`,
-      res.status,
-      body.code,
-      body.accepted,
-    );
+  const result = await window.pi.agentCommand(sessionId, command);
+  if (!result.ok) {
+    throw new AgentCommandError(result.error, Boolean(result.notFound), result.code, result.accepted);
   }
-  return body.data as T;
+  return result.data as T;
 }

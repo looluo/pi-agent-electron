@@ -15,7 +15,6 @@
     "types": ["vite/client"],
     "paths": {
       "@/*": ["./pi-web/*"],
-      "@shared/*": ["./src/shared/*"],
       "next/navigation": ["./pi-web/src/next-navigation.ts"]
     },
     "target": "ES2022"

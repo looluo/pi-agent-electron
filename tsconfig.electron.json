@@ -1,6 +1,9 @@
 {
   "compilerOptions": {
-    "lib": ["esnext", "dom"],
+    "lib": [
+      "esnext",
+      "dom"
+    ],
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
@@ -9,11 +12,19 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "incremental": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "paths": {
-      "@shared/*": ["./src/shared/*"]
+      "@/*": [
+        "./pi-web/*"
+      ]
     },
-    "target": "ES2022"
+    "target": "ES2022",
+    "skipLibCheck": true
   },
-  "include": ["electron/**/*.ts", "src/shared/**/*.ts"]
+  "include": [
+    "electron/**/*.ts",
+    "src/shared/**/*.ts"
+  ]
 }

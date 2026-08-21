@@ -457,8 +457,9 @@ export function AppShell() {
     const token = ++workspaceRestoreTokenRef.current;
     const lastOpenSessionId = getLastOpenSession(projectKey);
     if (!lastOpenSessionId) return;
-    void fetch("/api/sessions")
-      .then((r) => (r.ok ? (r.json() as Promise<{ sessions: SessionInfo[] }>) : null))
+    void window.pi.sessionsList()
+      .then((raw) => raw as { sessions?: SessionInfo[]; error?: string })
+      .then((d) => { if (!d || d.error || !d.sessions) return null; return { sessions: d.sessions }; })
       .then((d) => {
         if (token !== workspaceRestoreTokenRef.current) return; // stale switch
         const s = d?.sessions.find((x) => x.id === lastOpenSessionId);
@@ -616,8 +617,9 @@ export function AppShell() {
   // handleCwdChange relies on. Hydrate it from the session list so switching
   // worktrees right after creating a session doesn't close the chat.
   const hydrateSelectedSession = useCallback((sessionId: string) => {
-    void fetch("/api/sessions", { cache: "no-store" })
-      .then((r) => (r.ok ? (r.json() as Promise<{ sessions: SessionInfo[] }>) : null))
+    void window.pi.sessionsList()
+      .then((raw) => raw as { sessions?: SessionInfo[]; error?: string })
+      .then((d) => (!d || d.error || !d.sessions ? null : { sessions: d.sessions }))
       .then((d) => {
         const full = d?.sessions.find((s) => s.id === sessionId);
         if (!full) return;
@@ -712,12 +714,9 @@ export function AppShell() {
     setAutoNameStatus({ kind: "naming" });
 
     try {
-      const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/auto-name`, {
-        method: "POST",
-      });
-      const body = (await response.json().catch(() => ({}))) as { title?: string; error?: string };
-      if (!response.ok || !body.title) {
-        throw new Error(body.error || `HTTP ${response.status}`);
+      const body = (await window.pi.sessionsAutoName(sessionId).catch(() => ({}))) as { title?: string; error?: string; conflict?: boolean };
+      if (!body.title) {
+        throw new Error(body.error || "auto-name failed");
       }
 
       const title = body.title.trim();

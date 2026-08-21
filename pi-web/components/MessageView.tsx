@@ -155,17 +155,16 @@ function loadThinkingContent(sessionId: string, entryId: string, blockIndex: num
     return cached;
   }
 
-  const request = fetch(
-    `/api/sessions/${encodeURIComponent(sessionId)}/entries/${encodeURIComponent(entryId)}/thinking?blockIndex=${blockIndex}`,
-  ).then(async (response) => {
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json() as { thinking?: unknown };
-    if (typeof data.thinking !== "string") throw new Error("Invalid thinking response");
-    return data.thinking;
-  }).catch((error) => {
-    thinkingContentCache.delete(key);
-    throw error;
-  });
+  const request = window.pi.sessionsThinking(sessionId, entryId, blockIndex)
+    .then(async (raw) => {
+      const data = raw as { thinking?: unknown; error?: string; notFound?: boolean };
+      if (data.error || data.notFound) throw new Error(data.error || "Thinking block not found");
+      if (typeof data.thinking !== "string") throw new Error("Invalid thinking response");
+      return data.thinking;
+    }).catch((error) => {
+      thinkingContentCache.delete(key);
+      throw error;
+    });
 
   thinkingContentCache.set(key, request);
   if (thinkingContentCache.size > MAX_THINKING_CACHE_ENTRIES) {
@@ -1647,23 +1646,20 @@ function BashExecutionView({ message, sessionId }: { message: BashExecutionMessa
 
   const isPending = !message.output && message.exitCode === undefined && !message.cancelled;
   const isError = message.cancelled || (message.exitCode !== undefined && message.exitCode !== 0);
-  const fullOutputUrl = sessionId && message.fullOutputPath
-    ? `/api/agent/${encodeURIComponent(sessionId)}/bash-output?path=${encodeURIComponent(message.fullOutputPath)}`
-    : null;
-  const showFullButton = message.truncated && fullOutputUrl && fullOutput === null;
+  const fullOutputPath = sessionId && message.fullOutputPath ? message.fullOutputPath : null;
+  const showFullButton = message.truncated && fullOutputPath && fullOutput === null;
   const displayOutput = fullOutput ?? message.output;
 
   async function loadFullOutput() {
-    if (!fullOutputUrl) return;
+    if (!fullOutputPath || !sessionId) return;
     setLoadingFull(true);
     setFullError(null);
     try {
-      const res = await fetch(fullOutputUrl);
-      const d = await res.json() as { success?: boolean; data?: { output?: string }; error?: string };
-      if (d.success) {
-        setFullOutput(d.data?.output ?? "");
+      const raw = await window.pi.agentBashOutput(sessionId, fullOutputPath);
+      if (raw.ok) {
+        setFullOutput(raw.data.output ?? "");
       } else {
-        setFullError(d.error ?? "failed");
+        setFullError(raw.error || "failed");
       }
     } catch (e) {
       setFullError(String(e));
@@ -1693,10 +1689,30 @@ function BashExecutionView({ message, sessionId }: { message: BashExecutionMessa
         timestamp: message.timestamp,
       };
 
+  async function downloadFullOutput() {
+    if (!fullOutputPath || !sessionId) return;
+    try {
+      const raw = await window.pi.agentBashOutputDownload(sessionId, fullOutputPath);
+      if (!raw.ok) {
+        setFullError(raw.error || "failed");
+        return;
+      }
+      const blob = new Blob([raw.data.output], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "bash-output.log";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setFullError("failed");
+    }
+  }
+
   return (
     <div style={{ margin: "6px 0" }}>
       <ToolCallBlock block={block} result={result} />
-      {message.truncated && fullOutputUrl && (
+      {message.truncated && fullOutputPath && (
         <div style={{ padding: "4px 10px", fontSize: 11, marginTop: -1 }}>
           {showFullButton && (
             <button
@@ -1708,7 +1724,8 @@ function BashExecutionView({ message, sessionId }: { message: BashExecutionMessa
             </button>
           )}
           <a
-            href={`${fullOutputUrl}&download=1`}
+            href="#"
+            onClick={(e) => { e.preventDefault(); void downloadFullOutput(); }}
             style={{ marginLeft: showFullButton ? 10 : 0, color: "var(--accent)", fontSize: 11, textDecoration: "underline" }}
           >
             download full output

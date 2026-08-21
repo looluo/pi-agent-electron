@@ -24,11 +24,14 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     resolve: {
-      alias: { "@shared": resolve(__dirname, "src/shared") },
+      alias: {
+        "@": resolve(__dirname, "pi-web"),
+      },
     },
     build: {
       rollupOptions: {
         input: { main: resolve(__dirname, "electron/main/index.ts") },
+        output: { format: "es", entryFileNames: "[name].mjs" },
       },
     },
   },
@@ -51,7 +54,6 @@ export default defineConfig({
     resolve: {
       alias: {
         "@": resolve(__dirname, "pi-web"),
-        "@shared": resolve(__dirname, "src/shared"),
         "next/navigation": resolve(__dirname, "pi-web/src/next-navigation.ts"),
       },
     },

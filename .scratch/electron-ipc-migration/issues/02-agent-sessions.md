@@ -1,6 +1,6 @@
 # 02: slice 1: agent + sessions over IPC
 
-Status: open
+Status: claimed
 
 Blocked by: 01
 

@@ -11,7 +11,7 @@ function createWindow(): void {
     title: "Pi Agent App",
     autoHideMenuBar: true,
     webPreferences: {
-      preload: fileURLToPath(new URL("../preload/index.mjs", import.meta.url)),
+      preload: fileURLToPath(new URL("../preload/preload.js", import.meta.url)),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
@@ -27,7 +27,7 @@ function createWindow(): void {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
   } else {
     void mainWindow.loadFile(
-      new URL(`../renderer/index.html?windowId=main`, import.meta.url).pathname,
+      fileURLToPath(new URL("../renderer/index.html", import.meta.url)),
     );
   }
 }
