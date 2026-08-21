@@ -585,7 +585,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   }, [explorerRefreshKey]);
 
   useEffect(() => {
-    fetch("/api/home").then((r) => r.json()).then((d: { home?: string }) => {
+    window.pi.home().then((d: { home?: string }) => {
       if (d.home) setHomeDir(d.home);
     }).catch(() => {});
   }, []);
@@ -659,8 +659,9 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     }
     let cancelled = false;
     setWorktreeLoadingCwd(selectedCwd);
-    fetch(`/api/worktrees?cwd=${encodeURIComponent(selectedCwd)}`)
-      .then((r) => r.json())
+    window.pi.worktreesGet(selectedCwd)
+      .then((raw) => raw as { status: number; body: { projectRoot?: string; projectKey?: string; isGit?: boolean; isTopLevel?: boolean; currentWorktreePath?: string | null; worktrees?: WorktreeEntry[]; error?: string } })
+      .then((res) => res.body)
       .then((d: { projectRoot?: string; projectKey?: string; isGit?: boolean; isTopLevel?: boolean; currentWorktreePath?: string | null; worktrees?: WorktreeEntry[]; error?: string }) => {
         if (cancelled) return;
         setWorktreeLoadingCwd(null);
@@ -728,19 +729,15 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     setCustomPathValidating(true);
     setCustomPathError(null);
     try {
-      const res = await fetch("/api/cwd/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cwd: path }),
-      });
-      const data = await res.json().catch(() => ({})) as {
+      const result = await window.pi.cwdValidate(path);
+      const data = (result.body ?? {}) as {
         cwd?: string;
         projectRoot?: string;
         projectKey?: string;
         error?: string;
       };
-      if (!res.ok || data.error || !data.cwd || !data.projectRoot || !data.projectKey) {
-        setCustomPathError(data.error ?? `HTTP ${res.status}`);
+      if (result.status !== 200 || data.error || !data.cwd || !data.projectRoot || !data.projectKey) {
+        setCustomPathError(data.error ?? "Invalid directory");
         return;
       }
       setValidatedProject({
@@ -766,8 +763,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   }, []);
   const handleDefaultCwd = useCallback(async () => {
     try {
-      const res = await fetch("/api/default-cwd", { method: "POST" });
-      const data = await res.json() as { cwd?: string; error?: string };
+      const data = await window.pi.defaultCwd() as { cwd?: string; error?: string };
       if (data.cwd) {
         setSelectedCwd(data.cwd);
         setCustomPathOpen(false);
@@ -786,14 +782,10 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     setWtBusy(true);
     setWtError(null);
     try {
-      const res = await fetch("/api/worktrees", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cwd: worktreeState.projectRoot, branch }),
-      });
-      const data = await res.json().catch(() => ({})) as { path?: string; error?: string };
-      if (!res.ok || data.error || !data.path) {
-        setWtError(data.error ?? `HTTP ${res.status}`);
+      const result = await window.pi.worktreesPost({ cwd: worktreeState.projectRoot, branch });
+      const data = (result.body ?? {}) as { path?: string; error?: string };
+      if (result.status !== 200 || data.error || !data.path) {
+        setWtError(data.error ?? "Failed to create worktree");
         return;
       }
       setWtNewOpen(false);
@@ -822,19 +814,15 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     setWtBusy(true);
     setWtError(null);
     try {
-      const res = await fetch("/api/worktrees", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cwd: worktreeState.projectRoot, path, force }),
-      });
-      const data = await res.json().catch(() => ({})) as { error?: string; dirty?: boolean };
-      if (!res.ok) {
+      const result = await window.pi.worktreesDelete({ cwd: worktreeState.projectRoot, path, force });
+      const data = (result.body ?? {}) as { error?: string; dirty?: boolean };
+      if (result.status !== 200) {
         if (data.dirty && !force) {
           // Dirty worktree — ask the user to confirm a force removal
           setWtConfirmRemove(path);
           return;
         }
-        setWtError(data.error ?? `HTTP ${res.status}`);
+        setWtError(data.error ?? "Failed to remove worktree");
         return;
       }
       setWtConfirmRemove(null);

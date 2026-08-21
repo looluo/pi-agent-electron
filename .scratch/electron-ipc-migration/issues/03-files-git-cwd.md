@@ -1,6 +1,6 @@
 # 03: slice 2: files / file-index / git / cwd / worktrees
 
-Status: open
+Status: claimed
 
 Blocked by: 02
 

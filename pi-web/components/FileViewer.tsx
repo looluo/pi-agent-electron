@@ -18,6 +18,7 @@ import {
   isImagePath,
 } from "@/lib/file-types";
 import { encodeFilePathForApi, getFileDirectory, getFileName, getRelativeFilePath } from "@/lib/file-paths";
+import { IpcFileWatchSource } from "@/lib/pi-ipc";
 import { resolveLocalFileHref } from "@/lib/file-links";
 import { parseFrontmatter } from "@/lib/frontmatter";
 import { markdownPreviewRehypePlugins, markdownPreviewRemarkPlugins, normalizeDisplayMath } from "@/lib/markdown";
@@ -216,15 +217,31 @@ function getFileApiUrl(
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) searchParams.set(key, String(value));
   }
-  return `/api/files/${encoded}?${searchParams.toString()}`;
+  return `pifile://local/${encoded}?${searchParams.toString()}`;
 }
 
 function DownloadLink({ filePath, sourceSessionId }: { filePath: string; sourceSessionId?: string | null }) {
   const { t } = useI18n();
   return (
     <a
-      href={getFileApiUrl(filePath, "download", sourceSessionId)}
-      download={getFileName(filePath)}
+      href="#"
+      onClick={(e) => {
+        e.preventDefault();
+        void (async () => {
+          const url = getFileApiUrl(filePath, "download", sourceSessionId);
+          return fetch(url);
+        })()
+          .then((res) => res.blob())
+          .then((blob) => {
+            const objectUrl = URL.createObjectURL(blob);
+            const anchor = document.createElement("a");
+            anchor.href = objectUrl;
+            anchor.download = getFileName(filePath);
+            anchor.click();
+            URL.revokeObjectURL(objectUrl);
+          })
+          .catch(() => undefined);
+      }}
       title={t("i18n.downloadFile")}
       aria-label={t("i18n.downloadFile")}
       className="file-viewer-icon-button"
@@ -429,7 +446,7 @@ function ImageViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
   const [size, setSize] = useState<number | null>(null);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const esRef = useRef<EventSource | null>(null);
+  const esRef = useRef<EventSource | IpcFileWatchSource | null>(null);
   const syncRequestRef = useRef(0);
 
   const ext = getFileName(filePath).toLowerCase().split(".").pop() ?? "";
@@ -473,7 +490,7 @@ function ImageViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
         });
     };
 
-    const es = new EventSource(getFileApiUrl(filePath, "watch", sourceSessionId));
+    const es = new IpcFileWatchSource(filePath, sourceSessionId);
     esRef.current = es;
 
     es.addEventListener("connected", () => {
@@ -601,7 +618,7 @@ function AudioViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
   const [size, setSize] = useState<number | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const esRef = useRef<EventSource | null>(null);
+  const esRef = useRef<EventSource | IpcFileWatchSource | null>(null);
   const syncRequestRef = useRef(0);
 
   const ext = getFileName(filePath).toLowerCase().split(".").pop() ?? "";
@@ -645,7 +662,7 @@ function AudioViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
         });
     };
 
-    const es = new EventSource(getFileApiUrl(filePath, "watch", sourceSessionId));
+    const es = new IpcFileWatchSource(filePath, sourceSessionId);
     esRef.current = es;
 
     es.addEventListener("connected", () => {
@@ -753,7 +770,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }:
   const [bust, setBust] = useState(0);
   const [size, setSize] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const esRef = useRef<EventSource | null>(null);
+  const esRef = useRef<EventSource | IpcFileWatchSource | null>(null);
   const syncRequestRef = useRef(0);
 
   const ext = getFileExt(filePath);
@@ -827,7 +844,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }:
         });
     };
 
-    const es = new EventSource(getFileApiUrl(filePath, "watch", sourceSessionId));
+    const es = new IpcFileWatchSource(filePath, sourceSessionId);
     esRef.current = es;
 
     es.addEventListener("connected", () => {
@@ -986,7 +1003,7 @@ function TextFileViewer({
   const [displayMode, setDisplayMode] = useState<DisplayMode>(requestedInitialDisplayMode);
   const [wrapLines, setWrapLines] = useState(initialWrapLines);
   const [watching, setWatching] = useState(false);
-  const esRef = useRef<EventSource | null>(null);
+  const esRef = useRef<EventSource | IpcFileWatchSource | null>(null);
   const contentRequestRef = useRef(0);
   const gitDiffRequestRef = useRef(0);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -1077,11 +1094,10 @@ function TextFileViewer({
     }
 
     try {
-      const params = new URLSearchParams({ cwd, path: targetPath });
-      const response = await fetch(`/api/git/diff?${params.toString()}`);
-      const next = await response.json() as GitFileDiffResponse & { error?: string };
+      const result = await window.pi.gitDiff(cwd, targetPath) as unknown as { status: number; body: (GitFileDiffResponse & { error?: string }) | null };
+      const next = result.body;
       if (requestId !== gitDiffRequestRef.current) return;
-      setGitDiff(response.ok && next.supported && typeof next.patch === "string" ? next : null);
+      setGitDiff(result.status === 200 && next && next.supported && typeof next.patch === "string" ? next : null);
     } catch {
       if (requestId === gitDiffRequestRef.current) setGitDiff(null);
     } finally {
@@ -1127,7 +1143,7 @@ function TextFileViewer({
       void fetchGitDiff(filePath);
     };
 
-    const es = new EventSource(getFileApiUrl(filePath, "watch", sourceSessionId));
+    const es = new IpcFileWatchSource(filePath, sourceSessionId);
     esRef.current = es;
 
     es.addEventListener("connected", () => {

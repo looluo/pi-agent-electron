@@ -419,16 +419,11 @@ export function AppShell() {
     setInitialCwdStatus("validating");
     setInitialCwdError(null);
 
-    void fetch("/api/cwd/validate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cwd: requestedCwd }),
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const data = await response.json().catch(() => ({})) as { cwd?: string; error?: string };
-        if (!response.ok || !data.cwd) {
-          throw new Error(data.error ?? `HTTP ${response.status}`);
+    void window.pi.cwdValidate(requestedCwd)
+      .then((result) => {
+        const data = (result.body ?? {}) as { cwd?: string; error?: string };
+        if (result.status !== 200 || !data.cwd) {
+          throw new Error(data.error ?? "Invalid directory");
         }
 
         // The sidebar will notify us when it adopts this cwd. Avoid remounting
@@ -850,20 +845,15 @@ export function AppShell() {
     setProjectTrustError(null);
     if (!projectTrustCwd) return;
 
-    const controller = new AbortController();
-    fetch(`/api/project-trust?cwd=${encodeURIComponent(projectTrustCwd)}`, {
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const data = await response.json() as ProjectTrustStatus & { error?: string };
-        if (!response.ok || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
+    window.pi.projectTrustGet(projectTrustCwd)
+      .then((result) => {
+        const data = result.body as unknown as ProjectTrustStatus & { error?: string };
+        if (result.status !== 200 || data.error) throw new Error(data.error ?? "Failed to load");
         setProjectTrust(data);
       })
       .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
         console.error("Failed to load project trust:", error);
       });
-    return () => controller.abort();
   }, [projectTrustCwd]);
 
   const handleTrustProject = useCallback(async () => {
@@ -871,13 +861,9 @@ export function AppShell() {
     setProjectTrustBusy(true);
     setProjectTrustError(null);
     try {
-      const response = await fetch("/api/project-trust", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cwd: projectTrustCwd }),
-      });
-      const data = await response.json() as ProjectTrustStatus & { error?: string };
-      if (!response.ok || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
+      const result = await window.pi.projectTrustPost(projectTrustCwd);
+      const data = result.body as unknown as ProjectTrustStatus & { error?: string };
+      if (result.status !== 200 || data.error) throw new Error(data.error ?? "Trust failed");
       setProjectTrust(data);
       setProjectTrustDialogOpen(false);
       setModelsRefreshKey((key) => key + 1);

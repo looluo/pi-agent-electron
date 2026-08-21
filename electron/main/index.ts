@@ -1,6 +1,9 @@
 import { app, BrowserWindow } from "electron";
 import { fileURLToPath } from "node:url";
 import { registerIpcHandlers } from "./ipc";
+import { registerEarlySchemes, registerFilesProtocol } from "./files-protocol";
+
+registerEarlySchemes();
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -33,6 +36,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  registerFilesProtocol();
   registerIpcHandlers();
   createWindow();
 

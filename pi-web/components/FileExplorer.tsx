@@ -76,7 +76,7 @@ interface PendingConflict {
 
 async function fetchEntries(dirPath: string): Promise<FileNode[]> {
   const encoded = encodeFilePathForApi(dirPath);
-  const res = await fetch(`/api/files/${encoded}?type=list`);
+  const res = await fetch(`pifile://local/${encoded}?type=list`);
   if (!res.ok) {
     let message = `Failed to load files (HTTP ${res.status})`;
     try {
@@ -99,10 +99,9 @@ async function fetchEntries(dirPath: string): Promise<FileNode[]> {
 }
 
 async function fetchGitStatus(cwd: string): Promise<GitStatusResponse> {
-  const params = new URLSearchParams({ cwd });
-  const res = await fetch(`/api/git/status?${params.toString()}`);
-  if (!res.ok) throw new Error(`Failed to load Git status (HTTP ${res.status})`);
-  return res.json() as Promise<GitStatusResponse>;
+  const result = await window.pi.gitStatus(cwd);
+  if (result.status !== 200 || !result.body) throw new Error(String((result.body as { error?: string } | null)?.error ?? "Failed to load Git status"));
+  return result.body as unknown as GitStatusResponse;
 }
 
 const GIT_STATUS_KEYS: Record<GitFileStatusKind, string> = {
@@ -152,33 +151,22 @@ function uploadFiles(
   strategy: UploadConflictStrategy,
   onProgress: (progress: number) => void,
 ): Promise<{ status: number; data: UploadResponse }> {
-  return new Promise((resolve, reject) => {
-    const formData = new FormData();
-    files.forEach((file) => formData.append("files", file, file.name));
-
-    const xhr = new XMLHttpRequest();
-    xhr.open(
-      "POST",
-      `/api/files/${encodeFilePathForApi(targetDirectory)}?type=upload&conflict=${strategy}`,
-    );
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable && event.total > 0) {
-        onProgress(Math.round((event.loaded / event.total) * 100));
+  return (async () => {
+    const unsubscribe = window.pi.onUploadProgress((progress) => {
+      if (progress.total > 0) {
+        onProgress(Math.round((progress.done / progress.total) * 100));
       }
-    };
-    xhr.onerror = () => reject(new Error("Network error while uploading files"));
-    xhr.onabort = () => reject(new Error("Upload cancelled"));
-    xhr.onload = () => {
-      let data: UploadResponse = {};
-      try {
-        data = JSON.parse(xhr.responseText) as UploadResponse;
-      } catch {
-        if (xhr.responseText) data.error = xhr.responseText;
-      }
-      resolve({ status: xhr.status, data });
-    };
-    xhr.send(formData);
-  });
+    });
+    try {
+      const payload = await Promise.all(
+        files.map(async (file) => ({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) })),
+      );
+      const result = await window.pi.filesUpload(targetDirectory, payload, strategy);
+      return { status: result.status, data: result.body as UploadResponse };
+    } finally {
+      unsubscribe();
+    }
+  })();
 }
 
 function MentionIcon({ size = 11 }: { size?: number }) {
@@ -393,9 +381,23 @@ function TreeNode({
         )}
         {hovered && !node.isDir && (
           <a
-            href={`/api/files/${encodeFilePathForApi(node.fullPath)}?type=download`}
+            href="#"
             download
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              void fetch(`pifile://local/${encodeFilePathForApi(node.fullPath)}?type=download`)
+                .then((res) => res.blob())
+                .then((blob) => {
+                  const objectUrl = URL.createObjectURL(blob);
+                  const anchor = document.createElement("a");
+                  anchor.href = objectUrl;
+                  anchor.download = node.name;
+                  anchor.click();
+                  URL.revokeObjectURL(objectUrl);
+                })
+                .catch(() => undefined);
+            }}
             title={t("files.download")}
             style={{
               position: "absolute",
@@ -624,16 +626,9 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
     setUploadPhase("checking");
 
     try {
-      const res = await fetch(
-        `/api/files/${encodeFilePathForApi(cwd)}?type=upload-check`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileNames: files.map((file) => file.name) }),
-        },
-      );
-      const data = await res.json().catch(() => ({})) as UploadResponse;
-      if (!res.ok) throw new Error(data.error ?? `Upload check failed (HTTP ${res.status})`);
+      const result = await window.pi.filesUploadCheck(cwd, files.map((file) => file.name));
+      const data = (result.body ?? {}) as UploadResponse;
+      if (result.status !== 200) throw new Error(data.error ?? `Upload check failed`);
 
       if (data.conflicts?.length) {
         setPendingConflict({

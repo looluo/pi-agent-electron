@@ -18,10 +18,11 @@ interface BrowseResponse {
 }
 
 async function loadDirectories(directory?: string): Promise<BrowseResponse> {
-  const query = directory ? `?path=${encodeURIComponent(directory)}` : "";
-  const response = await fetch(`/api/cwd/browse${query}`);
-  const data = await response.json() as BrowseResponse;
-  if (!response.ok || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
+  const raw = await window.pi.cwdBrowse(directory);
+  const data = raw as BrowseResponse;
+  if (data.error || ("notFound" in data) || ("badRequest" in data)) {
+    throw new Error(data.error ?? "Directory does not exist");
+  }
   return data;
 }
 

@@ -53,4 +53,42 @@ contextBridge.exposeInMainWorld("pi", {
   sessionsAutoName: (id: string) => ipcRenderer.invoke("pi:sessions:auto-name", id),
   sessionsThinking: (id: string, entryId: string, blockIndex: number) =>
     ipcRenderer.invoke("pi:sessions:thinking", id, entryId, blockIndex),
+
+  // files: upload + watch (GET goes through the pifile:// protocol)
+  filesUploadCheck: (directory: string, fileNames: string[]) =>
+    ipcRenderer.invoke("pi:files:upload-check", directory, fileNames),
+  filesUpload: (directory: string, files: Array<{ name: string; bytes: Uint8Array }>, conflict: string | null) =>
+    ipcRenderer.invoke("pi:files:upload", directory, files, conflict),
+  onUploadProgress(listener: (progress: { done: number; total: number; fileName: string }) => void): () => void {
+    const handler = (_e: Electron.IpcRendererEvent, payload: { event: string; data: { done: number; total: number; fileName: string } }) => {
+      if (payload.event === "upload-progress") listener(payload.data);
+    };
+    ipcRenderer.on("pi:file-watch:progress", handler);
+    return () => ipcRenderer.removeListener("pi:file-watch:progress", handler);
+  },
+  subscribeFileWatch(filePath: string, onFrame: (frame: { event: string; data: Record<string, unknown> }) => void): () => void {
+    const subToken = token();
+    const channel = `pi:file-watch:${subToken}`;
+    const handler = (_e: Electron.IpcRendererEvent, frame: { event: string; data: Record<string, unknown> }) => onFrame(frame);
+    ipcRenderer.on(channel, handler);
+    void ipcRenderer.invoke("pi:file-watch:open", subToken, filePath);
+    return () => {
+      ipcRenderer.removeListener(channel, handler);
+      void ipcRenderer.invoke("pi:file-watch:close", subToken);
+    };
+  },
+
+  // workspace
+  cwdValidate: (cwd: string) => ipcRenderer.invoke("pi:cwd:validate", cwd),
+  cwdBrowse: (path?: string) => ipcRenderer.invoke("pi:cwd:browse", path),
+  defaultCwd: () => ipcRenderer.invoke("pi:default-cwd"),
+  home: () => ipcRenderer.invoke("pi:home"),
+  projectTrustGet: (cwd: string | null) => ipcRenderer.invoke("pi:project-trust:get", cwd),
+  projectTrustPost: (cwd: unknown) => ipcRenderer.invoke("pi:project-trust:post", cwd),
+  worktreesGet: (cwd: string | null) => ipcRenderer.invoke("pi:worktrees:get", cwd),
+  worktreesPost: (body: { cwd?: string; branch?: string }) => ipcRenderer.invoke("pi:worktrees:post", body),
+  worktreesDelete: (body: { cwd?: string; path?: string; force?: boolean }) => ipcRenderer.invoke("pi:worktrees:delete", body),
+  gitStatus: (cwd: string | null) => ipcRenderer.invoke("pi:git:status", cwd),
+  gitDiff: (cwd: string | null, path: string | null) => ipcRenderer.invoke("pi:git:diff", cwd, path),
+  fileIndex: (cwd: string | null, q?: string | null) => ipcRenderer.invoke("pi:file-index", cwd, q),
 });

@@ -56,6 +56,24 @@ export interface PiBridge {
   sessionsDelete(id: string): Promise<unknown>;
   sessionsAutoName(id: string): Promise<unknown>;
   sessionsThinking(id: string, entryId: string, blockIndex: number): Promise<unknown>;
+
+  filesUploadCheck(directory: string, fileNames: string[]): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  filesUpload(directory: string, files: Array<{ name: string; bytes: Uint8Array }>, conflict: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  onUploadProgress(listener: (progress: { done: number; total: number; fileName: string }) => void): () => void;
+  subscribeFileWatch(filePath: string, onFrame: (frame: { event: string; data: Record<string, unknown> }) => void): () => void;
+
+  cwdValidate(cwd: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  cwdBrowse(path?: string): Promise<unknown>;
+  defaultCwd(): Promise<{ cwd?: string; error?: string }>;
+  home(): Promise<{ home?: string }>;
+  projectTrustGet(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  projectTrustPost(cwd: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  worktreesGet(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  worktreesPost(body: { cwd?: string; branch?: string }): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  worktreesDelete(body: { cwd?: string; path?: string; force?: boolean }): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  gitStatus(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  gitDiff(cwd: string | null, path: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  fileIndex(cwd: string | null, q?: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
 }
 
 export function bridge(): PiBridge {
@@ -68,7 +86,41 @@ const CONNECTING = 0;
 const OPEN = 1;
 const CLOSED = 2;
 
-/** EventSource-shaped adapter over the agent-events push channel. */
+/** EventSource-shaped adapter over the file-watch push channel. */
+export class IpcFileWatchSource {
+  onerror: ((event: unknown) => void) | null = null;
+  private listeners = new Map<string, Set<(event: { data: string }) => void>>();
+  private unsubscribe: (() => void) | null = null;
+
+  constructor(filePath: string, sourceSessionId?: string | null) {
+    void sourceSessionId; // gating happens in main (allowed roots + session refs)
+    this.unsubscribe = bridge().subscribeFileWatch(filePath, (frame) => {
+      if (frame.event === "closed") {
+        this.onerror?.(new Event("error"));
+        return;
+      }
+      const set = this.listeners.get(frame.event);
+      if (set) {
+        for (const listener of set) listener({ data: JSON.stringify(frame.data ?? {}) });
+      }
+    });
+  }
+
+  addEventListener(eventName: string, listener: (event: { data: string }) => void): void {
+    if (!this.listeners.has(eventName)) this.listeners.set(eventName, new Set());
+    this.listeners.get(eventName)!.add(listener);
+  }
+
+  removeEventListener(eventName: string, listener: (event: { data: string }) => void): void {
+    this.listeners.get(eventName)?.delete(listener);
+  }
+
+  close(): void {
+    this.unsubscribe?.();
+    this.unsubscribe = null;
+    this.listeners.clear();
+  }
+}
 export class IpcAgentEventSource implements AgentEventSourceLike {
   readonly readyState: number = CONNECTING;
   onmessage: ((event: { data: string }) => void) | null = null;

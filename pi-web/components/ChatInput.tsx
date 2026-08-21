@@ -827,10 +827,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     const fetchCwd = cwd;
     const query = atQueryText;
     const timer = setTimeout(() => {
-      fetch(`/api/file-index?cwd=${encodeURIComponent(fetchCwd)}&q=${encodeURIComponent(query)}`)
-        .then((res) => {
-          if (!res.ok) throw new Error(`file search failed: ${res.status}`);
-          return res.json() as Promise<{ matches?: FileIndexEntry[] }>;
+      window.pi.fileIndex(fetchCwd, query)
+        .then((result) => {
+          if (result.status !== 200) throw new Error("file search failed");
+          return result.body as { matches?: FileIndexEntry[] };
         })
         .then((data) => setAtServerResult({ cwd: fetchCwd, query, matches: data.matches ?? [] }))
         .catch(() => {
@@ -870,10 +870,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     fileIndexFetchingRef.current = cwd;
     const fetchCwd = cwd;
     setFileIndexLoading(true);
-    fetch(`/api/file-index?cwd=${encodeURIComponent(fetchCwd)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`file index failed: ${res.status}`);
-        return res.json() as Promise<{ files?: string[]; truncated?: boolean }>;
+    window.pi.fileIndex(fetchCwd)
+      .then((result) => {
+        if (result.status !== 200) throw new Error("file index failed");
+        return result.body as { files?: string[]; truncated?: boolean };
       })
       .then((data) => {
         setFileIndex({ cwd: fetchCwd, entries: buildEntriesFromFiles(data.files ?? []), truncated: !!data.truncated });
