@@ -397,12 +397,8 @@ function AddSkillPanel({
     setSearchError(null);
     setResults([]);
     try {
-      const res = await fetch("/api/skills/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: q.trim() }),
-      });
-      const d = (await res.json()) as {
+      const searchResult = await window.pi.skillsSearch(q.trim());
+      const d = (searchResult.body ?? {}) as {
         results?: SkillSearchResult[];
         error?: string;
       };
@@ -424,14 +420,10 @@ function AddSkillPanel({
       setInstalling(pkg);
       setInstallError(null);
       try {
-        const res = await fetch("/api/skills/install", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ package: pkg, scope, cwd }),
-        });
-        const d = (await res.json()) as { success?: boolean; error?: string };
-        if (!res.ok || d.error) {
-          setInstallError(d.error ?? `HTTP ${res.status}`);
+        const installResult = await window.pi.skillsInstall({ package: pkg, scope, cwd });
+        const d = (installResult.body ?? {}) as { success?: boolean; error?: string };
+        if (installResult.status !== 200 || d.error) {
+          setInstallError(d.error ?? "Install failed");
           return;
         }
         setNewlyInstalledPkgs((prev) =>
@@ -734,9 +726,9 @@ export function SkillsConfig({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/skills?cwd=${encodeURIComponent(cwd)}`);
-      const d = (await res.json()) as Partial<SkillsResponse> & { error?: string };
-      if (!res.ok || d.error) throw new Error(d.error ?? `HTTP ${res.status}`);
+      const result = await window.pi.skillsList(cwd);
+      const d = (result.body ?? {}) as Partial<SkillsResponse> & { error?: string };
+      if (result.status !== 200 || d.error) throw new Error(d.error ?? "Failed to load skills");
       const list = d.skills ?? [];
       setSkills(list);
       setProjectResourcesLoaded(d.projectResourcesLoaded ?? true);
@@ -778,20 +770,16 @@ export function SkillsConfig({
     setCheckingUpdates((current) => new Set([...current, ...keys]));
     if (!skill) setCheckingAll(true);
     try {
-      const res = await fetch("/api/skills/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cwd,
-          package: skill?.install?.package,
-          scope: skill?.install?.scope,
-        }),
+      const checkResult = await window.pi.skillsCheck({
+        cwd,
+        package: skill?.install?.package,
+        scope: skill?.install?.scope,
       });
-      const data = (await res.json()) as {
+      const data = (checkResult.body ?? {}) as {
         updates?: SkillUpdateResult[];
         error?: string;
       };
-      if (!res.ok || data.error) throw new Error(data.error ?? `HTTP ${res.status}`);
+      if (checkResult.status !== 200 || data.error) throw new Error(data.error ?? "Update check failed");
       setUpdateStatuses((current) => {
         const next = { ...current };
         for (const update of data.updates ?? []) {
@@ -817,22 +805,18 @@ export function SkillsConfig({
     setUpdatingSkill(key);
     setUpdateError(null);
     try {
-      const res = await fetch("/api/skills/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cwd,
-          package: skill.install.package,
-          scope: skill.install.scope,
-        }),
+      const updateResult = await window.pi.skillsUpdate({
+        cwd,
+        package: skill.install.package,
+        scope: skill.install.scope,
       });
-      const data = (await res.json()) as {
+      const data = (updateResult.body ?? {}) as {
         success?: boolean;
         skill?: Skill;
         error?: string;
       };
-      if (!res.ok || data.error || !data.success) {
-        throw new Error(data.error ?? `HTTP ${res.status}`);
+      if (updateResult.status !== 200 || data.error || !data.success) {
+        throw new Error(data.error ?? "Update failed");
       }
       await loadSkills();
       const versionHash = data.skill?.install?.versionHash;
@@ -858,17 +842,10 @@ export function SkillsConfig({
     setToggling((s) => new Set(s).add(skill.filePath));
     setSaveError(null);
     try {
-      const res = await fetch("/api/skills", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filePath: skill.filePath,
-          disableModelInvocation: next,
-        }),
-      });
-      const d = (await res.json()) as { success?: boolean; error?: string };
-      if (!res.ok || d.error) {
-        setSaveError(d.error ?? `HTTP ${res.status}`);
+      const result = await window.pi.skillsToggle(skill.filePath, next);
+      const d = (result.body ?? {}) as { success?: boolean; error?: string };
+      if (result.status !== 200 || d.error) {
+        setSaveError(d.error ?? "Toggle failed");
         return;
       }
       setSkills((prev) =>

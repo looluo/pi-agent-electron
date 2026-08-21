@@ -1206,10 +1206,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     const requestCwd = cwd;
     let cancelled = false;
     setSkillDormancyState({ cwd: requestCwd, values: {} });
-    fetch(`/api/skills?cwd=${encodeURIComponent(requestCwd)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`skills fetch failed: ${res.status}`);
-        return res.json() as Promise<Partial<SkillsResponse>>;
+    window.pi.skillsList(requestCwd)
+      .then((result) => {
+        if (result.status !== 200 || !result.body) throw new Error("skills fetch failed");
+        return result.body as unknown as Partial<SkillsResponse>;
       })
       .then((data) => {
         if (cancelled) return;

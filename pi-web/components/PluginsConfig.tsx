@@ -650,9 +650,9 @@ export function PluginsConfig({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/plugins?cwd=${encodeURIComponent(cwd)}`);
-      const next = (await res.json()) as PluginsResponse & { error?: string };
-      if (!res.ok || next.error) throw new Error(next.error ?? `HTTP ${res.status}`);
+      const listResult = await window.pi.pluginsList(cwd);
+      const next = (listResult.body ?? {}) as unknown as PluginsResponse & { error?: string };
+      if (listResult.status !== 200 || next.error) throw new Error(next.error ?? "Failed to load plugins");
       setData(next);
       setAddMode((current) => next.packages.length === 0 || current);
       setSelected((current) => {
@@ -676,13 +676,9 @@ export function PluginsConfig({
     setActionError(null);
     setActionMessage(null);
     try {
-      const res = await fetch("/api/plugins", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, source: pkg.source, scope: pkg.scope, cwd }),
-      });
-      const next = (await res.json()) as PluginsResponse & { error?: string };
-      if (!res.ok || next.error) throw new Error(next.error ?? `HTTP ${res.status}`);
+      const actionResult = await window.pi.pluginsAction({ action, source: pkg.source, scope: pkg.scope, cwd });
+      const next = (actionResult.body ?? {}) as unknown as PluginsResponse & { error?: string };
+      if (actionResult.status !== 200 || next.error) throw new Error(next.error ?? "Action failed");
       setData(next);
       if (action === "remove") {
         setSelected(next.packages[0] ? packageKey(next.packages[0]) : null);
@@ -713,13 +709,9 @@ export function PluginsConfig({
     setActionError(null);
     setActionMessage(null);
     try {
-      const res = await fetch("/api/plugins", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "install", source, scope: installScope, cwd }),
-      });
-      const next = (await res.json()) as PluginsResponse & { error?: string };
-      if (!res.ok || next.error) throw new Error(next.error ?? `HTTP ${res.status}`);
+      const actionResult = await window.pi.pluginsAction({ action: "install", source, scope: installScope, cwd });
+      const next = (actionResult.body ?? {}) as unknown as PluginsResponse & { error?: string };
+      if (actionResult.status !== 200 || next.error) throw new Error(next.error ?? "Install failed");
       setData(next);
       const installed = findInstalledPackage(next.packages, source, installScope);
       setSelected(installed ? packageKey(installed) : key);

@@ -90,6 +90,16 @@ export interface PiBridge {
   authLoginCode(provider: string, token: string, code: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   subscribeAuthLogin(provider: string, onFrame: (frame: { event: string; data: Record<string, unknown> }) => void): () => void;
   appUpdate(): Promise<{ status: number; body: Record<string, unknown> | null }>;
+
+  skillsList(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  skillsToggle(filePath: string, disable: boolean): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  skillsCheck(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  skillsInstall(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  skillsSearch(query: string, limit?: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  skillsUpdate(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  pluginsList(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  pluginsAction(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  sessionExport(id: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
 }
 
 export function bridge(): PiBridge {

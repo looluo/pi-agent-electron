@@ -118,4 +118,15 @@ contextBridge.exposeInMainWorld("pi", {
     };
   },
   appUpdate: () => ipcRenderer.invoke("pi:app-update"),
+
+  // skills & plugins & export
+  skillsList: (cwd: string | null) => ipcRenderer.invoke("pi:skills:list", cwd),
+  skillsToggle: (filePath: string, disable: boolean) => ipcRenderer.invoke("pi:skills:toggle", filePath, disable),
+  skillsCheck: (body: unknown) => ipcRenderer.invoke("pi:skills:check", body),
+  skillsInstall: (body: unknown) => ipcRenderer.invoke("pi:skills:install", body),
+  skillsSearch: (query: string, limit?: unknown) => ipcRenderer.invoke("pi:skills:search", query, limit),
+  skillsUpdate: (body: unknown) => ipcRenderer.invoke("pi:skills:update", body),
+  pluginsList: (cwd: string | null) => ipcRenderer.invoke("pi:plugins:list", cwd),
+  pluginsAction: (body: unknown) => ipcRenderer.invoke("pi:plugins:action", body),
+  sessionExport: (id: string) => ipcRenderer.invoke("pi:sessions:export", id),
 });

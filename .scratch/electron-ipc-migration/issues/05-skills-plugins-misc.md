@@ -1,6 +1,6 @@
 # 05: slice 4: skills / plugins / export / misc
 
-Status: open
+Status: claimed
 
 Blocked by: 03
 
