@@ -79,11 +79,10 @@ function NewSessionUpdateLink({
   const [update, setUpdate] = useState<AppUpdateResponse | null>(null);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void fetch("/api/app-update", { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return response.json() as Promise<AppUpdateResponse>;
+    void window.pi.appUpdate()
+      .then((result) => {
+        if (result.status !== 200) return null;
+        return result.body as unknown as AppUpdateResponse;
       })
       .then((result) => {
         if (result?.updateAvailable && result.latestVersion && result.releaseUrl) {
@@ -93,7 +92,6 @@ function NewSessionUpdateLink({
       .catch(() => {
         // Update checks are best-effort and must not interrupt a new session.
       });
-    return () => controller.abort();
   }, []);
 
   if (!update) return null;

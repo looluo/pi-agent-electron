@@ -91,4 +91,31 @@ contextBridge.exposeInMainWorld("pi", {
   gitStatus: (cwd: string | null) => ipcRenderer.invoke("pi:git:status", cwd),
   gitDiff: (cwd: string | null, path: string | null) => ipcRenderer.invoke("pi:git:diff", cwd, path),
   fileIndex: (cwd: string | null, q?: string | null) => ipcRenderer.invoke("pi:file-index", cwd, q),
+
+  // models & auth
+  models: (cwd: string | null) => ipcRenderer.invoke("pi:models", cwd),
+  modelsConfigGet: () => ipcRenderer.invoke("pi:models-config:get"),
+  modelsConfigPut: (body: unknown) => ipcRenderer.invoke("pi:models-config:put", body),
+  modelsTest: (body: unknown) => ipcRenderer.invoke("pi:models-config:test", body),
+  modelsDiscover: (body: unknown) => ipcRenderer.invoke("pi:models-config:discover", body),
+  modelsCatalog: (q: string, provider: string, limit: number) => ipcRenderer.invoke("pi:models-config:catalog", q, provider, limit),
+  authProviders: () => ipcRenderer.invoke("pi:auth:providers"),
+  authAllProviders: () => ipcRenderer.invoke("pi:auth:all-providers"),
+  apiKeyStatus: (provider: string) => ipcRenderer.invoke("pi:auth:api-key:get", provider),
+  apiKeySet: (provider: string, apiKey: string) => ipcRenderer.invoke("pi:auth:api-key:set", provider, apiKey),
+  apiKeyDelete: (provider: string) => ipcRenderer.invoke("pi:auth:api-key:delete", provider),
+  authLogout: (provider: string) => ipcRenderer.invoke("pi:auth:logout", provider),
+  authLoginCode: (provider: string, token: string, code: string) => ipcRenderer.invoke("pi:auth:login:code", provider, token, code),
+  subscribeAuthLogin(provider: string, onFrame: (frame: { event: string; data: Record<string, unknown> }) => void): () => void {
+    const subToken = token();
+    const channel = `pi:auth-login:${subToken}`;
+    const handler = (_e: Electron.IpcRendererEvent, frame: { event: string; data: Record<string, unknown> }) => onFrame(frame);
+    ipcRenderer.on(channel, handler);
+    void ipcRenderer.invoke("pi:auth:login:open", subToken, provider);
+    return () => {
+      ipcRenderer.removeListener(channel, handler);
+      void ipcRenderer.invoke("pi:auth:login:close", subToken);
+    };
+  },
+  appUpdate: () => ipcRenderer.invoke("pi:app-update"),
 });

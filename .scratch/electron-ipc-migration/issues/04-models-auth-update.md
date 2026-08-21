@@ -1,6 +1,6 @@
 # 04: slice 3: models / models-config / auth / app-update
 
-Status: open
+Status: claimed
 
 Blocked by: 02
 

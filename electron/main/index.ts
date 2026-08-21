@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from "electron";
 import { fileURLToPath } from "node:url";
 import { registerIpcHandlers } from "./ipc";
+import { registerModelsAuthHandlers } from "./ipc-models-auth";
 import { registerEarlySchemes, registerFilesProtocol } from "./files-protocol";
 
 registerEarlySchemes();
@@ -38,6 +39,7 @@ function createWindow(): void {
 app.whenReady().then(() => {
   registerFilesProtocol();
   registerIpcHandlers();
+  registerModelsAuthHandlers();
   createWindow();
 
   app.on("activate", () => {

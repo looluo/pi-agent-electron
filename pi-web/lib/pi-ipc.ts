@@ -74,6 +74,22 @@ export interface PiBridge {
   gitStatus(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
   gitDiff(cwd: string | null, path: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
   fileIndex(cwd: string | null, q?: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+
+  models(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  modelsConfigGet(): Promise<Record<string, unknown>>;
+  modelsConfigPut(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  modelsTest(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  modelsDiscover(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  modelsCatalog(q: string, provider: string, limit: number): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  authProviders(): Promise<{ providers?: unknown[] }>;
+  authAllProviders(): Promise<{ providers?: unknown[] }>;
+  apiKeyStatus(provider: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  apiKeySet(provider: string, apiKey: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  apiKeyDelete(provider: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  authLogout(provider: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  authLoginCode(provider: string, token: string, code: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  subscribeAuthLogin(provider: string, onFrame: (frame: { event: string; data: Record<string, unknown> }) => void): () => void;
+  appUpdate(): Promise<{ status: number; body: Record<string, unknown> | null }>;
 }
 
 export function bridge(): PiBridge {
@@ -85,6 +101,37 @@ export function bridge(): PiBridge {
 const CONNECTING = 0;
 const OPEN = 1;
 const CLOSED = 2;
+
+/** EventSource-shaped adapter over the OAuth login push channel. */
+export class IpcAuthLoginSource {
+  onmessage: ((event: { data: Record<string, unknown> }) => void) | null = null;
+  onerror: ((event: unknown) => void) | null = null;
+  private unsubscribe: (() => void) | null = null;
+  private settled = false;
+
+  constructor(provider: string) {
+    this.unsubscribe = bridge().subscribeAuthLogin(provider, (frame) => {
+      if (frame.event === "error" && frame.data.type === "startup") {
+        this.onerror?.(new Event("error"));
+        return;
+      }
+      // Terminal frames close the stream, mirroring SSE stream close.
+      if (frame.data.type === "success" || frame.data.type === "error" || frame.data.type === "cancelled") {
+        if (!this.settled) {
+          this.settled = true;
+          this.onmessage?.({ data: frame.data });
+        }
+        return;
+      }
+      this.onmessage?.({ data: frame.data });
+    });
+  }
+
+  close(): void {
+    this.unsubscribe?.();
+    this.unsubscribe = null;
+  }
+}
 
 /** EventSource-shaped adapter over the file-watch push channel. */
 export class IpcFileWatchSource {

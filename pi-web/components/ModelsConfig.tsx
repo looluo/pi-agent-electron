@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { IpcAuthLoginSource } from "@/lib/pi-ipc";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/hooks/useI18n";
 import type { ModelCatalogPreset, ModelCatalogRecommendation } from "@/lib/model-catalog";
@@ -352,15 +353,11 @@ function ProviderDetail({ name, provider, onChange, onRename, onDelete, onAddMod
     setDiscoveryState({ phase: "loading" });
     setSelectedModelIds([]);
     try {
-      const res = await fetch("/api/models-config/discover", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerName: name, provider: { ...provider, models: undefined } }),
-      });
-      const data = await res.json() as { models?: DiscoveredModel[]; endpoint?: string; error?: string };
+      const result = await window.pi.modelsDiscover({ providerName: name, provider: { ...provider, models: undefined } });
+      const data = (result.body ?? {}) as { models?: DiscoveredModel[]; endpoint?: string; error?: string };
       if (requestId !== discoveryRequestIdRef.current) return;
-      if (!res.ok || data.error || !data.models) {
-        setDiscoveryState({ phase: "error", message: data.error ?? `HTTP ${res.status}` });
+      if (result.status !== 200 || data.error || !data.models) {
+        setDiscoveryState({ phase: "error", message: data.error ?? "Discovery failed" });
         return;
       }
       setDiscoveryState({ phase: "success", models: data.models, endpoint: data.endpoint ?? provider.baseUrl });
@@ -905,22 +902,18 @@ function ModelDetail({
     if (!model.id.trim() || testState.phase === "testing") return;
     setTestState({ phase: "testing" });
     try {
-      const res = await fetch("/api/models-config/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerName, provider, model }),
-      });
-      const d = await res.json() as {
+      const result = await window.pi.modelsTest({ providerName, provider, model });
+      const d = (result.body ?? {}) as {
         ok?: boolean;
         error?: string;
         latencyMs?: number;
         status?: number;
         responseText?: string;
       };
-      if (!res.ok || !d.ok) {
+      if (result.status !== 200 || !d.ok) {
         setTestState({
           phase: "error",
-          message: d.error ?? `HTTP ${res.status}`,
+          message: d.error ?? "Test failed",
           latencyMs: d.latencyMs,
           status: d.status,
         });
@@ -943,13 +936,11 @@ function ModelDetail({
     const requestId = ++catalogRequestIdRef.current;
     setCatalogState({ phase: "loading" });
     try {
-      const params = new URLSearchParams({ q: query, provider: providerName, limit: "50" });
-      if (provider.baseUrl?.trim()) params.set("baseUrl", provider.baseUrl.trim());
-      const res = await fetch(`/api/models-config/catalog?${params}`);
-      const data = await res.json() as { recommendation?: ModelCatalogRecommendation; error?: string };
+      const result = await window.pi.modelsCatalog(query, providerName, 50);
+      const data = (result.body ?? {}) as { recommendation?: ModelCatalogRecommendation; error?: string };
       if (requestId !== catalogRequestIdRef.current) return;
-      if (!res.ok || data.error || !data.recommendation) {
-        setCatalogState({ phase: "error", message: data.error ?? `HTTP ${res.status}` });
+      if (result.status !== 200 || data.error || !data.recommendation) {
+        setCatalogState({ phase: "error", message: data.error ?? "Catalog lookup failed" });
         return;
       }
       const filled = fillEmptyModelFields(model, data.recommendation.preset);
@@ -1327,7 +1318,7 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
   const [loginState, setLoginState] = useState<OAuthLoginState>({ phase: "idle" });
   const { t } = useI18n();
   const [inputValue, setInputValue] = useState("");
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const eventSourceRef = useRef<EventSource | IpcAuthLoginSource | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -1353,11 +1344,11 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
     setLoginState({ phase: "connecting" });
     setInputValue("");
 
-    const es = new EventSource(`/api/auth/login/${encodeURIComponent(provider.id)}`);
+    const es = new IpcAuthLoginSource(provider.id);
     eventSourceRef.current = es;
 
     es.onmessage = (e) => {
-      const data = JSON.parse(e.data) as {
+      const data = e.data as {
         type: string; url?: string; instructions?: string | null;
         token?: string; message?: string; placeholder?: string | null;
         userCode?: string; verificationUri?: string; intervalSeconds?: number | null; expiresInSeconds?: number | null;
@@ -1400,7 +1391,7 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
   }, [provider.id, onRefresh]);
 
   const handleLogout = useCallback(async () => {
-    await fetch(`/api/auth/logout/${encodeURIComponent(provider.id)}`, { method: "POST" });
+    await window.pi.authLogout(provider.id).catch(() => undefined);
     setLoginState({ phase: "idle" });
     onRefresh();
   }, [provider.id, onRefresh]);
@@ -1409,14 +1400,10 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
     if (!code.trim()) return;
     setLoginState({ phase: "progress", message: "Verifying…" });
     try {
-      const res = await fetch(`/api/auth/login/${encodeURIComponent(provider.id)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, code: code.trim() }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({})) as { error?: string };
-        setLoginState({ phase: "error", message: d.error ?? `Server error ${res.status}` });
+      const result = await window.pi.authLoginCode(provider.id, token, code.trim());
+      if (result.status !== 200) {
+        const d = (result.body ?? {}) as { error?: string };
+        setLoginState({ phase: "error", message: d.error ?? `Login failed` });
         return;
       }
       setInputValue("");
@@ -1604,14 +1591,10 @@ function ApiKeyDetail({ provider, onRefresh }: { provider: ApiKeyProvider; onRef
     setError(null);
     setSavedOk(false);
     try {
-      const res = await fetch(`/api/auth/api-key/${encodeURIComponent(provider.id)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: apiKey.trim() }),
-      });
-      const d = await res.json() as { success?: boolean; error?: string };
-      if (!res.ok || d.error) {
-        setError(d.error ?? `HTTP ${res.status}`);
+      const result = await window.pi.apiKeySet(provider.id, apiKey.trim());
+      const d = (result.body ?? {}) as { success?: boolean; error?: string };
+      if (result.status !== 200 || d.error) {
+        setError(d.error ?? "Save failed");
       } else {
         setApiKey("");
         setSavedOk(true);
@@ -1629,9 +1612,9 @@ function ApiKeyDetail({ provider, onRefresh }: { provider: ApiKeyProvider; onRef
     setRemoving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/auth/api-key/${encodeURIComponent(provider.id)}`, { method: "DELETE" });
-      const d = await res.json() as { success?: boolean; error?: string };
-      if (!res.ok || d.error) setError(d.error ?? `HTTP ${res.status}`);
+      const result = await window.pi.apiKeyDelete(provider.id);
+      const d = (result.body ?? {}) as { success?: boolean; error?: string };
+      if (result.status !== 200 || d.error) setError(d.error ?? "Remove failed");
       else onRefresh();
     } catch (e) {
       setError(String(e));
@@ -1905,18 +1888,18 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const loadOAuthProviders = useCallback(() => {
-    fetch("/api/auth/providers")
-      .then((r) => r.json())
-      .then((d: { providers?: OAuthProvider[] }) => {
+    window.pi.authProviders()
+      .then((raw) => raw as unknown as { providers?: OAuthProvider[] })
+      .then((d) => {
         if (Array.isArray(d.providers)) setOauthProviders(d.providers);
       })
       .catch(() => {});
   }, []);
 
   const loadApiKeyProviders = useCallback(() => {
-    fetch("/api/auth/all-providers")
-      .then((r) => r.json())
-      .then((d: { providers?: ApiKeyProvider[] }) => {
+    window.pi.authAllProviders()
+      .then((raw) => raw as unknown as { providers?: ApiKeyProvider[] })
+      .then((d) => {
         if (Array.isArray(d.providers)) setApiKeyProviders(d.providers);
       })
       .catch(() => {});
@@ -1932,8 +1915,7 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
   }, [loadOAuthProviders, loadApiKeyProviders]);
 
   useEffect(() => {
-    fetch("/api/models-config")
-      .then((r) => r.json())
+    Promise.resolve(window.pi.modelsConfigGet())
       .then((d: ModelsJson) => {
         const normalized = d.providers ? d : { ...d, providers: {} };
         setConfig(normalized);
@@ -2037,13 +2019,9 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
     setSaveError(null);
     setSavedOk(false);
     try {
-      const res = await fetch("/api/models-config", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
-      });
-      const d = await res.json() as { success?: boolean; error?: string };
-      if (!res.ok || d.error) setSaveError(d.error ?? `HTTP ${res.status}`);
+      const result = await window.pi.modelsConfigPut(config);
+      const d = (result.body ?? {}) as { success?: boolean; error?: string };
+      if (result.status !== 200 || d.error) setSaveError(d.error ?? "Save failed");
       else { setSavedOk(true); setTimeout(() => setSavedOk(false), 2000); }
     } catch (e) {
       setSaveError(String(e));
