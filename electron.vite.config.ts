@@ -4,9 +4,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 // Mirrors the version injection the retired next.config.ts did via `env`.
-const piWebDir = resolve(__dirname, "pi-web");
 const appVersion = JSON.parse(
-  readFileSync(resolve(piWebDir, "package.json"), "utf8"),
+  readFileSync(resolve(__dirname, "package.json"), "utf8"),
 ).version as string;
 let piVersion = "unknown";
 try {
@@ -25,7 +24,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
-        "@": resolve(__dirname, "pi-web"),
+        "@": resolve(__dirname, "pi-web/src"),
       },
     },
     build: {
@@ -53,10 +52,16 @@ export default defineConfig({
     },
     resolve: {
       alias: {
-        "@": resolve(__dirname, "pi-web"),
+        "@": resolve(__dirname, "pi-web/src"),
         "next/navigation": resolve(__dirname, "pi-web/src/next-navigation.ts"),
       },
     },
+    css: {
+      postcss: {
+        plugins: [(await import("@tailwindcss/postcss")).default],
+      },
+    },
+    publicDir: resolve(__dirname, "pi-web/src/public"),
     build: {
       rollupOptions: { input: { index: resolve(__dirname, "pi-web/index.html") } },
       outDir: resolve(__dirname, "out/renderer"),

@@ -1,6 +1,6 @@
 # 06: slice 5: cleanup + root reorg + packaging
 
-Status: open
+Status: claimed
 
 Blocked by: 04, 05
 

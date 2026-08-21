@@ -17,7 +17,7 @@
     ],
     "paths": {
       "@/*": [
-        "./pi-web/*"
+        "./pi-web/src/*"
       ]
     },
     "target": "ES2022",

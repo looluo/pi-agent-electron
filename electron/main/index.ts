@@ -4,8 +4,12 @@ import { registerIpcHandlers } from "./ipc";
 import { registerModelsAuthHandlers } from "./ipc-models-auth";
 import { registerSkillsPluginsHandlers } from "./ipc-skills-plugins";
 import { registerEarlySchemes, registerFilesProtocol } from "./files-protocol";
+import { configureHttpDispatcher } from "@/lib/http-dispatcher";
 
 registerEarlySchemes();
+
+// Undici proxy/h2/timeout configuration (ported from Next instrumentation.ts).
+configureHttpDispatcher();
 
 let mainWindow: BrowserWindow | null = null;
 

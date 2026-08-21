@@ -14,18 +14,14 @@
     "incremental": true,
     "types": ["vite/client"],
     "paths": {
-      "@/*": ["./pi-web/*"],
+      "@/*": ["./pi-web/src/*"],
       "next/navigation": ["./pi-web/src/next-navigation.ts"]
     },
     "target": "ES2022"
   },
   "include": [
     "pi-web/src/**/*.ts",
-    "pi-web/src/**/*.tsx",
-    "pi-web/components/**/*",
-    "pi-web/hooks/**/*",
-    "pi-web/lib/**/*",
-    "src/shared/**/*"
+    "pi-web/src/**/*.tsx"
   ],
-  "exclude": ["node_modules", "out", "pi-web/app", "pi-web/public/sw.js"]
+  "exclude": ["node_modules", "out", "release"]
 }

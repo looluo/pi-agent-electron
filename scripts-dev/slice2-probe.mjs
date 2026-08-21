@@ -1,13 +1,13 @@
 // Slice-2 end-to-end probe: files protocol, watch, workspace facades.
 import WebSocket from "ws";
 
-const DEBUG_PORT = 9333;
+const DEBUG_PORT = Number(process.env.PROBE_PORT ?? 9333);
 const base = `http://127.0.0.1:${DEBUG_PORT}`;
 
 async function findPage() {
   const res = await fetch(`${base}/json/list`);
   const targets = await res.json();
-  const page = targets.find((t) => t.type === "page" && t.url.startsWith("http://localhost"));
+  const page = targets.find((t) => t.type === "page" && t.type === "page");
   if (!page) throw new Error("renderer page not found");
   return page;
 }

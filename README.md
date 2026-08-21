@@ -1,33 +1,38 @@
 # Pi Agent App
 
-Windows desktop wrapper for the upstream [`agegr/pi-web`](https://github.com/agegr/pi-web) interface.
+Windows desktop app for the [`pi`](https://github.com/earendil-works/pi) coding agent. Electron host, forked pi-web UI, pi SDK in the main process — **no HTTP port** (ADR-0003).
 
 ## Build
 
-Prerequisites:
-
-- Windows x64
-- Rust/Cargo
-- Node.js/npm
-- Microsoft Edge WebView2 Runtime on target machines
-
-Build the standalone executable:
+Prerequisites: Windows x64, Node.js ≥22.19, npm.
 
 ```bash
-npm install --include=dev
-npm run build
+npm install
+npm run build            # electron-vite build (main + preload + renderer)
+npm run package:dir      # portable directory at release/win-unpacked/
 ```
 
-The build produces:
+`release/win-unpacked/` is the distributable: copy the folder, run `Pi Agent App.exe`. No installer, no WebView2 prerequisite (Chromium is bundled).
 
-```text
-dist/pi-agent.exe
+## Development
+
+```bash
+npm run dev        # electron-vite dev (renderer HMR at :5173)
+npm run typecheck  # renderer + electron tsconfigs
+npm test           # node:test suites under pi-web/src
 ```
 
-`pi-agent.exe` embeds a runtime bundle containing Node.js v24.14.1 for Windows x64 and a production Pi Web standalone build. On first run it extracts that bundle under the user's local app data directory, starts Pi Web on `127.0.0.1:30141` or another free loopback port without opening a terminal window, then opens it in the Tauri window.
+Architecture notes live in [`electron/AGENTS.md`](electron/AGENTS.md); decisions in [`docs/adr/`](docs/adr/); vocabulary in [`CONTEXT.md`](CONTEXT.md).
 
-## Notes
+## Layout
 
-- `pi-web/` is imported as a git subtree and should stay unmodified.
-- The desktop build patches a temporary copy of `pi-web/` so visible branding and document/window titles read `Pi Agent App`.
-- `src-tauri/resources/runtime-bundle.zip` and `dist/pi-agent.exe` are generated artifacts and are ignored by git.
+```
+electron/           main process (services + IPC registration) and preload bridge
+pi-web/src/         renderer (React SPA, forked from agegr/pi-web v0.8.9)
+out/                build output (main.mjs, preload.js, renderer/)
+release/            electron-builder output (portable directory)
+```
+
+## Update checks
+
+The app checks GitHub Releases (`looluo/pi-agent2`) and shows a notice when a newer version exists; upgrading means replacing the folder (spec: check + notify + manual replace).
