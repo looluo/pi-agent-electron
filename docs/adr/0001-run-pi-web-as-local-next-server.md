@@ -1,3 +1,5 @@
+Status: superseded by ADR-0003
+
 # Run Pi Web as a local Next.js server
 
 Pi Web is a Next.js application with server-side behavior, while Pi Agent needs to package it as a Windows Tauri desktop application. We will have the desktop wrapper start a local Next.js server and load it in the Tauri window, accepting the extra Node/Next runtime complexity instead of forcing a static export that may break Pi Web functionality.
