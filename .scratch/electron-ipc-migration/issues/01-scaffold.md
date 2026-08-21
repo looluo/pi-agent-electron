@@ -1,6 +1,6 @@
 # 01: electron-vite scaffold + retire Tauri layer
 
-Status: open
+Status: claimed
 
 Blocked by: (none)
 
