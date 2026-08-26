@@ -58,10 +58,10 @@ ADR-0003), **deferred** (ticketed under `.scratch/upstream-sync-v0.8.11/issues/`
 | `03dad64` | fix: scrollable extension select dialog (#609) | ported | |
 | `a3bbdee` | fix: iOS status bar modal offset (#604) | n/a | PWA/iOS |
 | `baa600b`…`96c643a` | built-in subagents cluster (~25 commits) | ported | issue 01 resolved; ships dark (default off); pulled SettingsUi/settings-navigation/ModelSelector/settings.css + ChatInput ModelSelector hunk (4903dcb) and chat-only/session-tool-selection/powershell-settings libs as deps |
-| `b6416c5`…`c8de95e`+`081c5b1` | settings unification cluster (SettingsPanel etc.) | deferred | `.scratch/upstream-sync-v0.8.11/issues/02-settings-unification.md` — component deps (SettingsUi, ModelSelector, settings.css, settings-navigation) already ported with issue 01; remaining: SettingsPanel/AppShell layout rollout onto Models/Skills/Plugins + powershell IPC |
+| `b6416c5`…`c8de95e`+`081c5b1` | settings unification cluster (SettingsPanel etc.) | ported | issue 02 resolved — SettingsPanel rollout + merged auth providers (602b1b6) + tools-settings IPC; AgentsConfig stays unmounted per upstream 96c643a |
 | `a5738cf` | feat: persisted chat-only sessions | partial | lib layer (`chat-only.ts`, `session-tool-selection.ts`) + rpc-manager wiring ported with issue 01; ChatInput/useAgentSession UI wiring remains — `.scratch/upstream-sync-v0.8.11/issues/03-chat-only-sessions.md` |
-| `602b1b6` | refactor: trim unused frontend infrastructure | deferred | `.scratch/upstream-sync-v0.8.11/issues/04-trim-frontend-infra.md` |
-| `024be0b` | refactor: remove unused running sessions SSE | deferred | folded into 04 — our push channels differ from SSE |
+| `602b1b6` | refactor: trim unused frontend infrastructure | ported | usable residue taken with issue 02: merged auth-providers endpoint, ProviderIcon + provider-icons.svg, ansi tweaks; route deletions are moot here |
+| `024be0b` | refactor: remove unused running sessions SSE | ported | subagent-runtime at 28bab3c carries it; our push channels unaffected |
 | `55164b5` | chore: upgrade pi dependencies to 0.84.3 | ported | issue 05 resolved; pinned `@earendil-works/pi-*` to 0.84.3, no source changes needed |
 | `a91c830` | docs: dev server troubleshooting | n/a | no Next dev server |
 | `28bab3c` | Release v0.8.11 | n/a | we version independently (`pi-agent-desktop`) |
@@ -76,6 +76,12 @@ subagents cluster (issue 01) unblocked.
 of which 10 await issue 02's cross-component rollout). rpc-manager now tracks upstream at
 `ec98e1c` (web-push still stripped). New IPC surface: `pi:subagents:*` (8 channels) +
 `pifile://` unchanged. chat-only libs landed early as rpc-manager deps (issue 03 UI still open).
+
+2026-08 follow-up 3: settings cluster ported (issue 02 resolved — same gate). SettingsPanel is the
+single config surface (models/skills shortcuts + settings button); Models/Skills/Plugins at
+28bab3c on typed IPC; auth providers merged (602b1b6); `pi:tools:settings:*` added; AgentsConfig
+unmounted + `isBuiltInSubagentsEnabled()` hard-false (upstream release gate). Remaining frontier:
+issue 03 (chat-only UI wiring), issue 04 (provider-icon rollout in more places / prune audit).
 
 ## Known upstream-compat notes
 

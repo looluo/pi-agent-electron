@@ -5,7 +5,8 @@ import test from "node:test";
 const templateSource = await readFile(new URL("./SettingsUi.tsx", import.meta.url), "utf8");
 const cssSource = await readFile(new URL("../settings.css", import.meta.url), "utf8");
 const globalCssSource = await readFile(new URL("../globals.css", import.meta.url), "utf8");
-const mainSource = await readFile(new URL("../main.tsx", import.meta.url), "utf8");
+  // Electron port: styles load from src/main.tsx (no app/layout.tsx).
+const layoutSource = await readFile(new URL("../main.tsx", import.meta.url), "utf8");
 const enSource = await readFile(new URL("../lib/i18n/messages/en.ts", import.meta.url), "utf8");
 const zhSource = await readFile(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url), "utf8");
 const configSources = await Promise.all(
@@ -49,15 +50,14 @@ test("provides one template for config layout and controls", () => {
 });
 
 test("loads settings presentation from its dedicated stylesheet", () => {
-  // Electron port: styles are imported in src/main.tsx (no app/layout.tsx).
-  assert.match(mainSource, /import "\.\/globals\.css";\s*import "\.\/settings\.css";/);
+  assert.match(layoutSource, /import "\.\/globals\.css";\s*import "\.\/settings\.css";/);
   assert.match(cssSource, /\.config-panel-root \{/);
   assert.match(cssSource, /\.settings-dialog-backdrop \{/);
   assert.doesNotMatch(globalCssSource, /\.config-panel-root \{/);
   assert.doesNotMatch(globalCssSource, /\.settings-dialog-backdrop \{/);
 });
 
-test("all four settings sections use the shared list-detail layout", { skip: "cross-component rollout deferred to upstream-sync issue 02 (Models/Skills/Plugins unification)" }, () => {
+test("all four settings sections use the shared list-detail layout", () => {
   for (const [name, source] of configSources) {
     for (const primitive of ["ConfigPanelShell", "ConfigSplitView", "ConfigSidebar", "ConfigDetail", "ConfigFooter"]) {
       assert.match(source, new RegExp(`<${primitive}`), `${name} should use ${primitive}`);
@@ -65,7 +65,7 @@ test("all four settings sections use the shared list-detail layout", { skip: "cr
   }
 });
 
-test("all subpanel sidebars share one typography scale", { skip: "cross-component rollout deferred to upstream-sync issue 02 (Models/Skills/Plugins unification)" }, () => {
+test("all subpanel sidebars share one typography scale", () => {
   const sources = Object.fromEntries(configSources);
   assert.match(cssSource, /\.config-sidebar-text \{[\s\S]*?font-family: inherit[\s\S]*?font-size: 12px/);
   assert.match(cssSource, /\.config-sidebar-group-label \{[\s\S]*?font-family: inherit[\s\S]*?font-size: 10px/);
@@ -77,7 +77,7 @@ test("all subpanel sidebars share one typography scale", { skip: "cross-componen
   }
 });
 
-test("skills and sub-agents share interactive sidebar rows", { skip: "cross-component rollout deferred to upstream-sync issue 02 (Models/Skills/Plugins unification)" }, () => {
+test("skills and sub-agents share interactive sidebar rows", () => {
   const sources = Object.fromEntries(configSources);
   for (const name of ["SkillsConfig", "AgentsConfig", "PluginsConfig"]) {
     assert.match(sources[name], /<ConfigSidebarItem/);
@@ -94,7 +94,7 @@ test("all shared config sidebar items use a fixed 30px height", () => {
   assert.match(cssSource, /\.config-list-action-button \{[\s\S]*?height: 30px[\s\S]*?min-height: 30px/);
 });
 
-test("plugin sidebar rows omit detail metadata", { skip: "cross-component rollout deferred to upstream-sync issue 02 (Models/Skills/Plugins unification)" }, () => {
+test("plugin sidebar rows omit detail metadata", () => {
   const pluginSource = Object.fromEntries(configSources).PluginsConfig;
   const sidebarSource = pluginSource.match(/<ConfigSidebarList>[\s\S]*?<\/ConfigSidebarList>/)?.[0] ?? "";
   assert.match(sidebarSource, /<ConfigSidebarItem/);
@@ -102,7 +102,7 @@ test("plugin sidebar rows omit detail metadata", { skip: "cross-component rollou
   assert.doesNotMatch(sidebarSource, /resourceSummary\(pkg|versionSummary\(pkg/);
 });
 
-test("skill scope group labels are localized", { skip: "cross-component rollout deferred to upstream-sync issue 02 (Models/Skills/Plugins unification)" }, () => {
+test("skill scope group labels are localized", () => {
   const skillsSource = Object.fromEntries(configSources).SkillsConfig;
   for (const scope of ["global", "project", "path"]) {
     assert.match(skillsSource, new RegExp(`t\\("skills\\.scope\\.${scope}"\\)`));
@@ -113,7 +113,7 @@ test("skill scope group labels are localized", { skip: "cross-component rollout 
   assert.match(zhSource, /"skills\.scope\.project": "项目"/);
 });
 
-test("all subpanel detail panes share one content hierarchy", { skip: "cross-component rollout deferred to upstream-sync issue 02 (Models/Skills/Plugins unification)" }, () => {
+test("all subpanel detail panes share one content hierarchy", () => {
   const sources = Object.fromEntries(configSources);
   assert.match(cssSource, /\.config-detail-stack \{[\s\S]*?gap: 16px[\s\S]*?width: 100%/);
   assert.doesNotMatch(cssSource, /\.config-detail-stack \{[\s\S]*?max-width: 720px/);
@@ -125,7 +125,7 @@ test("all subpanel detail panes share one content hierarchy", { skip: "cross-com
   }
 });
 
-test("detail header actions keep buttons and switches aligned to the right", { skip: "cross-component rollout deferred to upstream-sync issue 02 (Models/Skills/Plugins unification)" }, () => {
+test("detail header actions keep buttons and switches aligned to the right", () => {
   const sources = Object.fromEntries(configSources);
   assert.match(cssSource, /\.config-detail-actions \{[\s\S]*?justify-content: flex-end[\s\S]*?margin-left: auto/);
   for (const name of ["SkillsConfig", "AgentsConfig", "PluginsConfig"]) {
@@ -151,26 +151,26 @@ test("keeps shared static presentation in the stylesheet", () => {
   }
 });
 
-test("embedded sections do not repeat Settings close actions", { skip: "cross-component rollout deferred to upstream-sync issue 02 (Models/Skills/Plugins unification)" }, () => {
+test("embedded sections do not repeat Settings close actions", () => {
   const sources = Object.fromEntries(configSources);
   assert.match(sources.ModelsConfig, /!embedded && <ConfigButton onClick=\{onClose\}>\{t\("i18n\.cancel"\)\}/);
   assert.match(sources.SkillsConfig, /!embedded && <ConfigButton onClick=\{onClose\}>\{t\("i18n\.close"\)\}/);
   assert.match(sources.PluginsConfig, /!embedded && <ConfigButton onClick=\{onClose\}>\{t\("i18n\.close"\)\}/);
 });
 
-test("subpanel footers share sizing while maintenance actions stay secondary", { skip: "cross-component rollout deferred to upstream-sync issue 02 (Models/Skills/Plugins unification)" }, () => {
+test("subpanel footers share sizing while maintenance actions stay secondary", () => {
   const sources = Object.fromEntries(configSources);
   assert.match(cssSource, /\.config-footer-actions \{[\s\S]*?justify-content: flex-end/);
   assert.match(cssSource, /\.config-footer-actions \.config-button-default \{[\s\S]*?min-width: 96px/);
   assert.match(cssSource, /\.config-button \{[\s\S]*?font-family: inherit/);
   assert.match(cssSource, /\.config-button-default \{[\s\S]*?height: 32px/);
   assert.match(sources.ModelsConfig, /<ConfigButton\s+variant="primary"[\s\S]*?onClick=\{handleSave\}/);
-  assert.match(sources.AgentsConfig, /<ConfigButton variant="primary" onClick=\{\(\) => void save\(\)\}/);
+  assert.match(sources.AgentsConfig, /<ConfigButton\s+variant="primary"[\s\S]*?onClick=\{\(\) => void save\(\)\}/);
   assert.match(sources.SkillsConfig, /<ConfigButton variant="secondary" onClick=\{\(\) => void checkForUpdates\(\)\}/);
   assert.match(sources.PluginsConfig, /<ConfigButton variant="secondary" onClick=\{\(\) => void loadPlugins\(\)\}/);
 });
 
-test("skills, agents, and plugins share enabled and disabled controls", { skip: "cross-component rollout deferred to upstream-sync issue 02 (Models/Skills/Plugins unification)" }, () => {
+test("skills, agents, and plugins share enabled and disabled controls", () => {
   const sources = Object.fromEntries(configSources);
   for (const name of ["SkillsConfig", "AgentsConfig", "PluginsConfig"]) {
     assert.match(sources[name], /<ConfigSwitch/);

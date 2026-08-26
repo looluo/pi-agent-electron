@@ -37,6 +37,7 @@ import {
   subagentsSettingsGet,
   subagentsSettingsPut,
 } from "./services/subagents";
+import { toolsSettingsGet, toolsSettingsPut } from "./services/tools-settings";
 
 /** Route-era error semantics: resolve { error } instead of rejecting. */
 async function guard<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
@@ -150,6 +151,10 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("pi:subagents:profiles:delete", (_e, body: Record<string, unknown>) => subagentsProfilesDelete(body ?? {}));
   ipcMain.handle("pi:subagents:settings:get", () => subagentsSettingsGet());
   ipcMain.handle("pi:subagents:settings:put", (_e, enabled: unknown) => subagentsSettingsPut(enabled));
+
+  // ---- tools settings -----------------------------------------------------------
+  ipcMain.handle("pi:tools:settings:get", () => toolsSettingsGet());
+  ipcMain.handle("pi:tools:settings:put", (_e, enabled: unknown) => toolsSettingsPut(enabled));
 }
 
 function dropFileWatch(token: string): void {

@@ -430,11 +430,14 @@ export async function modelsCatalog(query: string, provider: string, limit: numb
 // auth
 // ---------------------------------------------------------------------------
 
-/** GET /api/auth/providers */
+/** GET /api/auth/providers — merged listing (upstream 602b1b6): oauth and
+ *  api-key provider rows from one call; `providers` kept for older callers. */
 export async function authProviders(): Promise<Record<string, unknown>> {
   const modelRuntime = await ModelRuntime.create();
-  const providers = buildOAuthProviderList(await collectProviderListingInputs(modelRuntime));
-  return { providers };
+  const inputs = await collectProviderListingInputs(modelRuntime);
+  const oauthProviders = buildOAuthProviderList(inputs);
+  const apiKeyProviders = buildApiKeyProviderList(inputs);
+  return { providers: oauthProviders, oauthProviders, apiKeyProviders };
 }
 
 /** GET /api/auth/all-providers */

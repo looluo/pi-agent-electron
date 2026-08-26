@@ -142,5 +142,9 @@ contextBridge.exposeInMainWorld("pi", {
     ipcRenderer.invoke("pi:subagents:profiles:delete", body),
   subagentsSettingsGet: () => ipcRenderer.invoke("pi:subagents:settings:get"),
   subagentsSettingsPut: (enabled: boolean) => ipcRenderer.invoke("pi:subagents:settings:put", enabled),
+
+  // tools settings
+  toolsSettingsGet: () => ipcRenderer.invoke("pi:tools:settings:get"),
+  toolsSettingsPut: (enabled: boolean) => ipcRenderer.invoke("pi:tools:settings:put", enabled),
   sessionExport: (id: string) => ipcRenderer.invoke("pi:sessions:export", id),
 });

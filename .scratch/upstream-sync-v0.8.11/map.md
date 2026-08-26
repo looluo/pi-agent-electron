@@ -33,6 +33,12 @@ Done in the sync commit on branch `sync/pi-web-v0.8.11`:
   hunk too), chat-only + session-tool-selection + powershell-settings libs. Frontier is now issue 02
   (SettingsPanel rollout + powershell IPC), then 03's remaining UI, then 04.
 
+
+- 2026-08 (3): issue 02 (settings unification) resolved. SettingsPanel is the single config surface;
+  Models/Skills/Plugins at upstream 28bab3c on typed IPC; auth providers merged (602b1b6); tools-settings
+  IPC added. AgentsConfig unmounted + subagent gate hard-false (upstream 96c643a release parity).
+  Frontier: issue 03 (chat-only UI wiring — lib layer already in), then 04 (residual trim audit).
+
 ## Fog
 
 - Subagents cluster ordering vs SDK 0.84.3 (issue 01 blocked by 05).

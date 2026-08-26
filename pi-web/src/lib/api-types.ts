@@ -8,6 +8,11 @@ export interface SubagentSettingsResponse {
   enabled: boolean;
 }
 
+export interface ShellToolSettingsResponse {
+  isWindows: boolean;
+  powerShellEnabled: boolean;
+}
+
 import type { ResourceDiagnostic } from "@earendil-works/pi-coding-agent";
 
 export interface SkillSearchResult {

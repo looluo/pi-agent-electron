@@ -107,6 +107,8 @@ export interface PiBridge {
   subagentsProfilesDelete(body: { cwd: string; scope: string; name: string }): Promise<{ status: number; body: Record<string, unknown> | null }>;
   subagentsSettingsGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
   subagentsSettingsPut(enabled: boolean): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  toolsSettingsGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  toolsSettingsPut(enabled: boolean): Promise<{ status: number; body: Record<string, unknown> | null }>;
   sessionExport(id: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
 }
 
