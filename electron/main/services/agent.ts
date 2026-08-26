@@ -4,7 +4,7 @@ import { readFile } from "fs/promises";
 import { tmpdir } from "node:os";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { allowFileRoot } from "@/lib/file-access";
-import { getRpcSession, getRunningRpcSessionIds, startRpcSession, type AgentSessionWrapper } from "@/lib/rpc-manager";
+import { getRpcSession, getRunningRpcSessionIds, setRpcSessionTools, startRpcSession, type AgentSessionWrapper } from "@/lib/rpc-manager";
 import { invalidateSessionListCache, resolveSessionPath } from "@/lib/session-reader";
 import {
   MAX_INLINE_BASH_OUTPUT_BYTES,
@@ -142,6 +142,27 @@ export async function agentCommand(
   const commandType = typeof command.type === "string" ? command.type : undefined;
 
   const existing = getRpcSession(sessionId);
+
+  // set_tools goes through setRpcSessionTools instead of the wrapper switch:
+  // crossing the chat-only boundary recreates the session (upstream a5738cf
+  // intercepts the same command before the live fast path).
+  if (commandType === "set_tools") {
+    const filePath = existing?.sessionFile || await resolveSessionPath(sessionId) || undefined;
+    if (!existing?.isAlive() && !filePath) {
+      return {
+        ok: false,
+        error: "Session not found",
+        notFound: true,
+      };
+    }
+    try {
+      const changed = await setRpcSessionTools(sessionId, filePath, command.toolNames);
+      return { ok: true, data: { sessionId: changed.sessionId, recreated: changed.recreated } };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
   if (existing?.isAlive()) {
     try {
       const result = await existing.send(command);

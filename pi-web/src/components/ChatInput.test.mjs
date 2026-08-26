@@ -368,3 +368,22 @@ test("renders compact errors above the input as a wrapping alert", () => {
   assert.match(html, /white-space:pre-wrap/);
   assert.ok(html.indexOf('role="alert"') < html.indexOf("<textarea"));
 });
+
+test("renders the empty tool preset as Chat only", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(ChatInput, {
+        onSend() {},
+        onAbort() {},
+        onToolPresetChange() {},
+        isStreaming: false,
+        toolPreset: "none",
+      }),
+    ),
+  );
+
+  assert.match(html, /title="Change tool preset: Chat only"/);
+  assert.match(html, />Chat only<\/span>/);
+});

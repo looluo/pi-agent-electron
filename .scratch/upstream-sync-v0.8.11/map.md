@@ -39,6 +39,11 @@ Done in the sync commit on branch `sync/pi-web-v0.8.11`:
   IPC added. AgentsConfig unmounted + subagent gate hard-false (upstream 96c643a release parity).
   Frontier: issue 03 (chat-only UI wiring — lib layer already in), then 04 (residual trim audit).
 
+
+- 2026-08 (4): issue 03 (chat-only UI) resolved. Includes a real drift fix from the issue-01 port:
+  sessionsGet toolNames belonged at the response top level (SessionData.toolNames), not inside info.
+  Frontier: issue 04 only (audit-shaped).
+
 ## Fog
 
 - Subagents cluster ordering vs SDK 0.84.3 (issue 01 blocked by 05).

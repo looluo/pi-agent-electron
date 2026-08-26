@@ -116,7 +116,6 @@ export async function sessionsGet(
         ? { relation: { kind: "fork" as const, ...(parentSessionId ? { originSessionId: parentSessionId } : {}) } }
         : {}),
     transient: !filePath || !existsSync(filePath),
-    ...(toolNames !== undefined ? { toolNames } : {}),
   }]))[0] : null;
 
     return {
@@ -128,6 +127,9 @@ export async function sessionsGet(
       context,
       stats,
       totalActiveMs,
+      // Persisted tool selection (chat-only sessions, upstream a5738cf):
+      // top-level — SessionData.toolNames, not part of info.
+      ...(toolNames !== undefined ? { toolNames } : {}),
     };
   });
 }

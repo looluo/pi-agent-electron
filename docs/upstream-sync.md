@@ -59,7 +59,7 @@ ADR-0003), **deferred** (ticketed under `.scratch/upstream-sync-v0.8.11/issues/`
 | `a3bbdee` | fix: iOS status bar modal offset (#604) | n/a | PWA/iOS |
 | `baa600b`…`96c643a` | built-in subagents cluster (~25 commits) | ported | issue 01 resolved; ships dark (default off); pulled SettingsUi/settings-navigation/ModelSelector/settings.css + ChatInput ModelSelector hunk (4903dcb) and chat-only/session-tool-selection/powershell-settings libs as deps |
 | `b6416c5`…`c8de95e`+`081c5b1` | settings unification cluster (SettingsPanel etc.) | ported | issue 02 resolved — SettingsPanel rollout + merged auth providers (602b1b6) + tools-settings IPC; AgentsConfig stays unmounted per upstream 96c643a |
-| `a5738cf` | feat: persisted chat-only sessions | partial | lib layer (`chat-only.ts`, `session-tool-selection.ts`) + rpc-manager wiring ported with issue 01; ChatInput/useAgentSession UI wiring remains — `.scratch/upstream-sync-v0.8.11/issues/03-chat-only-sessions.md` |
+| `a5738cf` | feat: persisted chat-only sessions | ported | issue 03 resolved — lib layer came with 01; UI preset + set_tools recreation dispatch + top-level toolNames wiring closed here |
 | `602b1b6` | refactor: trim unused frontend infrastructure | ported | usable residue taken with issue 02: merged auth-providers endpoint, ProviderIcon + provider-icons.svg, ansi tweaks; route deletions are moot here |
 | `024be0b` | refactor: remove unused running sessions SSE | ported | subagent-runtime at 28bab3c carries it; our push channels unaffected |
 | `55164b5` | chore: upgrade pi dependencies to 0.84.3 | ported | issue 05 resolved; pinned `@earendil-works/pi-*` to 0.84.3, no source changes needed |
@@ -80,8 +80,13 @@ of which 10 await issue 02's cross-component rollout). rpc-manager now tracks up
 2026-08 follow-up 3: settings cluster ported (issue 02 resolved — same gate). SettingsPanel is the
 single config surface (models/skills shortcuts + settings button); Models/Skills/Plugins at
 28bab3c on typed IPC; auth providers merged (602b1b6); `pi:tools:settings:*` added; AgentsConfig
-unmounted + `isBuiltInSubagentsEnabled()` hard-false (upstream release gate). Remaining frontier:
-issue 03 (chat-only UI wiring), issue 04 (provider-icon rollout in more places / prune audit).
+unmounted + `isBuiltInSubagentsEnabled()` hard-false (upstream release gate).
+
+2026-08 follow-up 4: chat-only UI closed (issue 03 resolved — same gate). ChatInput `chat-only` preset, agent
+service set_tools -> setRpcSessionTools interception (boundary-crossing session recreation), and a
+real fix: sessionsGet `toolNames` promoted to the response top level where the renderer reads it.
+Remaining frontier: issue 04 only (provider-icon rollout / running-push prune audit — both cosmetic
+or audit-shaped).
 
 ## Known upstream-compat notes
 

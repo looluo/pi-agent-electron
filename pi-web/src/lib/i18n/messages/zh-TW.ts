@@ -318,7 +318,7 @@ export const zhTWLocale: LocalePlugin = {
     "chat.shell": "Shell",
     "chat.outputLocal": "輸出保留在本地",
     "chat.outputModel": "輸出會傳送給模型",
-    "chat.noTools": "不使用工具",
+    "chat.chatOnly": "僅聊天",
     "chat.readOnlyTools": "{count} 個只讀內建工具",
     "chat.builtInTools": "{count} 個內建工具",
     "chat.allBuiltInTools": "全部內建工具",
