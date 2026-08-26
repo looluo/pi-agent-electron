@@ -62,12 +62,15 @@ ADR-0003), **deferred** (ticketed under `.scratch/upstream-sync-v0.8.11/issues/`
 | `a5738cf` | feat: persisted chat-only sessions | deferred | `.scratch/upstream-sync-v0.8.11/issues/03-chat-only-sessions.md` |
 | `602b1b6` | refactor: trim unused frontend infrastructure | deferred | `.scratch/upstream-sync-v0.8.11/issues/04-trim-frontend-infra.md` |
 | `024be0b` | refactor: remove unused running sessions SSE | deferred | folded into 04 — our push channels differ from SSE |
-| `55164b5` | chore: upgrade pi dependencies to 0.84.3 | deferred | `.scratch/upstream-sync-v0.8.11/issues/05-pi-sdk-0.84.3.md` |
+| `55164b5` | chore: upgrade pi dependencies to 0.84.3 | ported | issue 05 resolved; pinned `@earendil-works/pi-*` to 0.84.3, no source changes needed |
 | `a91c830` | docs: dev server troubleshooting | n/a | no Next dev server |
 | `28bab3c` | Release v0.8.11 | n/a | we version independently (`pi-agent-desktop`) |
 
 Verification for this sync: `npm run typecheck` clean, `npm test` 643/645 (1 pre-existing Windows
 PATH-separator failure, 1 skipped), `npm run test:e2e` 7/7.
+
+2026-08 follow-up: pi SDK deps upgraded to 0.84.3 (issue 05 resolved — same verification gate);
+subagents cluster (issue 01) unblocked.
 
 ## Known upstream-compat notes
 

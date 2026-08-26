@@ -12,6 +12,11 @@ Done in the sync commit on branch `sync/pi-web-v0.8.11`:
 
 ## Decisions so far
 
+- 2026-08: pi SDK upgraded 0.84.2 → 0.84.3 (issue 05 resolved). Only breaking change in 0.84.3
+  (`GoogleThinkingLevel` rename) is unreferenced here; full gate green. New SDK surfaces to
+  exploit later: `powershell` tool (issue 02), `session_compact_failed` events (subagent runtime).
+  Frontier is now issue 01 (subagents), no remaining blockers.
+
 - Tool-result images: new `pifile://session/<id>/entries/<entryId>/tool-result-image` host on the
   existing custom protocol instead of an HTTP route — keeps "no HTTP port" (ADR-0003) and reuses
   the registered protocol privileges.
