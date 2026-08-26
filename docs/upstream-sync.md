@@ -91,6 +91,11 @@ real fix: sessionsGet `toolNames` promoted to the response top level where the r
 runtime), dead running-broadcaster deleted after audit, ansi parser replaced by AnsiText in both
 remaining call sites. **All five tickets resolved; v0.8.11 sync complete.**
 
+Packaged build (v0.9.0, post-sync): `npm run package:zip` → `release/win-unpacked/` (361MB) +
+`Pi-Agent-App-0.9.0-portable.zip` (139MB). Packaged-exe smoke via `scripts-dev/packaged-probe.mjs`
+(CDP): 7/7 — bridge, sessionsList, subagents settings (release gate off), tools settings (win32),
+merged auth providers, home, renderer alive.
+
 ## Known upstream-compat notes
 
 - Upstream's own zh-TW locale is incomplete for the tools-panel keys; we completed ours and the
