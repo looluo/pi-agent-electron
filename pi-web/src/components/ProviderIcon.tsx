@@ -54,7 +54,10 @@ export function ProviderIcon({ id, size }: { id: string; size: number }) {
         fill={icon.color ? undefined : "currentColor"}
         style={{ color: "var(--text-muted)", flexShrink: 0 }}
       >
-        <use href={`/provider-icons.svg#${icon.symbol}`} />
+        {/* Relative path: the renderer is file://-loaded in production, where an
+            absolute path would resolve to the filesystem root and the sprite
+            would silently fail to load. */}
+        <use href={`provider-icons.svg#${icon.symbol}`} />
       </svg>
     );
   }

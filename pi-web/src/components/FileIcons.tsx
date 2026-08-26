@@ -39,7 +39,11 @@ type CatppuccinIconName =
   | "yaml"
   | "go";
 
-const CATPPUCCIN_ICONS_ROOT = "/icons/catppuccin";
+// Relative path: these url() tokens live in INLINE styles, so they resolve
+// against the document (index.html) — where publicDir copies the icons.
+// An absolute "/icons/..." would resolve to the filesystem root under the
+// file://-loaded production renderer and silently drop every file icon.
+const CATPPUCCIN_ICONS_ROOT = "icons/catppuccin";
 
 function CatppuccinIcon({ name, size = 14 }: IconProps & { name: CatppuccinIconName }) {
   const style = {

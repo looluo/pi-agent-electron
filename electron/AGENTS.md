@@ -30,7 +30,7 @@ Electron main (Node, ESM)
 
 ## Renderer
 
-Forked pi-web v0.8.9 under `pi-web/src/` (ADR-0004); syncs from upstream are selective ports recorded in `docs/upstream-sync.md` (subagents cluster + v0.8.10/v0.8.11 fixes ported; settings-unification rollout pending). `next/navigation` is shimmed (`src/next-navigation.ts` — query-only replaceState; file:// documents reject absolute-path rewrites). Shared config-panel UI lives in `SettingsUi.tsx` + `settings.css`. Tests are `node:test` with jiti loading; `@/` alias imports of I18nProvider must match consumer imports (jiti module identity).
+Forked pi-web v0.8.9 under `pi-web/src/` (ADR-0004); syncs from upstream are selective ports recorded in `docs/upstream-sync.md` (v0.8.11 fully synced). `next/navigation` is shimmed (`src/next-navigation.ts` — query-only replaceState; file:// documents reject absolute-path rewrites). **Public-asset references must be document-relative** (`provider-icons.svg#sym`, `icons/catppuccin/...`): production loads via `loadFile`, so an absolute `/x.svg` resolves to the filesystem root and silently fails — guarded by `components/asset-paths.test.mjs` and the packaged probe. Shared config-panel UI lives in `SettingsUi.tsx` + `settings.css`. Tests are `node:test` with jiti loading; `@/` alias imports of I18nProvider must match consumer imports (jiti module identity).
 
 ## Probes
 

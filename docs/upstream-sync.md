@@ -93,8 +93,16 @@ remaining call sites. **All five tickets resolved; v0.8.11 sync complete.**
 
 Packaged build (v0.9.0, post-sync): `npm run package:zip` → `release/win-unpacked/` (361MB) +
 `Pi-Agent-App-0.9.0-portable.zip` (139MB). Packaged-exe smoke via `scripts-dev/packaged-probe.mjs`
-(CDP): 7/7 — bridge, sessionsList, subagents settings (release gate off), tools settings (win32),
-merged auth providers, home, renderer alive.
+(CDP): 9/9 — bridge, sessionsList, subagents settings (release gate off), tools settings (win32),
+merged auth providers, home, provider sprite + catppuccin icons load under file://, Models panel
+renders provider icons.
+
+Hotfix (manual test catch): provider icons vanished in the packaged app — upstream's ProviderIcon
+(602b1b6) used an absolute `/provider-icons.svg#sym`, which under the file://-loaded renderer
+resolves to the filesystem root and silently fails (dev/E2E never saw it — they run on
+http://localhost). Same latent bug existed for `/icons/catppuccin/...` in FileIcons since the
+original fork (file-explorer icons were broken in every packaged build). Both now document-relative;
+regression-guarded by `components/asset-paths.test.mjs` + two probe checks.
 
 ## Known upstream-compat notes
 
