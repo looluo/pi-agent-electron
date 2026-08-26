@@ -26,7 +26,7 @@ Electron main (Node, ESM)
 - **OAuth login** streams identical frame payloads over `pi:auth-login:*`; manual code replies go through `authLoginCode`
 - **Uploads** are typed byte arrays over IPC (per-file progress); conflict strategies: error/overwrite/skip
 - **Export** runs pi CLI `--export`, patches deep-tree recursion iteratively, `shell.openPath`s the result
-- **app-update** checks GitHub Releases `looluo/pi-agent2`; 404 (no releases) reports up-to-date
+- **app-update** checks GitHub Releases `looluo/pi-agent-electron`; 404 (no releases) reports up-to-date
 
 ## Renderer
 

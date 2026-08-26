@@ -698,7 +698,7 @@ export async function authLoginStart(
 // app-update — GitHub Releases source (spec Q13)
 // ---------------------------------------------------------------------------
 
-const RELEASES_LATEST_URL = "https://api.github.com/repos/looluo/pi-agent2/releases/latest";
+const RELEASES_LATEST_URL = "https://api.github.com/repos/looluo/pi-agent-electron/releases/latest";
 const UPDATE_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const UPDATE_FETCH_TIMEOUT_MS = 5_000;
 

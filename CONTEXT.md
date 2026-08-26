@@ -9,7 +9,7 @@ The user-facing product name shown in the desktop window and interface titles.
 _Avoid_: pi-web, Pi Agent, upstream title
 
 **Pi Web**:
-The upstream project (`agegr/pi-web`) whose UI this app forked at v0.8.9. Refers to upstream only, never to code in this repo.
+The upstream project (`agegr/pi-web`) whose UI this app forked at v0.8.9 and selectively syncs since (currently v0.8.11). Refers to upstream only, never to code in this repo.
 _Avoid_: vendored copy, our frontend
 
 **Renderer**:
