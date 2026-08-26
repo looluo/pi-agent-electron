@@ -50,6 +50,7 @@
     "@earendil-works/pi-ai": "0.84.2",
     "@earendil-works/pi-coding-agent": "0.84.2",
     "@earendil-works/pi-tui": "0.84.2",
+    "ansi_up": "^6.0.6",
     "js-yaml": "^5.2.3",
     "proper-lockfile": "4.1.2",
     "react": "^19.2.4",

@@ -126,7 +126,18 @@ function streamFile(filePath: string, stat: fs.Stats, contentType: string, range
     "Accept-Ranges": "bytes",
     "Content-Disposition": getContentDisposition(filePath, asDownload),
     "Access-Control-Allow-Origin": "*",
+    "X-Content-Type-Options": "nosniff",
   };
+  // SVG is the only preview type a browser executes as a document. A
+  // repo-controlled SVG navigated to directly (for example through a link in
+  // a transcript) would otherwise run script in the renderer origin, where it
+  // can call any window.pi bridge method. These headers only affect document
+  // rendering; <img> preview embedding ignores them.
+  if (contentType === "image/svg+xml") {
+    headers["Content-Security-Policy"] =
+      "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
+    headers["Referrer-Policy"] = "no-referrer";
+  }
 
   if (!rangeHeader) {
     return new Response(createFileBodyStream(filePath), {

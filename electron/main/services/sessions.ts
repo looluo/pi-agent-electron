@@ -16,8 +16,10 @@ import {
   resolveSessionPath,
 } from "@/lib/session-reader";
 import { sessionPathKey } from "@/lib/session-path";
+import { MAX_TOOL_RESULT_IMAGE_BYTES, TOOL_RESULT_IMAGE_MIMES } from "@/lib/tool-result-images";
 import { projectTreeForResponse } from "@/lib/project-tree";
 import { computeSessionTotalActiveMs } from "@/lib/session-timing";
+import { computeSessionStats } from "@/lib/session-stats";
 import { generateSessionTitle } from "@/lib/session-title";
 import { getRpcSessionInfos, getRunningRpcSessionIds } from "@/lib/rpc-manager";
 
@@ -47,7 +49,7 @@ export async function sessionsList(force: boolean) {
 /** Port of app/api/sessions/[id] (GET) — full session payload for the viewer. */
 export async function sessionsGet(
   id: string,
-  options: { deferThinking?: boolean; deferMedia?: boolean } = {},
+  options: { deferThinking?: boolean; deferMedia?: boolean; tail?: number } = {},
 ) {
   return guarded(async () => {
   const rpc = getRpcSession(id);
@@ -62,11 +64,22 @@ export async function sessionsGet(
   const entries = sm.getEntries();
   const leafId = sm.getLeafId();
   const tree = projectTreeForResponse(sm.getTree());
+  const rawTail = Number(options.tail);
+  const tail = Number.isFinite(rawTail) && rawTail > 0 ? Math.min(rawTail, 1000) : 50;
   const context = buildSessionContext(entries as never, leafId, {
     deferThinking: options.deferThinking,
     deferToolResultImages: options.deferMedia,
+    tail,
+    sessionId: id, // local: lazy URLs for historical tool-result images
   });
   const totalActiveMs = computeSessionTotalActiveMs(entries);
+  // Cumulative usage over ALL entries, including history compacted away —
+  // the same aggregation the SDK's getSessionStats() uses. Lets the client
+  // keep monotonic token/cost counters across compaction and page reloads.
+  const stats = computeSessionStats(entries as never);
+  const sessionName = sm.getSessionName();
+  const firstUserEntry = entries.find((entry) => entry.type === "message" && entry.message.role === "user");
+  const firstUserMessage = firstUserEntry?.type === "message" ? firstUserEntry.message : undefined;
 
   const header = sm.getHeader();
   let modified = header?.timestamp ?? new Date().toISOString();
@@ -74,24 +87,23 @@ export async function sessionsGet(
   const parentSessionId = header?.parentSession
     ? await resolveSessionIdByPath(header.parentSession)
     : undefined;
-  const info = header ? {
+  const info = header ? (await attachSessionProjectInfo([{
     path: filePath,
     id: header.id,
     cwd: header.cwd ?? "",
-    name: sm.getSessionName(),
+    name: sessionName,
     created: header.timestamp,
     modified,
-    messageCount: context.messages.length,
-    firstMessage: context.messages.find((m) => m.role === "user")
+    messageCount: stats.totalMessages,
+    firstMessage: firstUserMessage
       ? (() => {
-          const msg = context.messages.find((m) => m.role === "user")!;
-          const c = (msg as { content: unknown }).content;
+          const c = (firstUserMessage as { content: unknown }).content;
           return typeof c === "string" ? c : (Array.isArray(c) ? (c.find((b: { type: string }) => b.type === "text") as { text: string } | undefined)?.text ?? "" : "") || "(no messages)";
         })()
       : "(no messages)",
     parentSessionId,
     transient: !filePath || !existsSync(filePath),
-  } : null;
+  }]))[0] : null;
 
     return {
       sessionId: id,
@@ -100,6 +112,7 @@ export async function sessionsGet(
       leafId,
       tree,
       context,
+      stats,
       totalActiveMs,
     };
   });
@@ -108,19 +121,31 @@ export async function sessionsGet(
 /** Port of app/api/sessions/[id]/context (GET). */
 export async function sessionsContext(
   id: string,
-  options: { leafId?: string; deferThinking?: boolean; deferMedia?: boolean } = {},
+  options: { leafId?: string; deferThinking?: boolean; deferMedia?: boolean; tail?: number; before?: string } = {},
 ) {
   const rpc = getRpcSession(id);
   const liveRpc = rpc?.isAlive() ? rpc : undefined;
   const filePath = liveRpc ? null : await resolveSessionPath(id);
   if (!liveRpc && !filePath) return { notFound: true as const };
 
+  // `tail` caps the ancestor chain returned (default 50); `before` rewinds the
+  // walk start to an older entry so the client can page upward without
+  // re-fetching the whole active branch.
+  const rawTail = Number(options.tail);
+  const tail = Number.isFinite(rawTail) && rawTail > 0 ? Math.min(rawTail, 1000) : 50;
+  const before = options.before ?? undefined;
+
   const sm = liveRpc?.inner.sessionManager ?? SessionManager.open(filePath!);
-  const context = buildSessionContext(sm.getEntries() as never, options.leafId, {
+  // `before` is the oldest entry already on the client; fetch its ancestors
+  // only (excludeLeaf) so prepending the page does not duplicate `before`.
+  const context = buildSessionContext(sm.getEntries() as never, before ?? options.leafId, {
     deferThinking: options.deferThinking,
     deferToolResultImages: options.deferMedia,
+    tail,
+    excludeLeaf: Boolean(before),
+    sessionId: id,
   });
-  return { context };
+  return { context, tail, before: before ?? null };
 }
 
 /** Port of app/api/sessions/[id] (PATCH) — rename. */
@@ -215,4 +240,74 @@ export async function sessionsThinking(id: string, entryId: string, blockIndex: 
   }
 
   return { thinking: block.thinking };
+}
+
+/** Port of app/api/sessions/[id]/entries/[entryId]/tool-result-image (GET) —
+ *  serves a historical tool-result image on demand (lazy pifile:// URLs). */
+export async function sessionToolResultImage(
+  id: string,
+  entryId: string,
+  blockIndex: number,
+): Promise<{ bytes: Uint8Array; mime: string } | { error: string; status: number }> {
+  if (!Number.isSafeInteger(blockIndex) || blockIndex < 0) {
+    return { error: "Valid blockIndex is required", status: 400 };
+  }
+
+  const filePath = await resolveSessionPath(id);
+  if (!filePath) return { error: "Session not found", status: 404 };
+
+  const entry = getSessionEntries(filePath).find((candidate) => candidate.id === entryId);
+  if (!entry || entry.type !== "message" || entry.message.role !== "toolResult") {
+    return { error: "Tool result not found", status: 404 };
+  }
+
+  const image = readBase64Image(entry.message.content[blockIndex]);
+  if (!image) return { error: "Tool result image not found", status: 404 };
+  if (!TOOL_RESULT_IMAGE_MIMES.has(image.mime)) {
+    return { error: "Unsupported image type", status: 415 };
+  }
+
+  const bytes = decodeBoundedBase64(image.data);
+  if (!bytes) return { error: "Invalid or oversized image data", status: 413 };
+
+  return { bytes, mime: image.mime };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readBase64Image(block: unknown): { data: string; mime: string } | null {
+  if (!isRecord(block) || block.type !== "image") return null;
+
+  if (typeof block.data === "string" && typeof block.mimeType === "string") {
+    return { data: block.data, mime: block.mimeType };
+  }
+
+  if (
+    isRecord(block.source) &&
+    block.source.type === "base64" &&
+    typeof block.source.data === "string" &&
+    typeof block.source.media_type === "string"
+  ) {
+    return { data: block.source.data, mime: block.source.media_type };
+  }
+
+  return null;
+}
+
+function decodeBoundedBase64(data: string): Uint8Array | null {
+  // Reject malformed and obviously oversized payloads before allocating.
+  if (
+    data.length === 0 ||
+    data.length > Math.ceil(MAX_TOOL_RESULT_IMAGE_BYTES * 4 / 3) + 4 ||
+    data.length % 4 !== 0 ||
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(data)
+  ) {
+    return null;
+  }
+
+  const bytes = Buffer.from(data, "base64");
+  if (bytes.length === 0 || bytes.length > MAX_TOOL_RESULT_IMAGE_BYTES) return null;
+  return new Uint8Array(bytes);
 }

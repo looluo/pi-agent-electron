@@ -22,6 +22,9 @@ export interface ModelLike {
 export interface ToolInfo {
   name: string;
   description: string;
+  parameters?: unknown;
+  promptGuidelines?: string[];
+  sourceInfo?: unknown;
 }
 
 export interface NavigateTreeResult {

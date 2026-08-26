@@ -70,33 +70,6 @@ test("a rejected submission preserves a different run reported by the server", (
   assert.match(reconcileSource, /if \(!agentRunningRef\.current\) return;[\s\S]*?finishPromptWithoutStream/);
 });
 
-test("opening System lazily starts a dormant session without sending a prompt", () => {
-  const loadSystemPromptSource = source.slice(
-    source.indexOf("  const loadSystemPrompt = useCallback"),
-    source.indexOf("  const loadSlashCommands = useCallback"),
-  );
-  const loaderEffectSource = source.slice(
-    source.indexOf("  useEffect(() => {\n    onSystemPromptLoaderChange"),
-    source.indexOf("  useEffect(() => {\n    if (!onBranchDataChange) return;"),
-  );
-
-  assert.match(loadSystemPromptSource, /sessionIdRef\.current \?\? await ensureNewSession\(\)/);
-  assert.doesNotMatch(loadSystemPromptSource, /promoteNewSession\(\)/);
-  assert.match(loadSystemPromptSource, /sendAgentCommand<AgentStateResponse>\(sid, \{ type: "get_state" \}\)/);
-  assert.doesNotMatch(loadSystemPromptSource, /type: "prompt"/);
-  assert.match(loadSystemPromptSource, /setSystemPrompt\(state\.systemPrompt \?\? ""\)/);
-  assert.match(loaderEffectSource, /onSystemPromptLoaderChange\?\.\(loadSystemPrompt\)/);
-  assert.match(loaderEffectSource, /onSystemPromptLoaderChange\?\.\(null\)/);
-  assert.match(appShellSource, /onClick=\{\(\) => handleSystemPromptToggle\(mobile\)\}/);
-  assert.match(appShellSource, /systemPromptLoaderRef\.current/);
-  assert.doesNotMatch(appShellSource, /systemPrompt !== null \|\| systemPromptLoading/);
-  assert.match(appShellSource, /const loadId = \+\+systemPromptLoadIdRef\.current/);
-  assert.match(appShellSource, /systemPromptLoadIdRef\.current === loadId/);
-  assert.match(
-    appShellSource,
-    /handleSystemPromptLoaderChange[\s\S]*?systemPromptLoadIdRef\.current \+= 1;[\s\S]*?setSystemPromptLoading\(false\)/,
-  );
-});
 
 test("new-session promotion rekeys drafts before publishing the real session", () => {
   const promoteSource = source.slice(
@@ -114,7 +87,7 @@ test("new-session promotion rekeys drafts before publishing the real session", (
   assert.match(chatWindowSource, /draftKey=\{session\?\.id \?\? newSessionDraftKey \?\? undefined\}/);
 });
 
-test("fresh sessions restore the preferred tool preset without overriding existing sessions", () => {
+test("fresh and dormant sessions restore the preferred tool preset while live sessions use their active tools", () => {
   const preferenceSource = source.slice(
     source.indexOf("  const setToolPresetState"),
     source.indexOf("  const scrollToBottom"),
@@ -130,11 +103,23 @@ test("fresh sessions restore the preferred tool preset without overriding existi
 
   assert.match(
     preferenceSource,
-    /useLayoutEffect\(\(\) => \{\s*if \(!isNew \|\| sessionIdRef\.current\) return;\s*setToolPresetState\(getPreferredToolPreset\(\)\)/,
+    /const existingSessionId = session\?\.id;[\s\S]*?useLayoutEffect\(\(\) => \{\s*if \(!existingSessionId && \(!isNew \|\| sessionIdRef\.current\)\) return;\s*setToolPresetState\(getPreferredToolPreset\(\)\)/,
   );
+  assert.match(source, /if \(agentState\?\.running\) \{\s*loadTools\(session\.id\)/);
   assert.match(changeSource, /setPreferredToolPreset\(preset\)/);
   assert.match(changeSource, /sendAgentCommand\(sid, \{ type: "set_tools", toolNames \}\)/);
   assert.doesNotMatch(loadToolsSource, /setPreferredToolPreset/);
+});
+
+test("existing-session prompts carry the displayed tool preset for idle runtime recovery", () => {
+  const sendSource = source.slice(
+    source.indexOf("  const handleSend = useCallback"),
+    source.indexOf("  const executeBash = useCallback"),
+  );
+  const existingSessionPrompt = sendSource.slice(sendSource.indexOf("} else if (session)"));
+
+  assert.match(existingSessionPrompt, /type: "prompt",[\s\S]*?toolNames: getToolNamesForPreset\(toolPreset\)/);
+  assert.match(sendSource, /restoreSubmission, toolPreset\]\);/);
 });
 
 test("submission recovery updates live refs before a possible session rekey", () => {
@@ -243,6 +228,22 @@ test("delegates event stream readiness and hides an empty agent phase", () => {
 test("uses one absolute agent-readiness deadline instead of a five-second transport deadline", () => {
   assert.match(source, /EVENT_STREAM_READY_TIMEOUT_MS = 60_000/);
   assert.doesNotMatch(source, /EVENT_STREAM_OPEN_TIMEOUT_MS/);
+});
+
+test("uses server pagination state instead of guessing from rendered rows", () => {
+  const loadContextSource = source.slice(
+    source.indexOf("const loadContext = useCallback"),
+    source.indexOf("const loadTools = useCallback"),
+  );
+  assert.match(source, /const \[hasEarlierMessages, setHasEarlierMessages\] = useState\(false\)/);
+  assert.match(source, /setHasEarlierMessages\(d\.context\.hasMore\)/);
+  assert.match(source, /setHistoryCursor\(d\.context\.oldestEntryId\)/);
+  assert.match(loadContextSource, /setData\(\(prev\) => \{[\s\S]*messages: \[\.\.\.d\.context\.messages, \.\.\.prev\.context\.messages\]/);
+  assert.match(chatWindowSource, /const oldestId = historyCursor/);
+  assert.doesNotMatch(chatWindowSource, /const oldestId = entryIds\[0\]/);
+  assert.match(chatWindowSource, /if \(!hasEarlierMessages\) return/);
+  assert.match(chatWindowSource, /const hasMore = startIndex > 0 \|\| hasEarlierMessages/);
+  assert.doesNotMatch(chatWindowSource, /rendered\.length >= visibleCount/);
 });
 
 test("connects a selected session when another browser reports it running", () => {
@@ -445,4 +446,46 @@ test("keeps a detached viewport in place when streaming completes", () => {
   assert.match(scrollEffectSource, /!agentRunningRef\.current && isNearBottomRef\.current[\s\S]*?scrollToBottom\("auto"\)/);
   assert.doesNotMatch(scrollEffectSource, /\|\|/);
   assert.match(source, /addEventListener\("scroll", handleScrollPositionChange/);
+});
+
+test("opening System or Tools lazily starts a dormant session without sending a prompt", () => {
+  const loadSystemInfoSource = source.slice(
+    source.indexOf("  const loadSystemInfo = useCallback"),
+    source.indexOf("  const loadSlashCommands = useCallback"),
+  );
+  const loaderEffectSource = source.slice(
+    source.indexOf("  useEffect(() => {\n    onSystemInfoLoaderChange"),
+    source.indexOf("  useEffect(() => {\n    if (!onBranchDataChange) return;"),
+  );
+
+  assert.match(loadSystemInfoSource, /sessionIdRef\.current \?\? await ensureNewSession\(\)/);
+  assert.doesNotMatch(loadSystemInfoSource, /promoteNewSession\(\)/);
+  assert.match(loadSystemInfoSource, /sendAgentCommand<AgentStateResponse>\(sid, \{ type: "get_state" \}\)/);
+  assert.match(loadSystemInfoSource, /loadTools\(sid\)/);
+  assert.doesNotMatch(loadSystemInfoSource, /type: "prompt"/);
+  assert.match(loadSystemInfoSource, /setSystemPrompt\(state\.systemPrompt \?\? ""\)/);
+  assert.match(loaderEffectSource, /onSystemInfoLoaderChange\?\.\(loadSystemInfo\)/);
+  assert.match(loaderEffectSource, /onSystemInfoLoaderChange\?\.\(null\)/);
+  assert.match(appShellSource, /onClick=\{\(\) => handleSystemInfoToggle\("system", mobile\)\}/);
+  assert.match(appShellSource, /onClick=\{\(\) => handleSystemInfoToggle\("tools", mobile\)\}/);
+  assert.match(appShellSource, /systemInfoLoaderRef\.current/);
+  assert.doesNotMatch(appShellSource, /systemPrompt !== null \|\| systemInfoLoading/);
+  assert.match(appShellSource, /const loadId = \+\+systemInfoLoadIdRef\.current/);
+  assert.match(appShellSource, /systemInfoLoadIdRef\.current === loadId/);
+  assert.match(
+    appShellSource,
+    /handleSystemInfoLoaderChange[\s\S]*?systemInfoLoadIdRef\.current \+= 1;[\s\S]*?setSystemInfoLoading\(false\)/,
+  );
+});
+
+test("built-in clone switches to the independent child session", () => {
+  const builtinSource = source.slice(
+    source.indexOf("  const handleBuiltinSlashCommand"),
+    source.indexOf("  // Let AgentSession.prompt decide atomically"),
+  );
+
+  assert.match(builtinSource, /case "clone"/);
+  assert.match(builtinSource, /type: "clone",\s+leafId: activeLeafId/);
+  assert.match(builtinSource, /agentRunningRef\.current \|\| bashRunningRef\.current/);
+  assert.match(builtinSource, /onSessionForked\?\.\(result\.newSessionId\)/);
 });

@@ -7,6 +7,7 @@ import { dispatchSessionRowContextMenu } from "@/lib/session-row-context-menu";
 import { skillExpansionToCommand } from "@/lib/slash-display";
 import { getProjectActivity, getRecentProjects, sessionsForProject } from "@/lib/project-groups";
 import { workspaceKeyOf } from "@/lib/workspace-memory";
+import { formatRelativeTime } from "@/lib/i18n/format";
 import { useI18n } from "@/hooks/useI18n";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { FileExplorer, type FileExplorerHandle } from "./FileExplorer";
@@ -137,7 +138,26 @@ interface ValidatedProject {
 }
 
 const UNREAD_SESSIONS_STORAGE_KEY = "pi-web:unread-session-ids";
+const LAST_CUSTOM_CWD_STORAGE_KEY = "pi-web:last-custom-cwd";
 const RUNNING_SESSIONS_POLL_MS = 2500;
+
+function loadLastCustomCwd(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(LAST_CUSTOM_CWD_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function saveLastCustomCwd(cwd: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LAST_CUSTOM_CWD_STORAGE_KEY, cwd);
+  } catch {
+    // Persistence is best-effort.
+  }
+}
 
 function loadUnreadSessionIds(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -160,20 +180,6 @@ function saveUnreadSessionIds(ids: Set<string>): void {
   } catch {
     // ignore storage quota / privacy-mode errors
   }
-}
-
-function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const mins = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString();
 }
 
 /** Substitute the home dir prefix with ~ (no path truncation — see PathLabel) */
@@ -403,7 +409,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const [projectFilter, setProjectFilter] = useState("");
   const [wtFilter, setWtFilter] = useState("");
   const [customPathOpen, setCustomPathOpen] = useState(false);
-  const [customPathValue, setCustomPathValue] = useState("");
+  const [customPathValue, setCustomPathValue] = useState(loadLastCustomCwd);
   const [customPathError, setCustomPathError] = useState<string | null>(null);
   const [customPathValidating, setCustomPathValidating] = useState(false);
   const [validatedProject, setValidatedProject] = useState<ValidatedProject | null>(null);
@@ -422,6 +428,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const [explorerOpen, setExplorerOpen] = useState(true);
   const [explorerKey, setExplorerKey] = useState(0);
   const [explorerUploadBusy, setExplorerUploadBusy] = useState(false);
+  const [fileSearchOpen, setFileSearchOpen] = useState(false);
   const [changesCount, setChangesCount] = useState(0);
   const [changesCollapsed, setChangesCollapsed] = useState(true);
   const [sessionRefreshDone, setSessionRefreshDone] = useState(false);
@@ -745,9 +752,10 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         root: data.projectRoot,
         key: data.projectKey,
       });
+      saveLastCustomCwd(data.cwd);
+      setCustomPathValue(data.cwd);
       setSelectedCwd(data.cwd);
       setCustomPathOpen(false);
-      setCustomPathValue("");
       setDropdownOpen(false);
     } catch (e) {
       setCustomPathError(e instanceof Error ? e.message : String(e));
@@ -767,7 +775,6 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
       if (data.cwd) {
         setSelectedCwd(data.cwd);
         setCustomPathOpen(false);
-        setCustomPathValue("");
         setCustomPathError(null);
         setDropdownOpen(false);
       }
@@ -939,6 +946,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       {customPathOpen && (
         <DirectoryPicker
+          initialPath={customPathValue}
           busy={customPathValidating}
           error={customPathError}
           onCancel={() => {
@@ -1151,7 +1159,6 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                       setSelectedCwd(project.root);
                       setProjectFilter("");
                       setCustomPathOpen(false);
-                      setCustomPathValue("");
                       setCustomPathError(null);
                       setDropdownOpen(false);
                     }}
@@ -1695,6 +1702,21 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             )}
             {explorerOpen && (
               <ToolbarIconButton
+                onClick={() => {
+                  setFileSearchOpen((open) => !open);
+                }}
+                title={t("sidebar.searchFiles")}
+                ariaPressed={fileSearchOpen}
+                color={fileSearchOpen ? "var(--accent)" : "var(--text-dim)"}
+                background={fileSearchOpen ? "var(--bg-selected)" : "none"}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" />
+                </svg>
+              </ToolbarIconButton>
+            )}
+            {explorerOpen && (
+              <ToolbarIconButton
                 onClick={() => fileExplorerRef.current?.openUploadPicker()}
                 disabled={explorerUploadBusy}
                 title={t("sidebar.uploadFilesTitle")}
@@ -1745,6 +1767,8 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                 onUploadBusyChange={setExplorerUploadBusy}
                 changesCollapsed={changesCollapsed}
                 onChangesCountChange={setChangesCount}
+                fileSearchOpen={fileSearchOpen}
+                onFileSearchOpenChange={setFileSearchOpen}
               />
             </div>
           )}
@@ -1957,7 +1981,7 @@ function SessionItem({
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [hovered, setHovered] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -2178,10 +2202,10 @@ function SessionItem({
               ) : isUnread ? (
                 <UnreadSessionIndicator />
               ) : (
-                <span title={session.modified}>{formatRelativeTime(session.modified)}</span>
+                <span title={session.modified}>{formatRelativeTime(session.modified, locale)}</span>
               )}
               <span>{t("sidebar.messagesCount", { count: session.messageCount })}</span>
-              {session.worktreeBranch && (
+              {session.isWorktree && session.branch && (
                 <span
                   title={`Worktree: ${session.cwd}`}
                   style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--accent)", minWidth: 0, overflow: "hidden" }}
@@ -2192,7 +2216,7 @@ function SessionItem({
                     <circle cx="6" cy="18" r="3" />
                     <path d="M18 9a9 9 0 0 1-9 9" />
                   </svg>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.worktreeBranch}</span>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.branch}</span>
                 </span>
               )}
             </div>

@@ -3,35 +3,50 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const source = await readFile(new URL("./AppShell.tsx", import.meta.url), "utf8");
+const mobileHookSource = await readFile(new URL("../hooks/useIsMobile.ts", import.meta.url), "utf8");
 
-test("uses a compact mobile toolbar with a floating six-action layer", () => {
+test("keeps action icons inline in medium mobile sidebars", () => {
+  assert.match(mobileHookSource, /NARROW_MOBILE_QUERY = "\(max-width: 480px\)"/);
+  assert.match(source, /const isNarrowMobile = useIsNarrowMobile\(\);/);
+  assert.match(source, /\{!isNarrowMobile && renderChatToolbarActions\(true\)\}/);
+  assert.match(source, /\{isNarrowMobile && \([\s\S]*?data-mobile-toolbar-more="true"/);
+});
+
+test("uses a compact narrow-mobile toolbar with a floating seven-action layer", () => {
   assert.match(source, /data-mobile-toolbar="true"[\s\S]*?flex: 1,[\s\S]*?minWidth: 0/);
   assert.match(
     source,
     /data-mobile-toolbar-actions="true"[\s\S]*?position: "absolute"[\s\S]*?right: 0,[\s\S]*?left: TOP_BAR_ICON_BUTTON_SIZE/,
   );
 
-  for (const action of ["history", "name", "branches", "system", "theme", "language"]) {
+  for (const action of ["history", "name", "branches", "system", "tools", "theme", "language"]) {
     assert.match(source, new RegExp(`data-mobile-toolbar-action=(?:\\{mobile \\? )?"${action}"`));
   }
 });
 
+test("only renders branch toolbar controls for sessions with branches", () => {
+  assert.match(source, /const sessionHasBranches = hasSessionBranches\(branchTree\)/);
+  assert.match(source, /\{sessionHasBranches && \(mobile \? \(/);
+  assert.match(source, /\{isMobile && sessionHasBranches && \(/);
+  assert.match(source, /panel === "branches" \? null : panel/);
+});
+
 test("keeps covered statistics and file controls out of interaction and focus", () => {
-  assert.match(source, /const covered = mobile && mobileToolbarMoreOpen;/);
+  assert.match(source, /const covered = mobile && isNarrowMobile && mobileToolbarMoreOpen;/);
   assert.match(source, /disabled=\{!showChat \|\| covered\}[\s\S]*?tabIndex=\{covered \? -1 : undefined\}/);
   assert.match(source, /data-mobile-toolbar-file=\{mobile \? "true" : undefined\}[\s\S]*?visibility: covered \? "hidden" : "visible"/);
   assert.match(source, /aria-hidden=\{covered \? true : undefined\}/);
 });
 
-test("closes the mobile action layer on outside click, Escape, and session changes", () => {
+test("closes the mobile action layer on outside click, Escape, layout changes, and session changes", () => {
   assert.match(source, /event\.composedPath\(\)\.includes\(toolbar\)/);
   assert.match(source, /document\.addEventListener\("pointerdown", handlePointerDown, true\)/);
   assert.match(source, /event\.key !== "Escape"[\s\S]*?setMobileToolbarMoreOpen\(false\)/);
-  assert.match(source, /\}, \[isMobile, selectedSession\?\.id, newSessionDraftId\]\);/);
+  assert.match(source, /\}, \[isMobile, isNarrowMobile, selectedSession\?\.id, newSessionDraftId\]\);/);
 });
 
 test("keeps the mobile action layer open after using an expanded action", () => {
-  const toggleTopPanel = source.match(/const toggleTopPanel = useCallback\([\s\S]*?\n  \}, \[isMobile\]\);/)?.[0];
+  const toggleTopPanel = source.match(/const toggleTopPanel = useCallback\([\s\S]*?\n  \}, \[isMobile, isNarrowMobile\]\);/)?.[0];
   const themeHandler = source.match(/const renderThemeButton =[\s\S]*?onClick=\{\(event\) => \{[\s\S]*?toggleTheme\([\s\S]*?\n      \}\}/)?.[0];
   const historyHandler = source.match(/onClick=\{\(\) => \{[\s\S]*?handleViewFullHistory\(\);[\s\S]*?\n          \}\}/)?.[0];
   const autoNameHandler = source.match(/onClick=\{\(\) => \{[\s\S]*?void handleAutoName\(\);[\s\S]*?\n              \}\}/)?.[0];
@@ -43,7 +58,8 @@ test("keeps the mobile action layer open after using an expanded action", () => 
   }
 
   assert.match(source, /toggleTopPanel\("branches", true\)/);
-  assert.match(source, /handleSystemPromptToggle\(mobile\)/);
+  assert.match(source, /handleSystemInfoToggle\("system", mobile\)/);
+  assert.match(source, /handleSystemInfoToggle\("tools", mobile\)/);
   assert.match(source, /toggleTopPanel\("language", mobile\)/);
   assert.match(source, /onClick=\{\(\) => toggleTopPanel\("session"\)\}/);
 });

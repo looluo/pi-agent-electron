@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import path from "path";
-import { getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { setDisableModelInvocation } from "@/lib/skill-frontmatter";
 import type { SkillInstallScope, SkillSearchResult } from "@/lib/api-types";
 import { loadSkillsWithInstallInfo } from "@/lib/skills-service";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
@@ -129,19 +130,7 @@ export async function skillsToggle(filePath: string, disableModelInvocation: boo
     }
 
     const content = readFileSync(filePath, "utf8");
-    const key = "disable-model-invocation";
-
-    const { frontmatter } = parseFrontmatter<Record<string, unknown>>(content);
-    const alreadySet = Boolean(frontmatter[key]);
-
-    let updated = content;
-    if (disableModelInvocation && !alreadySet) {
-      updated = content.replace(/^---\r?\n/, `---\n${key}: true\n`);
-      if (updated === content) updated = `---\n${key}: true\n---\n${content}`;
-    } else if (!disableModelInvocation && alreadySet) {
-      updated = content.replace(new RegExp(`^${key}\\s*:.*\\r?\\n`, "m"), "");
-    }
-
+    const updated = setDisableModelInvocation(content, disableModelInvocation);
     writeFileSync(filePath, updated, "utf8");
     return { status: 200, body: { success: true } };
   } catch (e) {
