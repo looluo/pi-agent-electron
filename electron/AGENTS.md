@@ -15,7 +15,7 @@ Electron main (Node, ESM)
   └─ lib/ (pi-web/src/lib)                   rpc-manager + session-reader run IN main
 ```
 
-**Three transports** (spec Q8): typed IPC facades for resources; one `pi:agent:command` dispatch channel mirroring rpc-manager's switch; `pifile://` custom protocol (standard+secure+fetch+stream+corsEnabled) for file GET traffic; push channels (`pi:agent-events:*`, `pi:file-watch:*`, `pi:auth-login:*`) replace all SSE.
+**Three transports** (spec Q8): typed IPC facades for resources; one `pi:agent:command` dispatch channel mirroring rpc-manager's switch; `pifile://` custom protocol (standard+secure+fetch+stream+corsEnabled) for file GET traffic — two hosts: `pifile://local/<segments>` (files, CSP-hardened for SVG documents) and `pifile://session/<id>/entries/<entryId>/tool-result-image` (lazy historical tool-result images); push channels (`pi:agent-events:*`, `pi:file-watch:*`, `pi:auth-login:*`) replace all SSE.
 
 ## Key facts
 
@@ -30,7 +30,7 @@ Electron main (Node, ESM)
 
 ## Renderer
 
-Forked pi-web v0.8.9 under `pi-web/src/` (ADR-0004). `next/navigation` is shimmed (`src/next-navigation.ts` — query-only replaceState; file:// documents reject absolute-path rewrites). Tests are `node:test` with jiti loading; `@/` alias imports of I18nProvider must match consumer imports (jiti module identity).
+Forked pi-web v0.8.9 under `pi-web/src/` (ADR-0004); syncs from upstream are selective ports recorded in `docs/upstream-sync.md` (currently tracking v0.8.11). `next/navigation` is shimmed (`src/next-navigation.ts` — query-only replaceState; file:// documents reject absolute-path rewrites). Tests are `node:test` with jiti loading; `@/` alias imports of I18nProvider must match consumer imports (jiti module identity).
 
 ## Probes
 
