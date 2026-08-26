@@ -44,6 +44,12 @@ Done in the sync commit on branch `sync/pi-web-v0.8.11`:
   sessionsGet toolNames belonged at the response top level (SessionData.toolNames), not inside info.
   Frontier: issue 04 only (audit-shaped).
 
+
+- 2026-08 (5, final): issue 04 resolved. Real functional catch: the issue-02 port missed 081c5b1's
+  rpc-manager hunks (PowerShell tool wiring), so the shell toggle was inert until now. Dead
+  running-broadcaster deleted after consumer audit (poll channel kept). AnsiText replaces the
+  hand-rolled parser everywhere. ALL tickets resolved — v0.8.11 sync complete; frontier empty.
+
 ## Fog
 
 - Subagents cluster ordering vs SDK 0.84.3 (issue 01 blocked by 05).

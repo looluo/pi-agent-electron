@@ -61,22 +61,18 @@ test("RPC session startup opens an existing session file only once and trusts it
   }
 });
 
-test("RPC wrapper avoids per-chunk idle and running-state maintenance", async () => {
+test("RPC wrapper avoids per-chunk idle maintenance", async () => {
   const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
   const startSource = source.slice(
     source.indexOf("  start(): void"),
-    source.indexOf("  setForceEmptySystemPrompt"),
-  );
-  const notifySource = source.slice(
-    source.indexOf("export function notifyRunningChange"),
-    source.indexOf("export async function startRpcSession"),
+    source.indexOf("  beginExtensionBinding"),
   );
 
   assert.match(startSource, /IDLE_RESET_EVENT_TYPES\.has\(event\.type\)/);
-  assert.match(startSource, /RUNNING_STATE_EVENT_TYPES\.has\(event\.type\)/);
   assert.doesNotMatch(startSource, /subscribe\(\(event: AgentEvent\) => \{\s*this\.resetIdleTimer\(\)/);
-  assert.match(notifySource, /if \(listeners\.size === 0\)/);
-  assert.match(notifySource, /lastRunningSnapshot = ""/);
+  // Upstream 024be0b: the running-status broadcaster (its only consumer was
+  // the retired SSE route) is gone entirely.
+  assert.doesNotMatch(source, /notifyRunningChange|subscribeRunningSessions/);
 });
 
 test("normal session teardown paths use graceful extension shutdown", async () => {

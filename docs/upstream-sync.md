@@ -60,8 +60,8 @@ ADR-0003), **deferred** (ticketed under `.scratch/upstream-sync-v0.8.11/issues/`
 | `baa600b`…`96c643a` | built-in subagents cluster (~25 commits) | ported | issue 01 resolved; ships dark (default off); pulled SettingsUi/settings-navigation/ModelSelector/settings.css + ChatInput ModelSelector hunk (4903dcb) and chat-only/session-tool-selection/powershell-settings libs as deps |
 | `b6416c5`…`c8de95e`+`081c5b1` | settings unification cluster (SettingsPanel etc.) | ported | issue 02 resolved — SettingsPanel rollout + merged auth providers (602b1b6) + tools-settings IPC; AgentsConfig stays unmounted per upstream 96c643a |
 | `a5738cf` | feat: persisted chat-only sessions | ported | issue 03 resolved — lib layer came with 01; UI preset + set_tools recreation dispatch + top-level toolNames wiring closed here |
-| `602b1b6` | refactor: trim unused frontend infrastructure | ported | usable residue taken with issue 02: merged auth-providers endpoint, ProviderIcon + provider-icons.svg, ansi tweaks; route deletions are moot here |
-| `024be0b` | refactor: remove unused running sessions SSE | ported | subagent-runtime at 28bab3c carries it; our push channels unaffected |
+| `602b1b6` | refactor: trim unused frontend infrastructure | ported | residue completed in issue 04: AnsiText switch in ExtensionStatusBar/ChatWindow custom panel, hand-rolled ansi parser deleted; merged auth-providers + ProviderIcon came with issue 02 |
+| `024be0b` | refactor: remove unused running sessions SSE | ported | broadcaster (notifyRunningChange/subscribeRunningSessions) deleted in issue 04 after audit: our poll channel `pi:agent:running` is alive and kept |
 | `55164b5` | chore: upgrade pi dependencies to 0.84.3 | ported | issue 05 resolved; pinned `@earendil-works/pi-*` to 0.84.3, no source changes needed |
 | `a91c830` | docs: dev server troubleshooting | n/a | no Next dev server |
 | `28bab3c` | Release v0.8.11 | n/a | we version independently (`pi-agent-desktop`) |
@@ -85,8 +85,11 @@ unmounted + `isBuiltInSubagentsEnabled()` hard-false (upstream release gate).
 2026-08 follow-up 4: chat-only UI closed (issue 03 resolved — same gate). ChatInput `chat-only` preset, agent
 service set_tools -> setRpcSessionTools interception (boundary-crossing session recreation), and a
 real fix: sessionsGet `toolNames` promoted to the response top level where the renderer reads it.
-Remaining frontier: issue 04 only (provider-icon rollout / running-push prune audit — both cosmetic
-or audit-shaped).
+
+2026-08 follow-up 5 (final): issue 04 resolved — rpc-manager realigned to 28bab3c (picking up the
+081c5b1 PowerShell hunks issue 02 had missed: without them the shell-tool toggle was inert at
+runtime), dead running-broadcaster deleted after audit, ansi parser replaced by AnsiText in both
+remaining call sites. **All five tickets resolved; v0.8.11 sync complete.**
 
 ## Known upstream-compat notes
 
