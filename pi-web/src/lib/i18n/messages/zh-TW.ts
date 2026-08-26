@@ -160,6 +160,8 @@ export const zhTWLocale: LocalePlugin = {
     "workspace.stepModels": "點選底部的「模型」按鈕新增模型",
     "files.hidePanel": "隱藏檔案面板",
     "files.showPanel": "顯示檔案面板",
+    "files.maximizePanel": "最大化檔案面板",
+    "files.restorePanel": "恢復檔案面板",
     "files.noneOpen": "沒有開啟的檔案",
     "layout.resizeSidebar": "調整側邊欄寬度",
     "layout.resizeFilePanel": "調整檔案面板寬度",

@@ -125,10 +125,14 @@ export function AppShell() {
   const [projectTrustError, setProjectTrustError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [rightPanelMaximized, setRightPanelMaximized] = useState(false);
   const [mobileToolbarMoreOpen, setMobileToolbarMoreOpen] = useState(false);
   const [mobileSidebarReady, setMobileSidebarReady] = useState(false);
   const sidebarWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
   const rightPanelWidthRef = useRef(RIGHT_PANEL_FALLBACK_WIDTH);
+  const filePanelMaximizeButtonRef = useRef<HTMLButtonElement>(null);
+  const filePanelRestoreButtonRef = useRef<HTMLButtonElement>(null);
+  const pendingFilePanelLayoutFocusRef = useRef<"maximize" | "restore" | null>(null);
   const getResponsiveRightPanelWidth = useCallback(
     () => typeof window === "undefined"
       ? RIGHT_PANEL_FALLBACK_WIDTH
@@ -183,11 +187,25 @@ export function AppShell() {
   // On mobile the sidebar is an overlay drawer; hide it by default so the chat
   // is visible on load. Runs once the breakpoint resolves after hydration.
   useEffect(() => {
-    if (isMobile) setSidebarOpen(false);
+    if (isMobile) {
+      setSidebarOpen(false);
+      setRightPanelMaximized(false);
+    }
   }, [isMobile]);
   useEffect(() => {
     setMobileSidebarReady(true);
   }, []);
+  useEffect(() => {
+    const pendingFocus = pendingFilePanelLayoutFocusRef.current;
+    if (!pendingFocus) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      if (pendingFocus === "restore") filePanelRestoreButtonRef.current?.focus();
+      else filePanelMaximizeButtonRef.current?.focus();
+      pendingFilePanelLayoutFocusRef.current = null;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [rightPanelMaximized]);
   useEffect(() => {
     if (!rightPanelOpen) return;
     reclampSidebarWidth();
@@ -334,14 +352,31 @@ export function AppShell() {
     setMobileToolbarMoreOpen((open) => !open);
   }, []);
 
+  const handleRightPanelClose = useCallback(() => {
+    setRightPanelMaximized(false);
+    setRightPanelOpen(false);
+  }, []);
+
   const handleRightPanelToggle = useCallback(() => {
     if (isMobile) {
       setSidebarOpen(false);
       setActiveTopPanel(null);
       setMobileToolbarMoreOpen(false);
     }
+    if (rightPanelOpen) setRightPanelMaximized(false);
     setRightPanelOpen((open) => !open);
-  }, [isMobile]);
+  }, [isMobile, rightPanelOpen]);
+
+  const handleFilePanelMaximize = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    if (event.detail === 0) pendingFilePanelLayoutFocusRef.current = "restore";
+    setActiveTopPanel(null);
+    setRightPanelMaximized(true);
+  }, []);
+
+  const handleFilePanelRestore = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    if (event.detail === 0) pendingFilePanelLayoutFocusRef.current = "maximize";
+    setRightPanelMaximized(false);
+  }, []);
 
   useEffect(() => {
     if (!mobileToolbarMoreOpen) return;
@@ -588,13 +623,13 @@ export function AppShell() {
       // project must not linger. Same-project worktree switches keep them.
       setFileTabs([]);
       setActiveFileTabId(null);
-      setRightPanelOpen(false);
+      handleRightPanelClose();
       // Restore the workspace we switched to: its last open session, or keep
       // the default welcome page when none is remembered.
       restoreWorkspaceContext(newProject);
     }
     router.replace("/", { scroll: false });
-  }, [activeCwd, invalidateWorkspaceRestore, newSessionCwd, router, selectedSession, restoreWorkspaceContext]);
+  }, [activeCwd, handleRightPanelClose, invalidateWorkspaceRestore, newSessionCwd, router, selectedSession, restoreWorkspaceContext]);
 
   const handleSelectSession = useCallback((session: SessionInfo, isRestore = false) => {
     invalidateWorkspaceRestore();
@@ -756,6 +791,9 @@ export function AppShell() {
   }, []);
 
   const handleAttentionNeeded = useCallback((request: BlockingExtensionUiRequest) => {
+    // Blocking extension UI is rendered in the conversation. Reveal it so the
+    // user can respond instead of leaving the run stalled behind the file view.
+    setRightPanelMaximized(false);
     if (selectedSession?.relation?.kind === "subagent") return;
     if (!shouldShowBrowserNotification()) return;
     if (!claimExtensionAttentionNotification(request, notifiedAttentionRequestIdsRef.current)) return;
@@ -875,17 +913,14 @@ export function AppShell() {
   }, [handleOpenFile, selectedSession?.id]);
 
   const handleCloseFileTab = useCallback((tabId: string) => {
-    setFileTabs((prev) => {
-      const next = prev.filter((t) => t.id !== tabId);
-      if (next.length === 0) setRightPanelOpen(false);
-      return next;
-    });
-    setActiveFileTabId((cur) => {
-      if (cur !== tabId) return cur;
-      const remaining = fileTabs.filter((t) => t.id !== tabId);
+    const remaining = fileTabs.filter((tab) => tab.id !== tabId);
+    setFileTabs(remaining);
+    if (remaining.length === 0) handleRightPanelClose();
+    setActiveFileTabId((current) => {
+      if (current !== tabId) return current;
       return remaining.length > 0 ? remaining[remaining.length - 1].id : null;
     });
-  }, [fileTabs]);
+  }, [fileTabs, handleRightPanelClose]);
 
   const handleViewFullHistory = useCallback(() => {
     if (!selectedSession) return;
@@ -1026,6 +1061,36 @@ export function AppShell() {
         </button>
       </div>
     </>
+  );
+
+  const renderSidebarToggle = (location: "conversation" | "maximized-file") => (
+    <button
+      type="button"
+      onClick={handleSidebarToggle}
+      title={sidebarOpen ? translate("sidebar.hide") : translate("sidebar.show")}
+      aria-label={sidebarOpen ? translate("sidebar.hide") : translate("sidebar.show")}
+      aria-controls="session-sidebar"
+      aria-expanded={sidebarOpen}
+      data-file-panel-sidebar-toggle={location === "maximized-file" ? "true" : undefined}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        width: TOP_BAR_ICON_BUTTON_SIZE, height: TOP_BAR_ICON_BUTTON_SIZE, padding: 0,
+        background: "none", border: "none", borderRight: "1px solid var(--border)",
+        color: "var(--text-muted)", cursor: "pointer", flexShrink: 0, transition: "color 0.12s",
+      }}
+      onMouseEnter={(event) => { event.currentTarget.style.color = "var(--text)"; }}
+      onMouseLeave={(event) => { event.currentTarget.style.color = "var(--text-muted)"; }}
+    >
+      {sidebarOpen ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="3" x2="9" y2="21" />
+        </svg>
+      ) : (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      )}
+    </button>
   );
 
   const renderThemeButton = (mobile: boolean) => (
@@ -1630,6 +1695,45 @@ export function AppShell() {
     );
   };
 
+  const renderFilePanelLayoutButton = (mode: "maximize" | "restore") => {
+    const restore = mode === "restore";
+    const label = translate(restore ? "files.restorePanel" : "files.maximizePanel");
+    return (
+      <button
+        ref={restore ? filePanelRestoreButtonRef : filePanelMaximizeButtonRef}
+        type="button"
+        onClick={restore ? handleFilePanelRestore : handleFilePanelMaximize}
+        aria-controls="file-panel"
+        aria-pressed={restore}
+        title={label}
+        aria-label={label}
+        data-file-panel-layout-action={mode}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          width: TOP_BAR_ICON_BUTTON_SIZE, height: TOP_BAR_ICON_BUTTON_SIZE, padding: 0,
+          background: restore ? "var(--bg-selected)" : "none",
+          border: "none", borderLeft: "1px solid var(--border)",
+          color: restore ? "var(--text)" : "var(--text-muted)",
+          cursor: "pointer", flexShrink: 0, transition: "color 0.12s, background 0.12s",
+        }}
+        onMouseEnter={(event) => { event.currentTarget.style.color = "var(--accent)"; }}
+        onMouseLeave={(event) => { event.currentTarget.style.color = restore ? "var(--text)" : "var(--text-muted)"; }}
+      >
+        {restore ? (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M8 3v5H3" /><path d="M16 3v5h5" />
+            <path d="M8 21v-5H3" /><path d="M16 21v-5h5" />
+          </svg>
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M8 3H3v5" /><path d="M16 3h5v5" />
+            <path d="M8 21H3v-5" /><path d="M16 21h5v-5" />
+          </svg>
+        )}
+      </button>
+    );
+  };
+
   const renderMainFileToggle = (mobile: boolean) => {
     const covered = mobile && isNarrowMobile && mobileToolbarMoreOpen;
     return (
@@ -1804,34 +1908,16 @@ export function AppShell() {
         />
       )}
 
-      {/* Center: chat */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+      {/* Center: conversation stays mounted while the file panel replaces it. */}
+      <div
+        className={`conversation-panel${rightPanelMaximized ? " file-panel-maximized" : ""}`}
+        aria-hidden={rightPanelMaximized}
+        style={{ flex: 1, flexDirection: "column", overflow: "hidden", minWidth: 0 }}
+      >
         {/* Top bar with sidebar toggle */}
         <div ref={topBarRef} style={{ flexShrink: 0, background: "var(--bg-panel)" }}>
         <div style={{ display: "flex", alignItems: "center", position: "relative", borderBottom: "1px solid var(--border)", height: "calc(36px + env(safe-area-inset-top))", paddingTop: "env(safe-area-inset-top)" }}>
-          <button
-            onClick={handleSidebarToggle}
-             title={sidebarOpen ? translate("sidebar.hide") : translate("sidebar.show")}
-             aria-label={sidebarOpen ? translate("sidebar.hide") : translate("sidebar.show")}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              width: TOP_BAR_ICON_BUTTON_SIZE, height: TOP_BAR_ICON_BUTTON_SIZE, padding: 0,
-              background: "none", border: "none", borderRight: "1px solid var(--border)",
-              color: "var(--text-muted)", cursor: "pointer", flexShrink: 0, transition: "color 0.12s",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
-          >
-            {sidebarOpen ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="3" x2="9" y2="21" />
-              </svg>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            )}
-          </button>
+          {renderSidebarToggle("conversation")}
           {isMobile && (
             <div
               ref={mobileToolbarRef}
@@ -2293,10 +2379,10 @@ export function AppShell() {
 
       <div
         aria-hidden="true"
-        className={`right-panel-overlay-backdrop${rightPanelOpen ? " is-open" : ""}`}
-        onClick={() => setRightPanelOpen(false)}
+        className={`right-panel-overlay-backdrop${rightPanelOpen && !rightPanelMaximized ? " is-open" : ""}`}
+        onClick={handleRightPanelClose}
       />
-      {rightPanelOpen && (
+      {rightPanelOpen && !rightPanelMaximized && (
         <div
           {...rightPanelResizer.separatorProps}
           aria-controls="file-panel"
@@ -2310,7 +2396,7 @@ export function AppShell() {
       <div
         ref={rightPanelResizer.panelRef}
         id="file-panel"
-        className={`right-panel-container${rightPanelOpen ? " right-panel-open" : " right-panel-closed"}${rightPanelResizer.isResizing ? " right-panel-resizing" : ""}`}
+        className={`right-panel-container${rightPanelOpen ? " right-panel-open" : " right-panel-closed"}${rightPanelMaximized ? " right-panel-maximized" : ""}${rightPanelResizer.isResizing ? " right-panel-resizing" : ""}`}
         style={{
           "--right-panel-width": `${rightPanelResizer.width}px`,
           display: "flex",
@@ -2329,6 +2415,7 @@ export function AppShell() {
           background: "var(--bg-panel)",
           borderBottom: "1px solid var(--border)",
         }}>
+          {rightPanelMaximized && !isMobile && renderSidebarToggle("maximized-file")}
           <div style={{ flex: 1, overflow: "hidden" }}>
             <TabBar
               tabs={fileTabs}
@@ -2337,9 +2424,10 @@ export function AppShell() {
               onCloseTab={handleCloseFileTab}
             />
           </div>
+          {rightPanelOpen && !isMobile && renderFilePanelLayoutButton(rightPanelMaximized ? "restore" : "maximize")}
           <button
             type="button"
-            onClick={() => setRightPanelOpen(false)}
+            onClick={handleRightPanelClose}
             aria-controls="file-panel"
             aria-expanded={rightPanelOpen}
             title={translate("files.hidePanel")}
