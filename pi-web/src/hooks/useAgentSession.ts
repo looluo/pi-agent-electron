@@ -16,12 +16,12 @@ import { normalizeToolCalls } from "@/lib/normalize";
 import { isPromptRejectedError, sendAgentCommand } from "@/lib/agent-client";
 import { clearDraft, rekeyDraft, restoreDraftSubmission } from "@/lib/draft-store";
 import { getPreferredToolPreset, setPreferredToolPreset } from "@/lib/tool-preset-preference";
-import { getToolNamesForPreset, type ToolEntry, type ToolPreset } from "@/lib/tool-presets";
+import { getPresetFromToolNames, getToolNamesForPreset, type ToolEntry, type ToolPreset } from "@/lib/tool-presets";
+import { IpcAgentEventSource } from "@/lib/pi-ipc";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import { mergeSessionStats, type SessionFileStats } from "@/lib/session-stats";
 import { userMessageKey } from "@/lib/prompt-recovery";
 import { AgentEventConnection } from "@/lib/agent-event-connection";
-import { IpcAgentEventSource } from "@/lib/pi-ipc";
 import { getToolExecutionProgress } from "@/lib/tool-execution-progress";
 import {
   CHAT_SCROLL_REATTACH_TOLERANCE,
@@ -40,6 +40,7 @@ export interface SessionData {
   totalActiveMs: number;
   tree: SessionTreeNode[];
   leafId: string | null;
+  toolNames?: string[];
   context: {
     messages: AgentMessage[];
     entryIds: string[];
@@ -478,6 +479,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       setEntryIds(d.context.entryIds ?? []);
       setHistoryCursor(d.context.oldestEntryId);
       setHasEarlierMessages(d.context.hasMore);
+      setToolPresetState(d.toolNames !== undefined ? getPresetFromToolNames(d.toolNames) : "default");
       setCurrentModelOverride((current) => modelSwitchPendingRef.current ? current : null);
       setError(null);
       if (d.context.thinkingLevel && d.context.thinkingLevel !== "off") {
@@ -514,7 +516,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     } finally {
       if (showLoading && !messagesLoaded) setLoading(false);
     }
-  }, []);
+  }, [setToolPresetState]);
 
   const loadContext = useCallback(async (sid: string, leafId: string | null, before?: string | null) => {
     try {
@@ -615,9 +617,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           : {}),
       });
       if (!newResult.ok) throw new Error(newResult.error);
-      const result = newResult.data as {
+      const result = newResult.data as unknown as {
         sessionId: string;
-        model?: { provider: string; modelId: string } | null;
+        model?: SelectedModel | null;
         thinkingLevel?: ThinkingLevelOption;
       };
       const realId = result.sessionId;
@@ -920,8 +922,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     while (agentRunningRef.current && Date.now() - startedAt < PROMPT_SETTLE_MAX_MS) {
       if (runId !== undefined && promptRunIdRef.current !== runId) return;
       try {
-        const data = await window.pi.agentState(sid) as { running?: boolean; state?: AgentStateResponse };
         {
+          const data = await window.pi.agentState(sid) as { running?: boolean; state?: AgentStateResponse };
           const state = data.state;
           if (!data.running || !state || (!state.isStreaming && !state.isPromptRunning)) {
             await finishPromptWithoutStream(sid, runId);
@@ -1062,7 +1064,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           loadSession(sessionIdRef.current);
           window.pi.agentState(sessionIdRef.current)
             .then((raw) => raw as { state?: AgentStateResponse })
-            .then((d) => {
+            .then((d: { state?: AgentStateResponse }) => {
               if (d.state?.contextUsage !== undefined) setContextUsage(d.state.contextUsage ?? null);
               if (d.state?.systemPrompt !== undefined) setSystemPrompt(d.state.systemPrompt ?? null);
               if (d.state?.extensionStatuses !== undefined) setExtensionStatuses(d.state.extensionStatuses ?? []);
@@ -1336,7 +1338,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         await sendAgentCommand(session.id, {
           type: "prompt",
           message,
-          toolNames: getToolNamesForPreset(toolPreset),
           ...(piImages?.length ? { images: piImages } : {}),
         });
       } else {
@@ -1378,7 +1379,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       setAgentPhase(null);
       dispatch({ type: "end" });
     }
-  }, [isNew, newSessionCwd, newSessionModel, session, ensureNewSession, ensureEventsConnected, promoteNewSession, waitForPromptSettlement, addNotice, cancelEventStreamGrace, closeEvents, composerDraftKey, reconcileAgentState, restoreSubmission, toolPreset]);
+  }, [isNew, newSessionCwd, newSessionModel, session, ensureNewSession, ensureEventsConnected, promoteNewSession, waitForPromptSettlement, addNotice, cancelEventStreamGrace, closeEvents, composerDraftKey, reconcileAgentState, restoreSubmission]);
 
   const executeBash = useCallback(async (command: string, excludeFromContext: boolean) => {
     if (agentRunningRef.current || bashRunningRef.current) return;
@@ -1533,6 +1534,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const loadModels = useCallback(async (signal?: AbortSignal) => {
     const modelCwd = newSessionCwd ?? session?.cwd ?? "";
     const result = await window.pi.models(modelCwd || null);
+    if (signal?.aborted) return;
     if (result.status !== 200 || !result.body) throw new Error("Failed to load models");
     const d = result.body as unknown as ModelsResponse;
     setModelNames(d.models);
@@ -1759,12 +1761,27 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const sid = sessionIdRef.current ?? await ensuringNewSessionRef.current;
     if (!sid) return;
     try {
-      await sendAgentCommand(sid, { type: "set_tools", toolNames });
-      await loadTools(sid);
+      const result = await sendAgentCommand<{ sessionId?: string; recreated?: boolean }>(sid, { type: "set_tools", toolNames });
+      const activeSessionId = result?.sessionId ?? sid;
+      if (activeSessionId !== sid) {
+        cancelEventStreamGrace();
+        closeEvents();
+        sessionIdRef.current = activeSessionId;
+      }
+      setSlashCommands([]);
+      setExtensionStatuses([]);
+      setExtensionWidgets([]);
+      const [state] = await Promise.all([
+        sendAgentCommand<AgentStateResponse>(activeSessionId, { type: "get_state" }),
+        loadTools(activeSessionId),
+      ]);
+      if (sessionHookMountedRef.current && sessionIdRef.current === activeSessionId) {
+        setSystemPrompt(state.systemPrompt ?? "");
+      }
     } catch (e) {
       console.error("Failed to set tools:", e);
     }
-  }, [loadTools, setToolPresetState]);
+  }, [cancelEventStreamGrace, closeEvents, loadTools, setToolPresetState]);
 
   const scrollUserMsgToTop = useCallback(() => {
     const container = scrollContainerRef.current;

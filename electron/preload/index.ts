@@ -128,5 +128,19 @@ contextBridge.exposeInMainWorld("pi", {
   skillsUpdate: (body: unknown) => ipcRenderer.invoke("pi:skills:update", body),
   pluginsList: (cwd: string | null) => ipcRenderer.invoke("pi:plugins:list", cwd),
   pluginsAction: (body: unknown) => ipcRenderer.invoke("pi:plugins:action", body),
+
+  // subagents
+  subagentsRun: (id: string) => ipcRenderer.invoke("pi:subagents:run", id),
+  subagentsAction: (id: string, body: { action?: string; message?: string }) =>
+    ipcRenderer.invoke("pi:subagents:action", id, body),
+  subagentsProfilesList: (cwd: string) => ipcRenderer.invoke("pi:subagents:profiles:list", cwd),
+  subagentsProfilesSave: (body: { cwd: string; scope: string; profile: unknown }) =>
+    ipcRenderer.invoke("pi:subagents:profiles:save", body),
+  subagentsProfilesToggle: (body: { cwd: string; scope: string; name: string; enabled: boolean }) =>
+    ipcRenderer.invoke("pi:subagents:profiles:toggle", body),
+  subagentsProfilesDelete: (body: { cwd: string; scope: string; name: string }) =>
+    ipcRenderer.invoke("pi:subagents:profiles:delete", body),
+  subagentsSettingsGet: () => ipcRenderer.invoke("pi:subagents:settings:get"),
+  subagentsSettingsPut: (enabled: boolean) => ipcRenderer.invoke("pi:subagents:settings:put", enabled),
   sessionExport: (id: string) => ipcRenderer.invoke("pi:sessions:export", id),
 });

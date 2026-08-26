@@ -27,6 +27,16 @@ import {
   worktreesGet,
   worktreesPost,
 } from "./services/workspace";
+import {
+  subagentsAction,
+  subagentsGetRun,
+  subagentsProfilesDelete,
+  subagentsProfilesList,
+  subagentsProfilesSave,
+  subagentsProfilesToggle,
+  subagentsSettingsGet,
+  subagentsSettingsPut,
+} from "./services/subagents";
 
 /** Route-era error semantics: resolve { error } instead of rejecting. */
 async function guard<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
@@ -130,6 +140,16 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("pi:git:status", (_e, cwd: string | null) => gitStatus(cwd));
   ipcMain.handle("pi:git:diff", (_e, cwd: string | null, path: string | null) => gitDiff(cwd, path));
   ipcMain.handle("pi:file-index", (_e, cwd: string | null, q: string | null) => fileIndex(cwd, q));
+
+  // ---- subagents (upstream /api/subagents/** via typed IPC) ---------------------
+  ipcMain.handle("pi:subagents:run", (_e, id: string) => subagentsGetRun(id));
+  ipcMain.handle("pi:subagents:action", (_e, id: string, body: Record<string, unknown>) => subagentsAction(id, body ?? {}));
+  ipcMain.handle("pi:subagents:profiles:list", (_e, cwd: unknown) => subagentsProfilesList(cwd));
+  ipcMain.handle("pi:subagents:profiles:save", (_e, body: Record<string, unknown>) => subagentsProfilesSave(body ?? {}));
+  ipcMain.handle("pi:subagents:profiles:toggle", (_e, body: Record<string, unknown>) => subagentsProfilesToggle(body ?? {}));
+  ipcMain.handle("pi:subagents:profiles:delete", (_e, body: Record<string, unknown>) => subagentsProfilesDelete(body ?? {}));
+  ipcMain.handle("pi:subagents:settings:get", () => subagentsSettingsGet());
+  ipcMain.handle("pi:subagents:settings:put", (_e, enabled: unknown) => subagentsSettingsPut(enabled));
 }
 
 function dropFileWatch(token: string): void {

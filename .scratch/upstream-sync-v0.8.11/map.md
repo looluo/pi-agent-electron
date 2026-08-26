@@ -25,6 +25,14 @@ Done in the sync commit on branch `sync/pi-web-v0.8.11`:
 - zh-TW completed beyond upstream (tools-panel keys) because our registry test enforces key parity;
   upstream's own zh-TW is currently incomplete there.
 
+## Decisions additions
+
+- 2026-08 (2): issue 01 (subagents cluster) resolved. Ships dark (subagent-settings default off,
+  matching upstream 96c643a). rpc-manager tracks upstream ec98e1c (web-push stripped). Pulled from
+  02/03 as compile deps: SettingsUi/ModelSelector/settings.css/settings-navigation (4903dcb ChatInput
+  hunk too), chat-only + session-tool-selection + powershell-settings libs. Frontier is now issue 02
+  (SettingsPanel rollout + powershell IPC), then 03's remaining UI, then 04.
+
 ## Fog
 
 - Subagents cluster ordering vs SDK 0.84.3 (issue 01 blocked by 05).

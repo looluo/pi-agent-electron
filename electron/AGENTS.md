@@ -11,7 +11,7 @@ Electron main (Node, ESM)
   ├─ services/files.ts, files-upload.ts      pifile:// protocol + watch push + uploads
   ├─ services/workspace.ts                   cwd/worktrees/git/file-index/project-trust
   ├─ services/models-auth.ts                 models/models-config/auth/app-update
-  ├─ services/skills.ts, plugins.ts, export.ts
+  ├─ services/skills.ts, plugins.ts, export.ts, subagents.ts   config surfaces (subagents: profiles/run/settings, default off)
   └─ lib/ (pi-web/src/lib)                   rpc-manager + session-reader run IN main
 ```
 
@@ -30,7 +30,7 @@ Electron main (Node, ESM)
 
 ## Renderer
 
-Forked pi-web v0.8.9 under `pi-web/src/` (ADR-0004); syncs from upstream are selective ports recorded in `docs/upstream-sync.md` (currently tracking v0.8.11). `next/navigation` is shimmed (`src/next-navigation.ts` — query-only replaceState; file:// documents reject absolute-path rewrites). Tests are `node:test` with jiti loading; `@/` alias imports of I18nProvider must match consumer imports (jiti module identity).
+Forked pi-web v0.8.9 under `pi-web/src/` (ADR-0004); syncs from upstream are selective ports recorded in `docs/upstream-sync.md` (subagents cluster + v0.8.10/v0.8.11 fixes ported; settings-unification rollout pending). `next/navigation` is shimmed (`src/next-navigation.ts` — query-only replaceState; file:// documents reject absolute-path rewrites). Shared config-panel UI lives in `SettingsUi.tsx` + `settings.css`. Tests are `node:test` with jiti loading; `@/` alias imports of I18nProvider must match consumer imports (jiti module identity).
 
 ## Probes
 

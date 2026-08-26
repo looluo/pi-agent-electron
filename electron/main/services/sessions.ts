@@ -21,7 +21,9 @@ import { projectTreeForResponse } from "@/lib/project-tree";
 import { computeSessionTotalActiveMs } from "@/lib/session-timing";
 import { computeSessionStats } from "@/lib/session-stats";
 import { generateSessionTitle } from "@/lib/session-title";
-import { getRpcSessionInfos, getRunningRpcSessionIds } from "@/lib/rpc-manager";
+import { getCompletionNotificationSuppressedRpcSessionIds, getRpcSessionInfos, getRunningRpcSessionIds } from "@/lib/rpc-manager";
+import { readSubagentRun, readSubagentSessionResources, SUBAGENT_META_TYPE } from "@/lib/subagents";
+import { readSessionToolSelection } from "@/lib/session-tool-selection";
 
 /** Route-era error semantics: handlers resolve { error } instead of rejecting. */
 async function guarded<T extends object>(fn: () => Promise<T>): Promise<T | { error: string }> {
@@ -42,6 +44,7 @@ export async function sessionsList(force: boolean) {
     return {
       sessions: mergeSessionLists(persistedSessions, runtimeSessions),
       runningSessionIds: getRunningRpcSessionIds(),
+      completionNotificationSuppressedSessionIds: getCompletionNotificationSuppressedRpcSessionIds(),
     };
   });
 }
@@ -87,6 +90,11 @@ export async function sessionsGet(
   const parentSessionId = header?.parentSession
     ? await resolveSessionIdByPath(header.parentSession)
     : undefined;
+  const subagent = header
+    ? readSubagentRun(entries as never, header.id, filePath)
+    : null;
+  const toolNames = readSubagentSessionResources(entries as never)?.tools
+    ?? readSessionToolSelection(entries as never);
   const info = header ? (await attachSessionProjectInfo([{
     path: filePath,
     id: header.id,
@@ -102,7 +110,13 @@ export async function sessionsGet(
         })()
       : "(no messages)",
     parentSessionId,
+    ...(subagent
+      ? { relation: { kind: "subagent" as const, parentSessionId: subagent.parentSessionId, profile: subagent.profile, description: subagent.description, status: liveRpc?.isRunning() ? "running" as const : subagent.status } }
+      : header?.parentSession
+        ? { relation: { kind: "fork" as const, ...(parentSessionId ? { originSessionId: parentSessionId } : {}) } }
+        : {}),
     transient: !filePath || !existsSync(filePath),
+    ...(toolNames !== undefined ? { toolNames } : {}),
   }]))[0] : null;
 
     return {
@@ -165,6 +179,9 @@ export async function sessionsDelete(id: string) {
   if (!filePath) return { notFound: true as const };
 
   const parentSessionPath = readSessionHeader(filePath)?.parentSession;
+  const parentSessionId = parentSessionPath
+    ? readSessionHeader(parentSessionPath)?.id
+    : undefined;
 
   // Re-attach all direct children to this session's parent (cascade re-parent)
   const targetPathKey = sessionPathKey(filePath);
@@ -186,6 +203,33 @@ export async function sessionsDelete(id: string) {
         ) {
           header.parentSession = parentSessionPath;
           lines[0] = JSON.stringify(header);
+          // Keep subagent relation metadata consistent when a mid-chain session
+          // is deleted: repoint the child's subagent meta entry at the new
+          // parent (upstream 39e50e0).
+          if (parentSessionPath && parentSessionId) {
+            for (let index = 1; index < lines.length; index += 1) {
+              let entry: { type?: string; customType?: string; data?: unknown };
+              try {
+                entry = JSON.parse(lines[index]);
+              } catch {
+                continue;
+              }
+              if (
+                entry.type !== "custom"
+                || entry.customType !== SUBAGENT_META_TYPE
+                || typeof entry.data !== "object"
+                || entry.data === null
+                || Array.isArray(entry.data)
+              ) continue;
+              entry.data = {
+                ...entry.data,
+                parentSessionId,
+                parentSessionPath,
+              };
+              lines[index] = JSON.stringify(entry);
+              break;
+            }
+          }
           writeFileSync(childPath, lines.join("\n"));
         }
       } catch { /* skip malformed */ }

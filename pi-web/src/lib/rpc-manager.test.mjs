@@ -149,7 +149,7 @@ test("reloading a session invalidates the models cache", async () => {
   );
 
   assert.match(reloadSource, /await this\.inner\.reload\(\)/);
-  assert.match(reloadSource, /this\.applyForcedEmptySystemPrompt\(\);\s*invalidateModelsCache\(\)/);
+  assert.match(reloadSource, /this\.applyExactSystemPrompt\(\);\s*invalidateModelsCache\(\)/);
 });
 
 test("clone copies the requested leaf into a child session", async () => {

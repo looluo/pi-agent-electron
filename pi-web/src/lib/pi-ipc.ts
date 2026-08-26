@@ -99,6 +99,14 @@ export interface PiBridge {
   skillsUpdate(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   pluginsList(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
   pluginsAction(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  subagentsRun(id: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  subagentsAction(id: string, body: { action?: string; message?: string }): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  subagentsProfilesList(cwd: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  subagentsProfilesSave(body: { cwd: string; scope: string; profile: unknown }): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  subagentsProfilesToggle(body: { cwd: string; scope: string; name: string; enabled: boolean }): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  subagentsProfilesDelete(body: { cwd: string; scope: string; name: string }): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  subagentsSettingsGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  subagentsSettingsPut(enabled: boolean): Promise<{ status: number; body: Record<string, unknown> | null }>;
   sessionExport(id: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
 }
 

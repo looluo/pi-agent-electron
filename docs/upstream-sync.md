@@ -57,9 +57,9 @@ ADR-0003), **deferred** (ticketed under `.scratch/upstream-sync-v0.8.11/issues/`
 | `ac7ccbc`+`cbb464d` | fonts: system font stack (reverted upstream) | n/a | net zero upstream |
 | `03dad64` | fix: scrollable extension select dialog (#609) | ported | |
 | `a3bbdee` | fix: iOS status bar modal offset (#604) | n/a | PWA/iOS |
-| `baa600b`…`96c643a` | built-in subagents cluster (~25 commits) | deferred | `.scratch/upstream-sync-v0.8.11/issues/01-built-in-subagents.md` |
-| `b6416c5`…`c8de95e`+`081c5b1` | settings unification cluster (SettingsPanel etc.) | deferred | `.scratch/upstream-sync-v0.8.11/issues/02-settings-unification.md` |
-| `a5738cf` | feat: persisted chat-only sessions | deferred | `.scratch/upstream-sync-v0.8.11/issues/03-chat-only-sessions.md` |
+| `baa600b`…`96c643a` | built-in subagents cluster (~25 commits) | ported | issue 01 resolved; ships dark (default off); pulled SettingsUi/settings-navigation/ModelSelector/settings.css + ChatInput ModelSelector hunk (4903dcb) and chat-only/session-tool-selection/powershell-settings libs as deps |
+| `b6416c5`…`c8de95e`+`081c5b1` | settings unification cluster (SettingsPanel etc.) | deferred | `.scratch/upstream-sync-v0.8.11/issues/02-settings-unification.md` — component deps (SettingsUi, ModelSelector, settings.css, settings-navigation) already ported with issue 01; remaining: SettingsPanel/AppShell layout rollout onto Models/Skills/Plugins + powershell IPC |
+| `a5738cf` | feat: persisted chat-only sessions | partial | lib layer (`chat-only.ts`, `session-tool-selection.ts`) + rpc-manager wiring ported with issue 01; ChatInput/useAgentSession UI wiring remains — `.scratch/upstream-sync-v0.8.11/issues/03-chat-only-sessions.md` |
 | `602b1b6` | refactor: trim unused frontend infrastructure | deferred | `.scratch/upstream-sync-v0.8.11/issues/04-trim-frontend-infra.md` |
 | `024be0b` | refactor: remove unused running sessions SSE | deferred | folded into 04 — our push channels differ from SSE |
 | `55164b5` | chore: upgrade pi dependencies to 0.84.3 | ported | issue 05 resolved; pinned `@earendil-works/pi-*` to 0.84.3, no source changes needed |
@@ -71,6 +71,11 @@ PATH-separator failure, 1 skipped), `npm run test:e2e` 7/7.
 
 2026-08 follow-up: pi SDK deps upgraded to 0.84.3 (issue 05 resolved — same verification gate);
 subagents cluster (issue 01) unblocked.
+
+2026-08 follow-up 2: subagents cluster ported (issue 01 resolved — same gate; 744 tests, 11 skipped
+of which 10 await issue 02's cross-component rollout). rpc-manager now tracks upstream at
+`ec98e1c` (web-push still stripped). New IPC surface: `pi:subagents:*` (8 channels) +
+`pifile://` unchanged. chat-only libs landed early as rpc-manager deps (issue 03 UI still open).
 
 ## Known upstream-compat notes
 
