@@ -68,7 +68,16 @@ test("agent completion triggers silent title generation for unnamed sessions", (
   // Subagent sessions keep their run-metadata identity, never a chat title.
   assert.match(maybeSource, /session\?\.relation\?\.kind === "subagent"/);
 
-  // Fires exactly where the SDK agent (not a bare prompt) is known to have settled.
+  // The SDK emits agent_settled inside prompt()'s finally — BEFORE rpc-manager
+  // resolves prompt_done — so a normal send sees agent_settled while the prompt
+  // ack is still pending. Auto-name must fire before that gate, or the only
+  // reachable settle path for normal sends never titles the session.
+  assert.match(
+    settledSource,
+    /sdkAgentActiveRef\.current = false;[\s\S]*?if \(agentWasActive && rpcPromptPendingRef\.current\) maybeAutoNameSession\(\);[\s\S]*?if \(!agentWasActive \|\| rpcPromptPendingRef\.current\) break;/,
+  );
+
+  // Fires where the SDK agent (not a bare prompt) is known to have settled.
   assert.match(
     finishSource,
     /agentWasActive && wasRunning\) \{\s*onAgentEnd\?\.\(\);\s*maybeAutoNameSession\(\);/,

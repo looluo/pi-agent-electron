@@ -1109,6 +1109,15 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       case "agent_settled": {
         const agentWasActive = sdkAgentActiveRef.current;
         sdkAgentActiveRef.current = false;
+        // The SDK emits agent_settled from inside prompt()'s finally — BEFORE
+        // rpc-manager resolves prompt_done — so for a normal send this event
+        // arrives while rpcPromptPendingRef is still true and the UI-settle
+        // branch below bails out. The agent run has genuinely settled here,
+        // so auto-name before that gate (pi-web PR #45 port); the wasRunning
+        // branch below keeps covering the no-prompt (extension) path, so fire
+        // early only when that branch is unreachable. Slash-command prompts
+        // never set sdkAgentActiveRef and stay excluded.
+        if (agentWasActive && rpcPromptPendingRef.current) maybeAutoNameSession();
         if (!agentWasActive || rpcPromptPendingRef.current) break;
 
         const sid = sessionIdRef.current;
