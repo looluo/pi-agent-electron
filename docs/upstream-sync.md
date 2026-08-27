@@ -104,6 +104,20 @@ http://localhost). Same latent bug existed for `/icons/catppuccin/...` in FileIc
 original fork (file-explorer icons were broken in every packaged build). Both now document-relative;
 regression-guarded by `components/asset-paths.test.mjs` + two probe checks.
 
+## External PR ports (not in upstream)
+
+Changes pi-web never accepted, carried in this fork. Recorded here so drift against upstream stays
+visible.
+
+- **pi-web PR #548** — maximized file panel layout (commit `71baeed`).
+- **pi-web PR #45** — automatic session titles. Upstream rejected the PR and later shipped manual
+  naming (`auto-name`) instead; this port keeps the PR's client-side trigger but **shares the
+  manual path**: `sessionsAutoName` gained a `skipIfNamed` option (guard before `startRpcSession`),
+  the hook fires it silently on agent settle (`agent_settled` + no-stream finish, never bare
+  `prompt_done`), skipping subagent sessions and in-flight duplicates. The PR's separate
+  `generate-title` route with `completeSimple` was deliberately **not** ported. Contract guarded by
+  `hooks/useAgentSession.auto-title.test.mjs`.
+
 ## Known upstream-compat notes
 
 - Upstream's own zh-TW locale is incomplete for the tools-panel keys; we completed ours and the

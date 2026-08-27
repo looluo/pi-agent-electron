@@ -94,7 +94,7 @@ export function registerIpcHandlers(): void {
     guard(() => sessionsContext(id, options ?? {})));
   ipcMain.handle("pi:sessions:rename", (_e, id: string, name: string) => guard(() => sessionsRename(id, name)));
   ipcMain.handle("pi:sessions:delete", (_e, id: string) => guard(() => sessionsDelete(id)));
-  ipcMain.handle("pi:sessions:auto-name", (_e, id: string) => guard(() => sessionsAutoName(id)));
+  ipcMain.handle("pi:sessions:auto-name", (_e, id: string, options?: { skipIfNamed?: boolean }) => guard(() => sessionsAutoName(id, options)));
   ipcMain.handle("pi:sessions:thinking", (_e, id: string, entryId: string, blockIndex: number) =>
     guard(() => sessionsThinking(id, entryId, blockIndex)));
 

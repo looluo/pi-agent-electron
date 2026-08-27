@@ -145,6 +145,9 @@ export interface UseAgentSessionOptions {
   newSessionCwd: string | null;
   newSessionDraftKey: string | null;
   onAgentEnd?: () => void;
+  /** pi-web PR #45 port: fires when a completed agent run auto-generated a
+   *  title for an unnamed session (silent path — errors never surface). */
+  onTitleGenerated?: (sessionId: string, title: string) => void;
   onAttentionNeeded?: (request: BlockingExtensionUiRequest) => void;
   onSessionCreated?: (session: SessionInfo, sourceDraftKey: string) => void;
   onSessionForked?: (newSessionId: string) => void;
@@ -271,7 +274,7 @@ type SlashCommandsResponse = {
 
 export function useAgentSession(opts: UseAgentSessionOptions) {
   const {
-    session, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked,
+    session, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onTitleGenerated, onAttentionNeeded, onSessionCreated, onSessionForked,
     modelsRefreshKey, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsPanelOpen,
   } = opts;
 
@@ -332,6 +335,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const sdkAgentActiveRef = useRef(false);
   const rpcPromptPendingRef = useRef(false);
   const notifiedPromptRunIdRef = useRef(-1);
+  const autoNameInFlightRef = useRef<string | null>(null);
   const bashRunningRef = useRef(false);
   const bashRecoveryIdRef = useRef(0);
   const handleAgentEventRef = useRef<((event: AgentEvent) => void) | null>(null);
@@ -836,6 +840,31 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     return true;
   }, [onAgentEnd]);
 
+  // pi-web PR #45 port: name the session automatically once an agent run
+  // settles. Rides the manual auto-name IPC — the server-side skipIfNamed
+  // guard keeps a name set meanwhile (manual rename, earlier auto run) safe —
+  // and stays completely silent on failure.
+  const maybeAutoNameSession = useCallback(() => {
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    if (session?.relation?.kind === "subagent") return; // identified by its run metadata
+    if (session?.name) return; // cheap client check; the server re-verifies
+    if (autoNameInFlightRef.current === sid) return;
+    autoNameInFlightRef.current = sid;
+    window.pi.sessionsAutoName(sid, { skipIfNamed: true })
+      .catch(() => null)
+      .then((body) => {
+        const result = body as { title?: string; skipped?: boolean } | null;
+        const title = result?.title;
+        if (result && !result.skipped && typeof title === "string" && title.trim()) {
+          onTitleGenerated?.(sid, title.trim());
+        }
+      })
+      .finally(() => {
+        if (autoNameInFlightRef.current === sid) autoNameInFlightRef.current = null;
+      });
+  }, [onTitleGenerated, session?.name, session?.relation?.kind]);
+
   const scheduleEventStreamClose = useCallback((sid: string) => {
     cancelEventStreamGrace();
     eventStreamGraceActiveRef.current = true;
@@ -910,10 +939,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         notifyPromptStage(runId);
       } else if (agentWasActive && wasRunning) {
         onAgentEnd?.();
+        maybeAutoNameSession();
       }
       if (sid) scheduleEventStreamClose(sid);
     }
-  }, [loadSession, notifyPromptStage, onAgentEnd, scheduleEventStreamClose, settleUiStage]);
+  }, [loadSession, maybeAutoNameSession, notifyPromptStage, onAgentEnd, scheduleEventStreamClose, settleUiStage]);
 
   const waitForPromptSettlement = useCallback(async (sid: string, runId?: number) => {
     await delay(PROMPT_SETTLE_INITIAL_DELAY_MS);
@@ -1088,7 +1118,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           void loadSession(sid);
           scheduleEventStreamClose(sid);
         }
-        if (wasRunning) onAgentEnd?.();
+        if (wasRunning) {
+          onAgentEnd?.();
+          maybeAutoNameSession();
+        }
         break;
       }
       case "prompt_done":
@@ -1259,7 +1292,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         handleExtensionUiRequest(event as ExtensionUiRequest);
         break;
     }
-  }, [addNotice, cancelEventStreamGrace, handleExtensionUiRequest, loadSession, notifyPromptStage, onAgentEnd, scheduleEventStreamClose, scrollToBottom, settleUiStage]);
+  }, [addNotice, cancelEventStreamGrace, handleExtensionUiRequest, loadSession, maybeAutoNameSession, notifyPromptStage, onAgentEnd, scheduleEventStreamClose, scrollToBottom, settleUiStage]);
   handleAgentEventRef.current = handleAgentEvent;
 
   const handleSend = useCallback(async (message: string, images?: AttachedImage[]) => {

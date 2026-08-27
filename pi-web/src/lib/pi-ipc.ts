@@ -54,7 +54,7 @@ export interface PiBridge {
   sessionsContext(id: string, options?: { leafId?: string; deferThinking?: boolean; deferMedia?: boolean; tail?: number; before?: string }): Promise<unknown>;
   sessionsRename(id: string, name: string): Promise<unknown>;
   sessionsDelete(id: string): Promise<unknown>;
-  sessionsAutoName(id: string): Promise<unknown>;
+  sessionsAutoName(id: string, options?: { skipIfNamed?: boolean }): Promise<unknown>;
   sessionsThinking(id: string, entryId: string, blockIndex: number): Promise<unknown>;
 
   filesUploadCheck(directory: string, fileNames: string[]): Promise<{ status: number; body: Record<string, unknown> | null }>;

@@ -245,12 +245,22 @@ export async function sessionsDelete(id: string) {
   return { ok: true as const };
 }
 
-/** Port of app/api/sessions/[id]/auto-name (POST). */
-export async function sessionsAutoName(id: string) {
+/** Port of app/api/sessions/[id]/auto-name (POST). `skipIfNamed` powers the
+ *  automatic post-run naming (pi-web PR #45 port): an unnamed session is
+ *  titled through the same generation path as the manual button, while a
+ *  session the user (or an earlier auto run) already named is left untouched. */
+export async function sessionsAutoName(id: string, options: { skipIfNamed?: boolean } = {}) {
   const filePath = await resolveSessionPath(id);
   if (!filePath) return { notFound: true as const };
 
   const existing = getRpcSession(id);
+  if (options.skipIfNamed) {
+    const currentName = existing?.isAlive()
+      ? existing.inner.sessionManager.getSessionName()
+      : SessionManager.open(filePath).getSessionName();
+    if (currentName) return { skipped: true as const, title: currentName };
+  }
+
   const { session } = existing?.isAlive()
     ? { session: existing }
     : await startRpcSession(id, filePath, undefined);

@@ -50,7 +50,7 @@ contextBridge.exposeInMainWorld("pi", {
     ipcRenderer.invoke("pi:sessions:context", id, options),
   sessionsRename: (id: string, name: string) => ipcRenderer.invoke("pi:sessions:rename", id, name),
   sessionsDelete: (id: string) => ipcRenderer.invoke("pi:sessions:delete", id),
-  sessionsAutoName: (id: string) => ipcRenderer.invoke("pi:sessions:auto-name", id),
+  sessionsAutoName: (id: string, options?: { skipIfNamed?: boolean }) => ipcRenderer.invoke("pi:sessions:auto-name", id, options),
   sessionsThinking: (id: string, entryId: string, blockIndex: number) =>
     ipcRenderer.invoke("pi:sessions:thinking", id, entryId, blockIndex),
 

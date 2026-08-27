@@ -841,6 +841,16 @@ export function AppShell() {
     setAutoNameStatus({ kind: "idle" });
   }, [selectedSession?.id]);
 
+  // pi-web PR #45 port: an unnamed session titled itself after its agent run.
+  // Mirrors the manual naming success path (sidebar refresh + local patch) but
+  // stays silent — the automatic path has no status surface on the button.
+  const handleTitleGenerated = useCallback((sessionId: string, title: string) => {
+    setRefreshKey((key) => key + 1);
+    if (activeSessionIdRef.current !== sessionId) return;
+    setSelectedSession((current) => current?.id === sessionId ? { ...current, name: title } : current);
+    setSessionStats((current) => current?.sessionId === sessionId ? { ...current, sessionName: title } : current);
+  }, []);
+
   const handleExplorerRefresh = useCallback(() => {
     setExplorerRefreshKey((k) => k + 1);
   }, []);
@@ -2314,6 +2324,7 @@ export function AppShell() {
               newSessionCwd={effectiveNewSessionCwd}
               newSessionDraftKey={newSessionDraftKey}
               onAgentEnd={handleAgentEnd}
+              onTitleGenerated={handleTitleGenerated}
               onAttentionNeeded={handleAttentionNeeded}
               onSessionCreated={handleSessionCreated}
               onSessionForked={handleSessionForked}
