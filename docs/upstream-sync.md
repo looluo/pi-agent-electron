@@ -104,6 +104,17 @@ http://localhost). Same latent bug existed for `/icons/catppuccin/...` in FileIc
 original fork (file-explorer icons were broken in every packaged build). Both now document-relative;
 regression-guarded by `components/asset-paths.test.mjs` + two probe checks.
 
+Hotfix 2 (manual inspection catch): code rendered in a proportional font everywhere — file panel
+source view, chat code blocks, `pre`/`code`, ChatInput, minimap. `--font-mono`'s first stack entry
+`var(--font-noto-mono)` references a variable only upstream defines (`next/font` in
+`app/layout.tsx`, deleted by Slice 5 `648e953`); per CSS custom-property substitution rules one
+dangling `var()` invalidates the entire declaration, so every `font-family: var(--font-mono)` site
+computed to the inherited sans stack instead of falling through to `Consolas`/`monospace`. No test
+asserts computed styles, so only eyes on the UI caught it. Fixed by stripping the entry in
+`pi-web/src/globals.css`; equal-glyph-width verified in Chromium. Repackaged to
+`release-v2/win-unpacked` (running v0.9.0 instances lock `release/win-unpacked`) and
+`release/Pi-Agent-App-0.9.0-portable.zip` replaced (145MB).
+
 ## External PR ports (not in upstream)
 
 Changes pi-web never accepted, carried in this fork. Recorded here so drift against upstream stays
@@ -125,3 +136,10 @@ visible.
 - `rpc-manager.ts` was byte-identical to upstream v0.8.9 before this sync; it now tracks upstream
   at `d728526` **minus** `web-push.ts` (import and `notifySessionComplete` call site removed; the
   optional completion-callback constructor parameter is kept for API compat).
+- `globals.css` `--font-mono` must not carry `var(--font-noto-mono)`. Upstream defines that variable
+  via `next/font/google` (`Noto_Sans_Mono`, `variable: "--font-noto-mono"`) on `<html>` in
+  `app/layout.tsx`; that file died with the Next.js retirement (Slice 5, `648e953`), and a dangling
+  `var()` invalidates the whole custom property — see Hotfix 2 above. The line is correct in
+  upstream's form factor and will never be "fixed" there: after every `globals.css` port, run
+  `grep -c font-noto-mono pi-web/src/globals.css` and require 0 (strip the entry if the port
+  reintroduced it).
