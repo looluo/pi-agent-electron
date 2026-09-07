@@ -10,6 +10,8 @@
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
     "package:dir": "electron-vite build && electron-builder --win --dir --config.npmRebuild=false --publish never",
+    "package:mac": "electron-vite build && electron-builder --mac --dir --config.npmRebuild=false --publish never",
+    "package:mac:dmg": "electron-vite build && electron-builder --mac dmg --config.npmRebuild=false --publish never",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "lint": "eslint .",
     "test": "node --experimental-strip-types --test \"pi-web/src/**/*.test.mjs\"",

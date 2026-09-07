@@ -1,12 +1,16 @@
-// Packaged-exe smoke probe: launch release/win-unpacked exe over CDP and
+// Packaged-app smoke probe: launch the packaged app over CDP and
 // verify the bridge + the IPC surfaces added/changed by the v0.8.11 sync,
 // plus asset loading under the file:// renderer (icons must use relative
 // paths — absolute "/x.svg" resolves to the filesystem root there).
+// Cross-platform: probes release/win-unpacked on Windows and
+// release/mac-arm64 on macOS (electron-builder --dir output per platform).
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import WebSocket from "ws";
 
-const EXE = "release/win-unpacked/Pi Agent App.exe";
+const EXE = process.platform === "win32"
+  ? "release/win-unpacked/Pi Agent App.exe"
+  : "release/mac-arm64/Pi Agent App.app/Contents/MacOS/Pi Agent App";
 const DEBUG_PORT = Number(process.env.PROBE_PORT ?? 9344);
 
 let results = [];
@@ -85,9 +89,10 @@ try {
   const sub = await evalJs("window.pi.subagentsSettingsGet().then((r) => ({ status: r.status, enabled: r.body?.enabled }))");
   check("subagents settings channel", sub.result.value.status === 200 && sub.result.value.enabled === false, `status=${sub.result.value.status} enabled=${sub.result.value.enabled} (default off, user-settable since upstream 237d0ca)`);
 
-  // 4. tools settings channel (issue 02; win32)
+  // 4. tools settings channel (issue 02; platform-aware isWindows flag)
+  const expectWin = process.platform === "win32";
   const tools = await evalJs("window.pi.toolsSettingsGet().then((r) => ({ status: r.status, isWindows: r.body?.isWindows, ps: r.body?.powerShellEnabled }))");
-  check("tools settings channel", tools.result.value.status === 200 && tools.result.value.isWindows === true, `powershell=${tools.result.value.ps}`);
+  check("tools settings channel", tools.result.value.status === 200 && tools.result.value.isWindows === expectWin, `isWindows=${tools.result.value.isWindows} powershell=${tools.result.value.ps}`);
 
   // 5. merged auth providers (issue 02 / 602b1b6)
   const auth = await evalJs("window.pi.authProviders().then((r) => ({ oauth: Array.isArray(r.oauthProviders), apiKey: Array.isArray(r.apiKeyProviders) }))");
@@ -163,7 +168,8 @@ try {
   // child.kill cannot reap the Electron process tree on Windows; a stale
   // instance keeps the debug port and the NEXT run connects to a dying app
   // ("Execution context was destroyed" / "Promise was collected"). Kill the
-  // tree explicitly.
+  // tree explicitly. On macOS SIGKILL to the main process takes the
+  // GPU/renderer helpers down with it.
   if (process.platform === "win32") {
     spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
   } else {
