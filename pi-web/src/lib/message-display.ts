@@ -1,7 +1,12 @@
-import type { AssistantContentBlock, AssistantMessage, ThinkingContent, ToolCallContent } from "./types";
+import type { AgentMessage, AssistantContentBlock, AssistantMessage, ThinkingContent, ToolCallContent } from "./types";
 
 interface DisplayOptions {
   isStreaming?: boolean;
+}
+
+export function isMessageGroupAnchor(message: { role?: AgentMessage["role"]; customType?: string }): boolean {
+  return message.role === "user"
+    || (message.role === "custom" && message.customType === "compaction");
 }
 
 export function isEmptyThinkingBlock(block: AssistantContentBlock, options: DisplayOptions = {}): block is ThinkingContent {
@@ -42,6 +47,21 @@ export function splitFinalAssistantBlocks(
   };
 }
 
+export function getThinkingPreview(thinking: string): string {
+  return thinking.trimStart().match(/^[^\r\n]{0,240}/u)?.[0].trimEnd() ?? "";
+}
+
 export function countToolCallBlocks(blocks: AssistantContentBlock[]): number {
   return blocks.filter((block): block is ToolCallContent => block.type === "toolCall").length;
+}
+
+export function splitThinkingBlocks(blocks: AssistantContentBlock[]): { thinking: boolean; blocks: AssistantContentBlock[] }[] {
+  const groups: { thinking: boolean; blocks: AssistantContentBlock[] }[] = [];
+  for (const block of blocks) {
+    const thinking = block.type === "thinking";
+    const previous = groups.at(-1);
+    if (previous?.thinking === thinking) previous.blocks.push(block);
+    else groups.push({ thinking, blocks: [block] });
+  }
+  return groups;
 }
