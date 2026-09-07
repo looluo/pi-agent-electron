@@ -6,6 +6,7 @@ import { getRpcSession, startRpcSession } from "@/lib/rpc-manager";
 import {
   buildSessionContext,
   getSessionEntries,
+  getSessionListVersion,
   invalidateSessionListCache,
   invalidateSessionPathCache,
   listAllSessions,
@@ -19,6 +20,7 @@ import { sessionPathKey } from "@/lib/session-path";
 import { MAX_TOOL_RESULT_IMAGE_BYTES, TOOL_RESULT_IMAGE_MIMES } from "@/lib/tool-result-images";
 import { projectTreeForResponse } from "@/lib/project-tree";
 import { computeSessionTotalActiveMs } from "@/lib/session-timing";
+import { searchSessionContents } from "@/lib/session-search";
 import { computeSessionStats } from "@/lib/session-stats";
 import { generateSessionTitle } from "@/lib/session-title";
 import { getCompletionNotificationSuppressedRpcSessionIds, getRpcSessionInfos, getRunningRpcSessionIds } from "@/lib/rpc-manager";
@@ -43,10 +45,28 @@ export async function sessionsList(force: boolean) {
     ]);
     return {
       sessions: mergeSessionLists(persistedSessions, runtimeSessions),
+      sessionListVersion: getSessionListVersion(),
       runningSessionIds: getRunningRpcSessionIds(),
       completionNotificationSuppressedSessionIds: getCompletionNotificationSuppressedRpcSessionIds(),
     };
   });
+}
+
+/** Port of app/api/sessions/search (GET) — literal content search over the
+ *  sidebar's session catalog. The renderer's AbortSignal cannot cross IPC;
+ *  searchSessionContents enforces its own time budget, and stale responses
+ *  are dropped client-side via the request id. */
+export async function sessionsSearch(query: string) {
+  const trimmed = (query ?? "").trim();
+  if (trimmed.length > 200) {
+    return { status: 400 as const, body: { error: "Search query exceeds 200 characters" } };
+  }
+  try {
+    const sessions = trimmed ? await listAllSessions() : [];
+    return { status: 200 as const, body: await searchSessionContents(sessions, trimmed) };
+  } catch (error) {
+    return { status: 500 as const, body: { error: String(error) } };
+  }
 }
 
 /** Port of app/api/sessions/[id] (GET) — full session payload for the viewer. */

@@ -6,6 +6,7 @@ import {
   sessionsDelete,
   sessionsGet,
   sessionsList,
+  sessionsSearch,
   sessionsRename,
   sessionsThinking,
 } from "./services/sessions";
@@ -88,6 +89,7 @@ export function registerIpcHandlers(): void {
 
   // ---- sessions ---------------------------------------------------------------
   ipcMain.handle("pi:sessions:list", (_e, force?: boolean) => sessionsList(Boolean(force)));
+  ipcMain.handle("pi:sessions:search", (_e, query: string) => sessionsSearch(query));
   ipcMain.handle("pi:sessions:get", (_e, id: string, options?: { deferThinking?: boolean; deferMedia?: boolean; tail?: number }) =>
     sessionsGet(id, options ?? {}));
   ipcMain.handle("pi:sessions:context", (_e, id: string, options?: { leafId?: string; deferThinking?: boolean; deferMedia?: boolean; tail?: number; before?: string }) =>

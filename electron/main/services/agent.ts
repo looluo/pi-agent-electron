@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { allowFileRoot } from "@/lib/file-access";
 import { getRpcSession, getRunningRpcSessionIds, setRpcSessionTools, startRpcSession, type AgentSessionWrapper } from "@/lib/rpc-manager";
-import { invalidateSessionListCache, resolveSessionPath } from "@/lib/session-reader";
+import { getSessionListVersion, invalidateSessionListCache, resolveSessionPath } from "@/lib/session-reader";
 import {
   MAX_INLINE_BASH_OUTPUT_BYTES,
   openRegularFileNoFollow,
@@ -212,8 +212,11 @@ export async function agentState(sessionId: string): Promise<{ running: boolean;
 }
 
 /** Port of app/api/agent/running (GET). */
-export function agentRunningIds(): { runningSessionIds: string[] } {
-  return { runningSessionIds: getRunningRpcSessionIds() };
+export function agentRunningIds(): { sessionListVersion: number; runningSessionIds: string[] } {
+  return {
+    sessionListVersion: getSessionListVersion(),
+    runningSessionIds: getRunningRpcSessionIds(),
+  };
 }
 
 /** Port of app/api/agent/[id]/bash-output (GET, inline variant). */

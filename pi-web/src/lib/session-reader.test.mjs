@@ -13,6 +13,7 @@ const {
   buildSessionContext,
   cacheSessionPath,
   invalidateSessionListCache,
+  getSessionListVersion,
   invalidateSessionPathCache,
   readSessionHeader,
   resolveSessionIdByPath,
@@ -192,7 +193,7 @@ test("defers historical thinking without changing live-session content", () => {
         provider: "test",
         model: "test-model",
         content: [
-          { type: "thinking", thinking: "large reasoning" },
+          { type: "thinking", thinking: "large reasoning\nFull reasoning remains deferred." },
           { type: "text", text: "answer" },
         ],
       },
@@ -202,12 +203,12 @@ test("defers historical thinking without changing live-session content", () => {
   const deferred = buildSessionContext(entries, undefined, { deferThinking: true });
   assert.deepEqual(deferred.messages[1].content[0], {
     type: "thinking",
-    thinking: "",
+    thinking: "large reasoning",
     deferred: true,
   });
 
   const full = buildSessionContext(entries);
-  assert.equal(full.messages[1].content[0].thinking, "large reasoning");
+  assert.equal(full.messages[1].content[0].thinking, "large reasoning\nFull reasoning remains deferred.");
 });
 
 test("does not defer empty historical thinking blocks", () => {
@@ -707,11 +708,17 @@ test("forced session listing bypasses the fresh server cache", async (t) => {
   });
 
   await listAllSessions({ force: true });
+  const version = getSessionListVersion();
   await listAllSessions();
   assert.equal(scans, 1);
+  assert.equal(getSessionListVersion(), version, "cached sync reads must not notify other windows again");
 
   await listAllSessions({ force: true });
   assert.equal(scans, 2);
+  assert.ok(getSessionListVersion() > version);
+  const refreshedVersion = getSessionListVersion();
+  invalidateSessionListCache();
+  assert.ok(getSessionListVersion() > refreshedVersion);
 });
 
 test("a scan invalidated in flight retries before returning to its caller", async (t) => {
