@@ -79,6 +79,34 @@ contextBridge.exposeInMainWorld("pi", {
     };
   },
 
+  // ---- terminal (upstream terminal tabs) --------------------------------------
+  terminalCreate: (cwd: string, cols: number, rows: number, id?: string) =>
+    ipcRenderer.invoke("pi:terminal:create", cwd, cols, rows, id),
+  terminalSubscribe: (
+    id: string,
+    after: number | undefined,
+    onEvent: (frame: { event: "output" | "exit" | "closed"; data: Record<string, unknown> }) => void,
+  ) => {
+    const subToken = token();
+    const channel = `pi:terminal:event:${subToken}`;
+    const handler = (_e: Electron.IpcRendererEvent, frame: { event: "output" | "exit" | "closed"; data: Record<string, unknown> }) => onEvent(frame);
+    ipcRenderer.on(channel, handler);
+    const ready = ipcRenderer.invoke("pi:terminal:subscribe", subToken, id, after) as Promise<{
+      status: number;
+      body: { replay?: { type: "output"; data: string; offset: number; reset?: boolean } | null; exited?: boolean; exitCode?: number | null; error?: string };
+    }>;
+    return {
+      ready,
+      stop() {
+        ipcRenderer.removeListener(channel, handler);
+        void ipcRenderer.invoke("pi:terminal:unsubscribe", subToken);
+      },
+    };
+  },
+  terminalWrite: (id: string, data: string) => ipcRenderer.invoke("pi:terminal:write", id, data),
+  terminalResize: (id: string, cols: number, rows: number) => ipcRenderer.invoke("pi:terminal:resize", id, cols, rows),
+  terminalKill: (id: string) => ipcRenderer.invoke("pi:terminal:kill", id),
+
   // workspace
   cwdValidate: (cwd: string) => ipcRenderer.invoke("pi:cwd:validate", cwd),
   cwdBrowse: (path?: string) => ipcRenderer.invoke("pi:cwd:browse", path),

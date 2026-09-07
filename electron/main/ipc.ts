@@ -12,6 +12,7 @@ import {
 } from "./services/sessions";
 import { dropAgentEvents, openAgentEvents } from "./services/agent-events";
 import { openFileWatch } from "./services/files";
+import { frameOf, terminalCreate, terminalKill, terminalResize, terminalSubscribe, terminalWrite } from "./services/terminal";
 import type { IpcUploadFile } from "./services/files-upload";
 import { filesUpload, filesUploadCheck } from "./services/files-upload";
 import {
@@ -129,6 +130,50 @@ export function registerIpcHandlers(): void {
     dropFileWatch(token);
     return null;
   });
+
+  // ---- terminal: workspace PTY tabs (upstream 9290c27+ce18006) -----------------
+  type TerminalSub = WatchSub;
+  const terminalSubs = new Map<string, TerminalSub>();
+  const dropTerminalSub = (token: string): void => {
+    const sub = terminalSubs.get(token);
+    if (!sub) return;
+    terminalSubs.delete(token);
+    sub.close();
+    try {
+      sub.webContents.removeListener("destroyed", sub.onDestroyed);
+    } catch {
+      // webContents already destroyed
+    }
+  };
+  ipcMain.handle("pi:terminal:create", (_e, cwd: string, cols: number, rows: number, id?: string) =>
+    terminalCreate(cwd, cols, rows, id));
+  ipcMain.handle("pi:terminal:subscribe", (e, token: string, id: string, after?: number) => {
+    if (terminalSubs.has(token)) return { status: 400, body: { error: "token already subscribed" } };
+    const sub: TerminalSub = {
+      webContents: e.sender,
+      close: () => {},
+      onDestroyed: () => dropTerminalSub(token),
+    };
+    const result = terminalSubscribe(id, (event) => {
+      try {
+        sub.webContents.send(`pi:terminal:event:${token}`, frameOf(event));
+      } catch {
+        // receiver gone; destroyed hook cleans up
+      }
+    }, typeof after === "number" ? after : undefined);
+    if (result.status !== 200 || !result.unsubscribe) return result;
+    terminalSubs.set(token, sub);
+    e.sender.once("destroyed", sub.onDestroyed);
+    sub.close = result.unsubscribe;
+    return result;
+  });
+  ipcMain.handle("pi:terminal:unsubscribe", (_e, token: string) => {
+    dropTerminalSub(token);
+    return true;
+  });
+  ipcMain.handle("pi:terminal:write", (_e, id: string, data: string) => terminalWrite(id, data));
+  ipcMain.handle("pi:terminal:resize", (_e, id: string, cols: number, rows: number) => terminalResize(id, cols, rows));
+  ipcMain.handle("pi:terminal:kill", (_e, id: string) => terminalKill(id));
 
   // ---- workspace ---------------------------------------------------------------
   ipcMain.handle("pi:cwd:validate", (_e, cwd: string) => cwdValidate(cwd));

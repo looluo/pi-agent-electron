@@ -46,10 +46,11 @@ test("maximized files replace the mounted conversation and expose the sidebar to
 
 test("maximized layout exits at destructive and responsive boundaries", () => {
   assert.match(source, /const handleRightPanelClose = useCallback\(\(\) => \{\s*setRightPanelMaximized\(false\);\s*setRightPanelOpen\(false\);/);
-  assert.match(source, /if \(remaining\.length === 0\) handleRightPanelClose\(\);/);
+  // Terminal-aware close (upstream 9290c27): the panel only collapses when the
+  // last file tab goes and no terminal tab remains.
+  assert.match(source, /if \(next\.length === 0 && terminalTabs\.length === 0\) setRightPanelOpen\(false\);/);
   assert.match(source, /if \(isMobile\) \{[\s\S]*?setRightPanelMaximized\(false\);[\s\S]*?\}/);
   assert.match(source, /const handleAttentionNeeded = useCallback[\s\S]*?setRightPanelMaximized\(false\);/);
-  assert.match(source, /setFileTabs\(\[\]\);\s*setActiveFileTabId\(null\);\s*handleRightPanelClose\(\);/);
 });
 
 test("does not show split-layout affordances while maximized", () => {

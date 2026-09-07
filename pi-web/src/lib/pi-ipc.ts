@@ -62,6 +62,21 @@ export interface PiBridge {
   filesUpload(directory: string, files: Array<{ name: string; bytes: Uint8Array }>, conflict: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
   onUploadProgress(listener: (progress: { done: number; total: number; fileName: string }) => void): () => void;
   subscribeFileWatch(filePath: string, onFrame: (frame: { event: string; data: Record<string, unknown> }) => void): () => void;
+  terminalCreate(cwd: string, cols: number, rows: number, id?: string): Promise<{ status: number; body: { id?: string; error?: string } }>;
+  terminalSubscribe(
+    id: string,
+    after: number | undefined,
+    onEvent: (frame: { event: "output" | "exit" | "closed"; data: Record<string, unknown> }) => void,
+  ): {
+    ready: Promise<{
+      status: number;
+      body: { replay?: { type: "output"; data: string; offset: number; reset?: boolean } | null; exited?: boolean; exitCode?: number | null; error?: string };
+    }>;
+    stop(): void;
+  };
+  terminalWrite(id: string, data: string): Promise<boolean>;
+  terminalResize(id: string, cols: number, rows: number): Promise<boolean>;
+  terminalKill(id: string): Promise<boolean>;
 
   cwdValidate(cwd: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   cwdBrowse(path?: string): Promise<unknown>;
