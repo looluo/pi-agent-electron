@@ -33,3 +33,7 @@ n/a commits (recorded in ledger, no ticket): `0d1df12` (independent version), `2
 
 - 2026-09-07: sync starts from `e83c4a7` (main carried two post-v0.8.11-sync hotfixes:
   e2d11f9 auto-title trigger, e83c4a7 font-mono regression — unrelated to this range).
+
+- 2026-09-07: issue 01 resolved (f97debd). SDK at 0.85.1. Theme now derives
+  scrollbarTrack/Thumb/searchMatchText from muted/text — any custom Theme
+  construction must provide them. git apply --3way atomicity lesson recorded.

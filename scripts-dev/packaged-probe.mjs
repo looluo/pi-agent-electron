@@ -83,7 +83,7 @@ try {
 
   // 3. subagents IPC surface (issue 01)
   const sub = await evalJs("window.pi.subagentsSettingsGet().then((r) => ({ status: r.status, enabled: r.body?.enabled }))");
-  check("subagents settings channel", sub.result.value.status === 200 && sub.result.value.enabled === false, `status=${sub.result.value.status} enabled=${sub.result.value.enabled} (release gate: off)`);
+  check("subagents settings channel", sub.result.value.status === 200 && sub.result.value.enabled === false, `status=${sub.result.value.status} enabled=${sub.result.value.enabled} (default off, user-settable since upstream 237d0ca)`);
 
   // 4. tools settings channel (issue 02; win32)
   const tools = await evalJs("window.pi.toolsSettingsGet().then((r) => ({ status: r.status, isWindows: r.body?.isWindows, ps: r.body?.powerShellEnabled }))");
