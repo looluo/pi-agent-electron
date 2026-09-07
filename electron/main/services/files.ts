@@ -13,13 +13,14 @@ import {
   TEXT_PREVIEW_MAX_BYTES,
   documentPreviewKind,
   getAudioMime,
+  getVideoMime,
   getDocumentMime,
   getFileExt,
   getImageMime,
 } from "@/lib/file-types";
 import { resolveDirentIsDirectory } from "@/lib/file-dirent";
 import { isFilePathReferencedBySession } from "@/lib/session-file-references";
-import { samePath } from "@/lib/paths";
+import { filePathFromApiSegments, samePath } from "@/lib/paths";
 
 /**
  * Port of app/api/files/[...path] (GET) serving through the in-process
@@ -60,10 +61,9 @@ function getLanguage(filePath: string): string {
 }
 
 export function filePathFromSegments(segments: string[]): string {
-  const joined = segments.join("/");
-  const slashJoined = normalizeSlashes(joined);
-  if (isWindowsAbsolutePath(slashJoined)) return slashJoined;
-  return "/" + joined.replace(/^\/+/, "");
+  // Upstream 0c525c8: bare Windows drive roots (e.g. `C:`) must resolve to
+  // `C:/` or the route misreads them as relative POSIX paths.
+  return filePathFromApiSegments(segments);
 }
 
 function json(data: unknown, status = 200): Response {
@@ -285,6 +285,10 @@ export async function handleFilesGet(
       if (audioMime) {
         return streamFile(filePath, stat, audioMime, rangeHeader);
       }
+      const videoMime = getVideoMime(filePath);
+      if (videoMime) {
+        return streamFile(filePath, stat, videoMime, rangeHeader);
+      }
       const documentMime = getDocumentMime(filePath);
       if (documentMime) {
         return streamFile(filePath, stat, documentMime, rangeHeader);
@@ -299,7 +303,7 @@ export async function handleFilesGet(
 
     if (type === "download") {
       if (!stat?.isFile()) return json({ error: "Not a file" }, 400);
-      const mime = getImageMime(filePath) || getAudioMime(filePath) || getDocumentMime(filePath) || "application/octet-stream";
+      const mime = getImageMime(filePath) || getAudioMime(filePath) || getVideoMime(filePath) || getDocumentMime(filePath) || "application/octet-stream";
       return streamFile(filePath, stat, mime, rangeHeader, true);
     }
 
@@ -307,11 +311,12 @@ export async function handleFilesGet(
       if (!stat?.isFile()) return json({ error: "Not a file" }, 400);
       const imageMime = getImageMime(filePath);
       const audioMime = getAudioMime(filePath);
+      const videoMime = getVideoMime(filePath);
       const documentMime = getDocumentMime(filePath);
       return json({
         size: stat.size,
         language: getLanguage(filePath),
-        mime: imageMime || audioMime || documentMime || "text/plain",
+        mime: imageMime || audioMime || videoMime || documentMime || "text/plain",
         previewKind: documentPreviewKind(filePath),
       });
     }
