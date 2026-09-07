@@ -143,3 +143,70 @@ visible.
   upstream's form factor and will never be "fixed" there: after every `globals.css` port, run
   `grep -c font-noto-mono pi-web/src/globals.css` and require 0 (strip the entry if the port
   reintroduced it).
+
+## v0.8.11 → v0.9.0+ (`28bab3c..ce18006`) — synced 2026-09 (branch `sync/pi-web-v0.9.0`)
+
+48 non-merge commits; tracker: `.scratch/upstream-sync-v0.9.0/` (issues 01–11, all resolved).
+
+| Upstream | Subject | Status | Notes |
+|---|---|---|---|
+| `50b7f79` | feat: plugin update check + bulk update (#611) | ported | issue 08; `pi:plugins:check` IPC + semver dep |
+| `7c5f4e6` | fix: ext request dialog collapsible (#612) | ported | + `rpc-manager-extension-ui.test.mjs` (deferred 06ed14f hunk applied with it) |
+| `2cae813` | ci: checks + isolated session history E2E | n/a | Next E2E CI; our Playwright Electron suite covers |
+| `5de2d9a` | fix: relative router.replace for sub-path deployments | n/a | no sub-path deployments under file:// |
+| `cd6032b` | fix: session history across compaction pagination | ported | session-reader raw-order pages; tests realigned to final upstream state |
+| `5f8f47b` | perf: windowed session list (#626) | ported | issue 03 |
+| `1cbd96f` | feat: session search + cross-window sync | ported | issue 06; `pi:sessions:search` IPC; `sessionListVersion` on agentRunning+sessionsList |
+| `8cbafdd` | perf: session metadata cache (#625) | ported | issue 05; lib/session-list-scanner |
+| `6d7c5e0` | fix: warn images to non-vision model (#636) | ported | issue 03; ChatInput.test draft import switched to `@/lib/draft-store` (jiti instance identity) |
+| `0ddb21f` | fix: minimap after compaction (#643) | ported | issue 03 |
+| `07dd093` | fix: wide markdown tables scroll (#650) | ported | globals.css remap |
+| `8aec7a1` | feat: thinking-expand-default setting (#639) | ported | issue 03 (pulled into fix batch — 80a44a5 builds on it) |
+| `67d65a5` | fix: process grouping + thinking controls | ported | issue 03; ThinkingIcon |
+| `7047460` | style: drop redundant settings descriptions | ported | issue 03 |
+| `55485b9` | fix: cache highlight tree (#653) | ported | issue 03 |
+| `9dceb23` | feat: inline video preview (#655) | ported | issue 09; IpcFileWatchSource adaptation; electron files service video MIME |
+| `9cf8d4d` | fix: delete sessions with missing parent (#659) | ported | issue 05; sessionsDelete guard |
+| `2e1c402` | fix: widget trigger area shrink (#670) | ported | globals.css remap |
+| `6ac72b2` | fix(i18n): localize tooltips/aria (#668) | ported | issue 03 |
+| `cc1394d` | fix: scroll long ext labels (#675) | ported | globals.css remap |
+| `2356904` | fix: ext dialog keyboard nav + countdown | ported | issue 03 |
+| `ff63346` | fix(skills): frontmatter fence variants (#690) | ported | shared lib; electron skills service benefits |
+| `edf574a` | fix: renotify repeated notifications (#701) | ported | issue 10; renderer Notification renotify |
+| `e9f954a` | feat: idle timeout via env (#665) | ported | issue 10; env resolves in main process |
+| `abb74bf` | feat(input): Alt+Enter follow-up (#657) | ported | issue 03 |
+| `bf4713c` | test: notification expectations | ported | with edf574a |
+| `f3925bf` | feat: Mermaid preview (#693) | ported | issue 03 |
+| `80a44a5` | fix: thinking block borders | ported | issue 03 |
+| `0c525c8` | fix: Windows drive roots in file routes (#703) | ported | issue 09; `filePathFromApiSegments` |
+| `f57b565` | fix: preserve sessions with extension work (#705) | ported | issue 05; session-liveness registry (web-push import stripped per convention) |
+| `b315bd3` | fix: opaque PWA icons (#718) | n/a | PWA |
+| `9290c27` | feat: workspace terminal tabs (#695) | ported | issue 11; node-pty in main, `pi:terminal:*` IPC replaces HTTP/SSE; xterm.js renderer |
+| `5f8056d` | fix: Ctrl/Cmd-click local file links (#708) | ported | issue 09 |
+| `8c18f21` | fix: transparent icon backgrounds | n/a | favicon/PWA icons only |
+| `18923e6` | fix: model selector visible on load fail (#711) | ported | issue 03; loadModels retry adapted to `window.pi.models` |
+| `be428cf` | fix(mobile): streaming scroll follow (#715) | n/a | mobile-web |
+| `039e843` | feat: chat width + font size (#704) | ported | issue 04 |
+| `77ffe3c` | fix(chat): preserve unsent drafts (#720) | ported | issue 03; parked-draft keys |
+| `430fe4d` | fix(chat): per-session reading positions (#723) | ported | issue 03; loadContext `{tail,signal}`+return over IPC |
+| `092b5d4` | feat(settings): appearance simplification + resets | ported | issue 04 |
+| `06ed14f` | chore(deps): pi packages 0.85.1 | ported | issue 01; PlainTextTheme muted/text keys |
+| `c0abfc2` | feat: branch from selected text (#698) | ported | issue 07; ChatWindow keeps fork-only onTitleGenerated |
+| `237d0ca` | feat: enable built-in subagents | ported | issue 02; + v0.8.11-sync drift fix (child-session robot glyph in SessionSidebar) |
+| `b8d0043`+`8463025` | style: chat display grouping | ported | issue 04 (with 039e843; depends on c0abfc2 keys) |
+| `0d1df12` | Release v0.9.0 | n/a | independent version |
+| `edf0deb` | fix: delete unpersisted runtime sessions (#440) | ported | issue 05; ENOENT-tolerant delete |
+| `ce18006` | fix: Linux terminal prebuilds + load-failure reporting (#734) | ported | issue 11; manager diagnostics |
+
+Verification: `npm run typecheck` clean; `npm test` 859/864 (1 pre-existing Windows
+PATH baseline failure; win32-only skips incl. ConPTY pid/mock-timer quirks);
+`npm run test:e2e` 7/7; `package:dir` + packaged-probe 9/9 (node-pty + ConPTY
+unpacked, subagents default-off gate reworded).
+
+Non-mainline upstream refs (recorded, not tracked): `v0.10.5`/@axello hard fork
+from v0.8.7 (socket.io reverse-proxy terminal, background service); `v0.9.0-fork`
+(e48ba2e) display-only session folders — external-port candidate.
+
+New IPC surface this sync: `pi:sessions:search`, `pi:plugins:check`,
+`pi:terminal:*` (6 channels + per-subscription push). `agentRunning`/`sessionsList`
+responses now carry `sessionListVersion`.

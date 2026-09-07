@@ -37,3 +37,26 @@ n/a commits (recorded in ledger, no ticket): `0d1df12` (independent version), `2
 - 2026-09-07: issue 01 resolved (f97debd). SDK at 0.85.1. Theme now derives
   scrollbarTrack/Thumb/searchMatchText from muted/text — any custom Theme
   construction must provide them. git apply --3way atomicity lesson recorded.
+
+- 2026-09-07: issue 02 resolved (d2ad332). Subagents live (default off,
+  user-settable). Drift caught: child-session robot glyph had been missed in
+  the v0.8.11 cluster port — imported SettingsPanel.test.mjs guards it now.
+
+- 2026-09-07: issue 03 resolved (f67c1c8). 19 commits in; thinking cluster
+  (8aec7a1+67d65a5) pulled forward into 03 because 80a44a5 builds on it;
+  b8d0043/8463025 re-homed to issue 04 with 039e843/092b5d4. loadContext now
+  returns context and accepts {tail, signal}; ChatWindow gained searchTarget
+  plumbing early (430fe4d brings it) — issue 06 only needs the search UI/API.
+
+- 2026-09-07: issues 04+07 resolved together (be35317). Ordering lesson:
+  c0abfc2 precedes b8d0043/8463025 upstream; port in upstream order or
+  collapse duplicates afterward. Remaining: 05 sessions, 06 search, 08
+  plugins, 09 files, 10 notifications, 11 terminal.
+
+- 2026-09-07: issue 06 resolved (f91f5a6). New IPC: pi:sessions:search;
+  agentRunning + sessionsList now carry sessionListVersion. Frontier:
+  08 plugins, 09 files, 10 notifications, 11 terminal.
+
+- 2026-09-07: issue 11 resolved (9eb1996). All 11 tickets resolved; sync
+  code-complete. Remaining wrap-up: ledger section in docs/upstream-sync.md
+  + packaged probe run.
