@@ -131,9 +131,44 @@ try {
   check("Models panel renders provider icons", !ui.result.value.error && ui.result.value.rendered > 0,
     ui.result.value.error ?? `${ui.result.value.rendered}/${ui.result.value.total} rendered`);
 
+  // 10. terminal IPC round trip (v0.9.0 sync, issue 11): subscribe responses
+  //     must be structured-clone safe and a real PTY must echo over the push channel.
+  const term = await evalJs(`(async () => {
+    const cwd = (await window.pi.defaultCwd()).cwd;
+    const id = 'probe-terminal-1';
+    const created = await window.pi.terminalCreate(cwd, 80, 24, id);
+    if (created.status !== 200) return { ok: false, stage: 'create', created };
+    let out = '';
+    const sub = window.pi.terminalSubscribe(id, undefined, (frame) => {
+      if (frame.event === 'output') out += String(frame.data.data);
+    });
+    const handshake = await sub.ready;
+    if (handshake.status !== 200) { sub.stop(); return { ok: false, stage: 'subscribe', handshake }; }
+    await window.pi.terminalWrite(id, 'echo probe-ok-' + id + '\\r');
+    const deadline = Date.now() + 15000;
+    let ok = false;
+    while (Date.now() < deadline) {
+      if (out.includes('probe-ok-' + id)) { ok = true; break; }
+      await new Promise((res) => setTimeout(res, 200));
+    }
+    sub.stop();
+    await window.pi.terminalKill(id);
+    return { ok, stage: 'echo', bytes: out.length };
+  })()`);
+  check("terminal IPC round trip (create/subscribe/write/kill)", term.result.value.ok === true,
+    term.result.value.ok ? `${term.result.value.bytes} bytes echoed` : JSON.stringify(term.result.value));
+
   ws.close();
 } finally {
-  child.kill("SIGKILL");
+  // child.kill cannot reap the Electron process tree on Windows; a stale
+  // instance keeps the debug port and the NEXT run connects to a dying app
+  // ("Execution context was destroyed" / "Promise was collected"). Kill the
+  // tree explicitly.
+  if (process.platform === "win32") {
+    spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+  } else {
+    child.kill("SIGKILL");
+  }
 }
 
 const failed = results.filter((r) => !r.ok);

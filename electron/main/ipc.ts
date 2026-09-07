@@ -161,11 +161,15 @@ export function registerIpcHandlers(): void {
         // receiver gone; destroyed hook cleans up
       }
     }, typeof after === "number" ? after : undefined);
-    if (result.status !== 200 || !result.unsubscribe) return result;
+    // The unsubscribe handle is a function and can never cross the structured
+    // clone boundary — strip it before the invoke response (win-acceptance bug:
+    // "An object could not be cloned" killed every terminal subscribe).
+    const { unsubscribe, ...response } = result;
+    if (result.status !== 200 || !unsubscribe) return response;
     terminalSubs.set(token, sub);
     e.sender.once("destroyed", sub.onDestroyed);
-    sub.close = result.unsubscribe;
-    return result;
+    sub.close = unsubscribe;
+    return response;
   });
   ipcMain.handle("pi:terminal:unsubscribe", (_e, token: string) => {
     dropTerminalSub(token);
