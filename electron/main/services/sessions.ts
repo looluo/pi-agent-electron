@@ -180,10 +180,23 @@ export async function sessionsDelete(id: string) {
   const filePath = await resolveSessionPath(id);
   if (!filePath) return { notFound: true as const };
 
-  const parentSessionPath = readSessionHeader(filePath)?.parentSession;
-  const parentSessionId = parentSessionPath
-    ? readSessionHeader(parentSessionPath)?.id
-    : undefined;
+  // Read only the bounded header before deleting. Empty runtime sessions have a
+  // cached path before their first disk write (upstream #440).
+  let parentSessionPath: string | undefined;
+  try {
+    parentSessionPath = readSessionHeader(filePath)?.parentSession;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  let parentSessionId: string | undefined;
+  if (parentSessionPath) {
+    try {
+      // The parent may have been deleted or moved already; treat it as absent (upstream #659).
+      parentSessionId = readSessionHeader(parentSessionPath)?.id;
+    } catch {
+      parentSessionId = undefined;
+    }
+  }
 
   // Re-attach all direct children to this session's parent (cascade re-parent)
   const targetPathKey = sessionPathKey(filePath);
@@ -239,7 +252,11 @@ export async function sessionsDelete(id: string) {
   } catch { /* skip if dir unreadable */ }
 
   await getRpcSession(id)?.shutdown();
-  unlinkSync(filePath);
+  try {
+    unlinkSync(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
   invalidateSessionPathCache(id);
   invalidateSessionListCache();
   return { ok: true as const };
