@@ -175,6 +175,26 @@ test("renders the read-only tool preset as the active selection", () => {
   assert.match(html, />read-only<\/span>/);
 });
 
+test("renders the compact composer with the standard Send button and no session controls", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(ChatInput, {
+        onSend() {},
+        onAbort() {},
+        isStreaming: false,
+        compact: true,
+      }),
+    ),
+  );
+
+  assert.match(html, /<textarea/);
+  assert.match(html, />Send<\/button>/);
+  assert.equal((html.match(/<button\b/g) ?? []).length, 1);
+  assert.doesNotMatch(html, /type="file"|Attach image|Change tool preset/);
+});
+
 test("shows and locks the optimistic model while a switch is pending", () => {
   const html = renderToStaticMarkup(
     React.createElement(
