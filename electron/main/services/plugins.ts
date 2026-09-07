@@ -9,6 +9,7 @@ import {
   type ResolvedResource,
 } from "@earendil-works/pi-coding-agent";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
+import { checkPluginUpdates, isPluginSourceCheckable } from "@/lib/plugin-updates";
 import { getProjectTrustStatus } from "@/lib/project-trust";
 import type {
   PluginDiagnostic,
@@ -250,6 +251,7 @@ async function readPlugins(cwd: string): Promise<PluginsResponse> {
     return {
       source: pkg.source,
       scope,
+      canCheckForUpdates: isPluginSourceCheckable(pkg.source),
       filtered: pkg.filtered,
       disabled,
       installedPath: pkg.installedPath,
@@ -330,6 +332,12 @@ export async function pluginsAction(body: {
       if (!source) return { status: 400, body: { error: "source required" } };
       await packageManager.removeAndPersist(source, { local });
     } else if (body.action === "update") {
+      if (!source && !projectTrust.trusted && packageManager.listConfiguredPackages().some((pkg) => pkg.scope === "project")) {
+        return {
+          status: 403,
+          body: { error: "Project resources must be trusted before updating project plugins" },
+        };
+      }
       await packageManager.update(source);
     } else if (body.action === "disable") {
       if (!source) return { status: 400, body: { error: "source required" } };
@@ -346,5 +354,39 @@ export async function pluginsAction(body: {
     return { status: 200, body: await readPlugins(body.cwd) as unknown as Record<string, unknown> };
   } catch (error) {
     return { status: 500, body: { error: error instanceof Error ? error.message : String(error) } };
+  }
+}
+
+/** Port of app/api/plugins/check (POST) — plugin update check. */
+export async function pluginsCheck(body: {
+  cwd?: string;
+  source?: string;
+  scope?: string;
+}): Promise<{ status: number; body: Record<string, unknown> }> {
+  try {
+    const cwd = typeof body.cwd === "string" ? body.cwd : "";
+    if (!cwd) return { status: 400, body: { error: "cwd required" } };
+    const allowedRoots = await getAllowedFileRoots();
+    if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
+      return { status: 403, body: { error: "Access denied" } };
+    }
+
+    const source = typeof body.source === "string" ? body.source : undefined;
+    const scope = body.scope === "global" || body.scope === "project" ? body.scope : undefined;
+    if ((source && !scope) || (!source && scope)) {
+      return { status: 400, body: { error: "source and scope must be provided together" } };
+    }
+
+    const updates = await checkPluginUpdates(cwd, source && scope ? { source, scope: scope as PluginScope } : undefined);
+    if (source && scope && updates.length === 0) {
+      return { status: 404, body: { error: "Configured package not found" } };
+    }
+
+    return { status: 200, body: { updates: updates as unknown as Record<string, unknown>[] } };
+  } catch (error) {
+    return {
+      status: 500,
+      body: { error: error instanceof Error ? error.message : String(error) },
+    };
   }
 }

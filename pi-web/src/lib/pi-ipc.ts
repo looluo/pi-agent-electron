@@ -100,6 +100,7 @@ export interface PiBridge {
   skillsUpdate(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   pluginsList(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
   pluginsAction(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  pluginsCheck(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   subagentsRun(id: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   subagentsAction(id: string, body: { action?: string; message?: string }): Promise<{ status: number; body: Record<string, unknown> | null }>;
   subagentsProfilesList(cwd: string): Promise<{ status: number; body: Record<string, unknown> | null }>;

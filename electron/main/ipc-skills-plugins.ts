@@ -7,7 +7,7 @@ import {
   skillsToggle,
   skillsUpdate,
 } from "./services/skills";
-import { pluginsAction, pluginsList } from "./services/plugins";
+import { pluginsAction, pluginsCheck, pluginsList } from "./services/plugins";
 import { sessionExport } from "./services/export";
 
 export function registerSkillsPluginsHandlers(): void {
@@ -21,6 +21,8 @@ export function registerSkillsPluginsHandlers(): void {
 
   // plugins
   ipcMain.handle("pi:plugins:list", (_e, cwd: string | null) => pluginsList(cwd));
+  ipcMain.handle("pi:plugins:check", (_e, body: Record<string, unknown>) =>
+    pluginsCheck(body as Parameters<typeof pluginsCheck>[0]));
   ipcMain.handle("pi:plugins:action", (_e, body: Record<string, unknown>) =>
     pluginsAction(body as Parameters<typeof pluginsAction>[0]));
 

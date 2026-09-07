@@ -129,6 +129,7 @@ contextBridge.exposeInMainWorld("pi", {
   skillsUpdate: (body: unknown) => ipcRenderer.invoke("pi:skills:update", body),
   pluginsList: (cwd: string | null) => ipcRenderer.invoke("pi:plugins:list", cwd),
   pluginsAction: (body: unknown) => ipcRenderer.invoke("pi:plugins:action", body),
+  pluginsCheck: (body: unknown) => ipcRenderer.invoke("pi:plugins:check", body),
 
   // subagents
   subagentsRun: (id: string) => ipcRenderer.invoke("pi:subagents:run", id),
