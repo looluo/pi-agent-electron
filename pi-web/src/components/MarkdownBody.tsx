@@ -77,8 +77,11 @@ export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile
     img({ src, alt, ...props }) {
       delete props.node;
       const filePath = typeof src === "string" ? resolveLocalFileHref(src, cwd) : null;
+      // Local images are served by the in-process pifile:// protocol — the
+      // upstream "/api/files/...?type=read" route does not exist in Electron
+      // (file:// origin), leaving inline images permanently broken.
       const imageSrc = filePath
-        ? `/api/files/${encodeFilePathForApi(filePath)}?type=read`
+        ? `pifile://local/${encodeFilePathForApi(filePath)}?type=read`
         : src;
       // Dynamic local paths are served directly by the file API.
       // eslint-disable-next-line @next/next/no-img-element

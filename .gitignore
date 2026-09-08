@@ -1,5 +1,8 @@
 node_modules/
 out/
 release*/
+tests/.e2e-agent-home/
+tests/.user-data/
+tests/.artifacts/
 .DS_Store
 *.tsbuildinfo

@@ -159,12 +159,17 @@ function loadThinkingContent(sessionId: string, entryId: string, blockIndex: num
     return cached;
   }
 
-  const request = fetch(
-    `/api/sessions/${encodeURIComponent(sessionId)}/entries/${encodeURIComponent(entryId)}/thinking?blockIndex=${blockIndex}`,
-  ).then(async (response) => {
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json() as { thinking?: unknown };
-    if (typeof data.thinking !== "string") throw new Error("Invalid thinking response");
+  // Typed IPC port of GET /api/sessions/[id]/entries/[entryId]/thinking —
+  // the Electron renderer has no HTTP server (file:// origin), so the
+  // upstream fetch("/api/...") call fails with "Failed to fetch".
+  const request = Promise.resolve(
+    window.pi.sessionsThinking(sessionId, entryId, blockIndex) as Promise<
+      { thinking?: unknown } | { notFound?: true } | { badRequest?: true; error?: string } | { error: string }
+    >,
+  ).then((data) => {
+    if (!("thinking" in data) || typeof data.thinking !== "string") {
+      throw new Error("error" in data && data.error ? data.error : "Thinking content unavailable");
+    }
     return data.thinking;
   }).catch((error) => {
     thinkingContentCache.delete(key);
@@ -1750,23 +1755,32 @@ function BashExecutionView({ message, sessionId }: { message: BashExecutionMessa
 
   const isPending = !message.output && message.exitCode === undefined && !message.cancelled;
   const isError = message.cancelled || (message.exitCode !== undefined && message.exitCode !== 0);
-  const fullOutputUrl = sessionId && message.fullOutputPath
-    ? `/api/agent/${encodeURIComponent(sessionId)}/bash-output?path=${encodeURIComponent(message.fullOutputPath)}`
-    : null;
-  const showFullButton = message.truncated && fullOutputUrl && fullOutput === null;
+  // Typed IPC port of GET /api/agent/[id]/bash-output — the Electron renderer
+  // has no HTTP server (file:// origin), so the upstream fetch("/api/...") and
+  // its ?download=1 anchor were dead here ("Failed to fetch").
+  const canLoadFull = Boolean(sessionId && message.fullOutputPath);
+  const showFullButton = message.truncated && canLoadFull && fullOutput === null;
   const displayOutput = fullOutput ?? message.output;
 
-  async function loadFullOutput() {
-    if (!fullOutputUrl) return;
+  async function loadFullOutput(download = false) {
+    if (!sessionId || !message.fullOutputPath) return;
     setLoadingFull(true);
     setFullError(null);
     try {
-      const res = await fetch(fullOutputUrl);
-      const d = await res.json() as { success?: boolean; data?: { output?: string }; error?: string };
-      if (d.success) {
-        setFullOutput(d.data?.output ?? "");
-      } else {
+      const d = download
+        ? await window.pi.agentBashOutputDownload(sessionId, message.fullOutputPath)
+        : await window.pi.agentBashOutput(sessionId, message.fullOutputPath);
+      if (!d.ok) {
         setFullError(d.error ?? "failed");
+      } else if (download) {
+        const objectUrl = URL.createObjectURL(new Blob([d.data.output], { type: "text/plain;charset=utf-8" }));
+        const anchor = document.createElement("a");
+        anchor.href = objectUrl;
+        anchor.download = message.fullOutputPath.split(/[\\/]/).pop() || "bash-output.log";
+        anchor.click();
+        URL.revokeObjectURL(objectUrl);
+      } else {
+        setFullOutput(d.data.output);
       }
     } catch (e) {
       setFullError(String(e));
@@ -1799,11 +1813,11 @@ function BashExecutionView({ message, sessionId }: { message: BashExecutionMessa
   return (
     <div style={{ margin: "6px 0" }}>
       <ToolCallBlock block={block} result={result} />
-      {message.truncated && fullOutputUrl && (
+      {message.truncated && canLoadFull && (
         <div style={{ padding: "4px 10px", fontSize: 11, marginTop: -1 }}>
           {showFullButton && (
             <button
-              onClick={loadFullOutput}
+              onClick={() => loadFullOutput()}
               disabled={loadingFull}
               style={{ background: "none", border: "none", color: "var(--accent)", cursor: loadingFull ? "default" : "pointer", fontSize: 11, padding: 0, textDecoration: "underline" }}
             >
@@ -1811,7 +1825,11 @@ function BashExecutionView({ message, sessionId }: { message: BashExecutionMessa
             </button>
           )}
           <a
-            href={`${fullOutputUrl}&download=1`}
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              void loadFullOutput(true);
+            }}
             style={{ marginLeft: showFullButton ? 10 : 0, color: "var(--accent)", fontSize: 11, textDecoration: "underline" }}
           >
             download full output
