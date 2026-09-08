@@ -118,23 +118,29 @@ try {
   check("catppuccin file icons load", cat.result.value.mounted > 0 && cat.result.value.loads === true,
     `${cat.result.value.mounted} mounted, ${cat.result.value.src}`);
 
-  // 9. UI-level: Models settings renders provider icons (locale-aware shortcut)
-  const ui = await evalJs(`(async () => {
+  // 9. UI-level: Models settings renders provider icons (locale-aware shortcut).
+  //    Uses short evals with host-side waits — a single awaitPromise eval
+  //    holding a 2s setTimeout gets its promise GC-collected by V8 under the
+  //    panel mount load ("Promise was collected").
+  const modelsBtn = await evalJs(`(() => {
     const models = [...document.querySelectorAll('button[aria-label]')]
       .find((b) => /^(models|模型)$/i.test(b.getAttribute('aria-label')));
-    if (!models) return { error: 'models button not found' };
+    if (!models) return false;
     models.click();
-    await new Promise((res) => setTimeout(res, 2000));
+    return true;
+  })()`);
+  await delay(2000);
+  const ui = await evalJs(`(() => {
     const uses = [...document.querySelectorAll('svg use[href^="provider-icons.svg#"]')];
     const rendered = uses.filter((u) => {
       const box = u.closest('svg').getBoundingClientRect();
       return box.width > 0 && box.height > 0;
     });
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    return { total: uses.length, rendered: rendered.length };
+    return { clicked: ${modelsBtn.result.value}, total: uses.length, rendered: rendered.length };
   })()`);
-  check("Models panel renders provider icons", !ui.result.value.error && ui.result.value.rendered > 0,
-    ui.result.value.error ?? `${ui.result.value.rendered}/${ui.result.value.total} rendered`);
+  check("Models panel renders provider icons", ui.result.value.clicked && ui.result.value.rendered > 0,
+    `${ui.result.value.rendered}/${ui.result.value.total} rendered`);
 
   // 10. terminal IPC round trip (v0.9.0 sync, issue 11): subscribe responses
   //     must be structured-clone safe and a real PTY must echo over the push channel.

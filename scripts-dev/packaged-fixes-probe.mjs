@@ -106,7 +106,7 @@ try {
   // 2. bash full output: view full output, then expand the bash block
   const bash = await evalJs(`(async () => {
     for (let i = 0; i < 40; i++) { const b = [...document.querySelectorAll("button")].find((x) => x.textContent === "view full output"); if (b) { b.click(); break; } await new Promise((r) => setTimeout(r, 250)); }
-    for (let i = 0; i < 40; i++) { const b = [...document.querySelectorAll("button")].find((x) => /bash echo pkg/.test(x.textContent || "")); if (b) { b.click(); break; } await new Promise((r) => setTimeout(r, 250)); }
+    for (let i = 0; i < 40; i++) { const b = [...document.querySelectorAll("button")].find((x) => /bash\s*echo pkg/.test(x.textContent || "")); if (b) { b.click(); break; } await new Promise((r) => setTimeout(r, 250)); }
     for (let i = 0; i < 40; i++) {
       if (document.body.textContent.includes("BASH-PKG-MARKER")) return { ok: true };
       await new Promise((r) => setTimeout(r, 250));
