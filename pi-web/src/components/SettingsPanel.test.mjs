@@ -7,6 +7,7 @@ const cssSource = await readFile(new URL("../settings.css", import.meta.url), "u
 const shellSource = await readFile(new URL("./AppShell.tsx", import.meta.url), "utf8");
 const sidebarSource = await readFile(new URL("./SessionSidebar.tsx", import.meta.url), "utf8");
 const themeSource = await readFile(new URL("../hooks/useTheme.ts", import.meta.url), "utf8");
+const themeOptionsSource = await readFile(new URL("../lib/theme.ts", import.meta.url), "utf8");
 const enSource = await readFile(new URL("../lib/i18n/messages/en.ts", import.meta.url), "utf8");
 const zhSource = await readFile(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url), "utf8");
 
@@ -50,10 +51,12 @@ test("keeps visited settings sections mounted and contains nested Escape handlin
   assert.match(modelsSource, /e\.preventDefault\(\);\s*e\.stopPropagation\(\);\s*onClose\(\);/);
 });
 
-test("offers direct light, dark, and system theme selection", () => {
-  for (const preference of ["light", "dark", "auto"]) {
-    assert.match(panelSource, new RegExp(`id: "${preference}"`));
+test("offers five palettes and system theme selection with native radios", () => {
+  for (const preference of ["light", "dark", "mist", "rose", "pine", "auto"]) {
+    assert.match(themeOptionsSource, new RegExp(`id: "${preference}"`));
   }
+  assert.match(panelSource, /THEME_OPTIONS\.map/);
+  assert.match(panelSource, /type="radio"/);
   assert.match(panelSource, /setThemePreference\(option\.id\)/);
   assert.match(themeSource, /const setThemePreference = useCallback/);
 });

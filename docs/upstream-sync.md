@@ -210,3 +210,39 @@ from v0.8.7 (socket.io reverse-proxy terminal, background service); `v0.9.0-fork
 New IPC surface this sync: `pi:sessions:search`, `pi:plugins:check`,
 `pi:terminal:*` (6 channels + per-subscription push). `agentRunning`/`sessionsList`
 responses now carry `sessionListVersion`.
+
+## v0.9.0+ → `0ff1138` — synced 2026-09 (batch on `main`)
+
+16 non-merge commits; tracker: `.scratch/upstream-sync-v0.9.1/` (issues 01–07, all
+resolved). Landed together with a local fix: the issue-11 terminal-tabs port had
+reshaped the panel-close paths to call `setRightPanelOpen(false)` directly, dropping
+the PR #548 `rightPanelMaximized` reset — all close paths (last file tab, last
+terminal, project switch, session switch) exit through `handleRightPanelClose()`
+again while keeping the terminal-aware conditions.
+
+| Upstream | Subject | Status | Notes |
+|---|---|---|---|
+| `2e914db` | fix: terminal shells default to UTF-8 locale (#751) | ported | issue 06; lib shared with electron terminal service |
+| `e685cac` | feat: browser password login (#505) | n/a | HTTP form factor (login page, /api/web-auth, session cookie); web-login CSS from the same hunk dropped |
+| `5173f6a` | fix: preserve links from rich-text paste (#537) | ported | issue 01 |
+| `0e71201` | feat: paginate large text file previews | ported | issue 04; `offset` query on `pifile://` read replaces the 413 |
+| `448e146` | feat: readable themes + toolbar theme selector | ported | issue 02; index.html gains THEME_INIT_SCRIPT boot script (fork gap); PWA standalone block n/a |
+| `a26cc68` | fix: escaped backticks in inline code | ported | issue 01 |
+| `ed840ed` | fix: restore/display session models accurately | ported | issue 03; transport stays window.pi.agentState |
+| `b1a7296` | test: model fallback e2e expectation | n/a | upstream's own Next e2e harness; our Playwright suite has no such assertion |
+| `ef51ffd` | fix: show top-level extensions in plugin settings | ported | issue 05; re-homed into electron plugins service |
+| `d10988d` | fix: prevent duplicate built-in command submissions | ported | issue 01 |
+| `585d56c` | fix: support first-message session forks | ported | issue 03; onTitleGenerated (issue-07 v0.9.0 port) kept |
+| `f4a700d` | fix: render extension prompts as markdown (#699) | ported | issue 01 |
+| `def1478` | fix: preserve shell output across reconnects | ported | issue 03; rpc-manager activeToolEvents replay; shutdown tests imported |
+| `09383ae` | perf(sessions): gzip large JSON responses (#731) | n/a | HTTP transport only; IPC uses structured clone |
+| `3e9fcfa` | fix(push): iOS background delivery (#728) | n/a | web push stripped per convention |
+| `0ff1138` | feat: keep selected sessions alive | ported | issue 07; HTTP lease route → new `pi:agent:lease` IPC; `sessionRunning` prop removed end-to-end |
+
+Verification: `npm run typecheck` clean; `npm test` 886/890 (1 pre-existing Windows
+PATH baseline failure; 3 win32 skips). New IPC surface: `pi:agent:lease`.
+
+#lesson: `git apply --3way` over a multi-file patch set is atomic — one file that
+can't apply (“does not match index”) rolls the whole batch back, and the per-file
+“cleanly applied” messages printed before the failure are misleading. Port
+commit-by-commit and file-by-file when the batch touches files the fork reshaped.

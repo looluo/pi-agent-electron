@@ -109,10 +109,39 @@ test("fresh sessions use the preference while persisted and live sessions restor
   assert.match(source, /d\.toolNames !== undefined \? getPresetFromToolNames\(d\.toolNames\) : "default"/);
   assert.match(changeSource, /setPreferredToolPreset\(preset\)/);
   assert.match(changeSource, /\(sid, \{ type: "set_tools", toolNames \}\)/);
+  assert.match(changeSource, /activeSessionId !== sid \|\| result\?\.recreated/);
+  assert.match(changeSource, /result\?\.recreated[\s\S]*?maintainEventsConnected\(activeSessionId\)/);
   assert.match(changeSource, /sessionIdRef\.current = activeSessionId/);
   assert.doesNotMatch(loadToolsSource, /setPreferredToolPreset/);
 });
 
+test("first user messages expose both branch actions and edit before their own entry", () => {
+  const navigateSource = source.slice(
+    source.indexOf("  const handleNavigate = useCallback"),
+    source.indexOf("  const handleLeafChange = useCallback"),
+  );
+
+  assert.match(chatWindowSource, /onFork=\{sessionBusy \|\| isNew \? undefined : handleFork\}/);
+  assert.doesNotMatch(chatWindowSource, /idx === 0 && msg\.role === "user"/);
+  assert.doesNotMatch(chatWindowSource, /prevAssistantEntryId/);
+  assert.match(navigateSource, /type: "navigate_tree",\s*targetId: entryId/);
+  assert.match(navigateSource, /await loadSession\(sid\)/);
+});
+
+test("an empty persisted session displays the model it will use on first send", () => {
+  assert.match(
+    source,
+    /currentModel \?\? \(data\?\.context\.messages\.length === 0 \? newSessionDefaultModel : null\)/,
+  );
+  assert.match(source, /setNewSessionDefaultModel\(displayDefaultModel/);
+});
+
+test("the selector prefers the live wrapper model over persisted response metadata", () => {
+  assert.match(source, /model\?: \{ provider: string; id: string \}/);
+  assert.match(source, /const currentModel = currentModelOverride \?\? liveModel \?\? data\?\.context\.model \?\? pendingModel \?\? null/);
+  assert.match(source, /syncLiveModel\(liveState\)/);
+  assert.match(source, /syncLiveModel\(state\);[\s\S]*?const busy = data\.running/);
+});
 
 test("existing-session prompts rely on the persisted tool selection", () => {
   const sendSource = source.slice(
@@ -251,17 +280,23 @@ test("uses server pagination state instead of guessing from rendered rows", () =
   assert.doesNotMatch(chatWindowSource, /rendered\.length >= visibleCount/);
 });
 
-test("connects a selected session when another browser reports it running", () => {
-  assert.match(source, /sessionRunning\?: boolean/);
+test("keeps the selected session warm while idle and renews its lease", () => {
+  assert.doesNotMatch(source, /sessionRunning\?: boolean/);
   assert.match(
     source,
-    /if \(!session\?\.id \|\| !sessionRunning\) return;[\s\S]*?maintainEventsConnected\(session\.id\)/,
+    /const sid = session\?\.id;[\s\S]*?if \(!sid\) return;[\s\S]*?maintainEventsConnected\(sid\)/,
   );
-  assert.match(source, /maintainEventsConnected\(session\.id\)/);
+  assert.match(source, /sessionPropIdRef\.current === sid/);
+  assert.match(source, /SESSION_LEASE_RENEW_INTERVAL_MS = 30_000/);
+  assert.match(source, /window\.pi\.agentLease\(sid\)/);
+  assert.match(source, /setInterval\(\(\) => void renewLease\(\), SESSION_LEASE_RENEW_INTERVAL_MS\)/);
+  assert.match(source, /result\.renewed === 0[\s\S]*?closeEvents\(\)[\s\S]*?maintainEventsConnected\(sid\)/);
+  assert.match(source, /if \(sessionPropIdRef\.current === sid\) \{[\s\S]*?cancelEventStreamGrace\(\);[\s\S]*?return;/);
+  assert.match(source, /maintainEventsConnected\(sid\)/);
   assert.doesNotMatch(source, /void connectEvents\(/);
-  assert.match(chatWindowSource, /sessionRunning\?: boolean/);
-  assert.match(chatWindowSource, /session, sessionRunning, newSessionCwd/);
-  assert.match(appShellSource, /runningSessionIds\.has\(selectedSession\.id\)/);
+  assert.doesNotMatch(chatWindowSource, /sessionRunning/);
+  assert.doesNotMatch(appShellSource, /sessionRunning=\{/);
+  assert.match(appShellSource, /runningSessionIds=\{runningSessionIds\}/);
   assert.match(appShellSource, /onRunningSessionIdsChange=\{handleRunningSessionIdsChange\}/);
 });
 
@@ -305,6 +340,24 @@ test("shows the latest streamed tool execution progress in the running phase", (
   assert.match(updateSource, /tools: \[\.\.\.tools\.filter\([\s\S]*?, updated\]/);
   assert.match(chatWindowSource, /if \(latest\?\.progress\)/);
   assert.match(chatWindowSource, /chat\.runningNamedTool[\s\S]*latest\.progress/);
+});
+
+test("reconnects active shell output to its streaming tool call", () => {
+  const updateSource = source.slice(
+    source.indexOf('case "tool_execution_update"'),
+    source.indexOf('case "tool_execution_end"'),
+  );
+  const endSource = source.slice(
+    source.indexOf('case "tool_execution_end"'),
+    source.indexOf('case "queue_update"'),
+  );
+
+  assert.match(updateSource, /name === "bash" \|\| name === "powershell"/);
+  assert.match(updateSource, /setActiveToolResults/);
+  assert.match(updateSource, /content,/);
+  assert.match(endSource, /setActiveToolResults[\s\S]*next\.delete\(id\)/);
+  assert.match(chatWindowSource, /const map = new Map\(activeToolResults\)/);
+  assert.match(chatWindowSource, /<MessageView message=\{streamState\.streamingMessage as AgentMessage\} toolResults=\{toolResultsMap\}/);
 });
 
 test("plays the enabled sound once for each extension dialog", () => {

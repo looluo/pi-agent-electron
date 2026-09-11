@@ -1,5 +1,5 @@
 import { ipcMain, type WebContents } from "electron";
-import { agentCommand, agentNew, agentState, agentBashOutput, agentBashOutputDownload, agentRunningIds } from "./services/agent";
+import { agentCommand, agentNew, agentState, agentLease, agentBashOutput, agentBashOutputDownload, agentRunningIds } from "./services/agent";
 import {
   sessionsAutoName,
   sessionsContext,
@@ -74,6 +74,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("pi:agent:command", (_e, sessionId: string, command: Record<string, unknown>) =>
     agentCommand(sessionId, command));
   ipcMain.handle("pi:agent:state", (_e, sessionId: string) => agentState(sessionId));
+  ipcMain.handle("pi:agent:lease", (_e, sessionId: string) => agentLease(sessionId));
   ipcMain.handle("pi:agent:running", () => agentRunningIds());
   ipcMain.handle("pi:agent:bash-output", (_e, sessionId: string, path: string) =>
     agentBashOutput(sessionId, path));

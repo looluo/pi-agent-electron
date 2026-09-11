@@ -91,6 +91,121 @@ test("prompt commands wait for SDK preflight acceptance before acknowledging", a
   assert.equal(events.filter((event) => event.type === "prompt_done").length, 1);
 });
 
+test("completion notification waits for an accepted agent run to become idle", async (t) => {
+  let finishPrompt;
+  let sdkListener;
+  const completed = [];
+  const inner = makePromptInner((_message, options) => new Promise((resolve) => {
+    inner.isStreaming = true;
+    options.preflightResult(true);
+    finishPrompt = () => {
+      inner.isStreaming = false;
+      resolve();
+    };
+  }));
+  inner.subscribe = (listener) => {
+    sdkListener = listener;
+    return () => {};
+  };
+
+  const wrapper = new AgentSessionWrapper(inner, {
+    onAgentRunComplete: (sessionId) => completed.push(sessionId),
+  });
+  t.after(() => wrapper.destroy());
+  wrapper.start();
+
+  await wrapper.send({ type: "prompt", message: "hello" });
+  sdkListener({ type: "agent_start" });
+  sdkListener({ type: "agent_end" });
+  sdkListener({ type: "agent_end" });
+  inner.isStreaming = false;
+  sdkListener({ type: "agent_settled" });
+  assert.deepEqual(completed, []);
+
+  finishPrompt();
+  await nextTurn();
+  assert.deepEqual(completed, ["session-1"]);
+
+  sdkListener({ type: "agent_settled" });
+  assert.deepEqual(completed, ["session-1"]);
+});
+
+test("completion notification covers extension-injected runs without an SSE client", (t) => {
+  let sdkListener;
+  const completed = [];
+  const inner = makePromptInner(() => Promise.resolve());
+  inner.subscribe = (listener) => {
+    sdkListener = listener;
+    return () => {};
+  };
+
+  const wrapper = new AgentSessionWrapper(inner, {
+    onAgentRunComplete: (sessionId) => completed.push(sessionId),
+  });
+  t.after(() => wrapper.destroy());
+  wrapper.start();
+
+  inner.isStreaming = true;
+  sdkListener({ type: "agent_start" });
+  sdkListener({ type: "agent_end" });
+  assert.deepEqual(completed, []);
+
+  inner.isStreaming = false;
+  sdkListener({ type: "agent_settled" });
+  assert.deepEqual(completed, ["session-1"]);
+});
+
+test("new event listeners receive the latest active tool update", (t) => {
+  let sdkListener;
+  const inner = makePromptInner(() => Promise.resolve());
+  inner.subscribe = (listener) => {
+    sdkListener = listener;
+    return () => {};
+  };
+
+  const wrapper = new AgentSessionWrapper(inner);
+  t.after(() => wrapper.destroy());
+  wrapper.start();
+
+  sdkListener({ type: "tool_execution_start", toolCallId: "tool-1", toolName: "bash" });
+  sdkListener({ type: "tool_execution_update", toolCallId: "tool-1", toolName: "bash", partialResult: { content: [{ type: "text", text: "one" }] } });
+  const latest = { type: "tool_execution_update", toolCallId: "tool-1", toolName: "bash", partialResult: { content: [{ type: "text", text: "one\ntwo" }] } };
+  sdkListener(latest);
+
+  const replayed = [];
+  const unsubscribe = wrapper.onEvent((event) => replayed.push(event));
+  assert.deepEqual(replayed, [latest]);
+
+  unsubscribe();
+  sdkListener({ type: "tool_execution_end", toolCallId: "tool-1", toolName: "bash" });
+  const afterEnd = [];
+  wrapper.onEvent((event) => afterEnd.push(event));
+  assert.deepEqual(afterEnd, []);
+});
+
+test("suppressed sessions do not emit completion notifications", (t) => {
+  let sdkListener;
+  const completed = [];
+  const inner = makePromptInner(() => Promise.resolve());
+  inner.subscribe = (listener) => {
+    sdkListener = listener;
+    return () => {};
+  };
+
+  const wrapper = new AgentSessionWrapper(inner, {
+    onAgentRunComplete: (sessionId) => completed.push(sessionId),
+    suppressCompletionNotifications: true,
+  });
+  t.after(() => wrapper.destroy());
+  wrapper.start();
+
+  inner.isStreaming = true;
+  sdkListener({ type: "agent_start" });
+  inner.isStreaming = false;
+  sdkListener({ type: "agent_settled" });
+  assert.deepEqual(completed, []);
+});
+
 test("prompt commands reject when SDK preflight fails", async (t) => {
   const inner = makePromptInner((_message, options) => {
     options.preflightResult(false);

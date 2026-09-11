@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld("pi", {
   agentCommand: (sessionId: string, command: unknown) =>
     ipcRenderer.invoke("pi:agent:command", sessionId, command),
   agentState: (sessionId: string) => ipcRenderer.invoke("pi:agent:state", sessionId),
+  agentLease: (sessionId: string) => ipcRenderer.invoke("pi:agent:lease", sessionId),
   agentRunning: () => ipcRenderer.invoke("pi:agent:running"),
   agentBashOutput: (sessionId: string, path: string) =>
     ipcRenderer.invoke("pi:agent:bash-output", sessionId, path),

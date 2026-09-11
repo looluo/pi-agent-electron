@@ -6,6 +6,7 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { allowFileRoot } from "@/lib/file-access";
 import { getRpcSession, getRunningRpcSessionIds, setRpcSessionTools, startRpcSession, type AgentSessionWrapper } from "@/lib/rpc-manager";
 import { getSessionListVersion, invalidateSessionListCache, resolveSessionPath } from "@/lib/session-reader";
+import { renewSessionLivenessLeases } from "@/lib/session-liveness";
 import {
   MAX_INLINE_BASH_OUTPUT_BYTES,
   openRegularFileNoFollow,
@@ -209,6 +210,11 @@ export async function agentState(sessionId: string): Promise<{ running: boolean;
   }
   const state = await session.send({ type: "get_state" });
   return { running: true, state };
+}
+
+/** Port of app/api/agent/[id]/lease (POST) — renew selected-session leases. */
+export function agentLease(sessionId: string): { renewed: number } {
+  return { renewed: renewSessionLivenessLeases(sessionId) };
 }
 
 /** Port of app/api/agent/running (GET). */

@@ -41,8 +41,9 @@ export function registerFilesProtocol(): void {
     const filePath = filePathFromSegments(segments);
     const type = url.searchParams.get("type") ?? "list";
     const sessionId = url.searchParams.get("sessionId");
+    const offset = url.searchParams.get("offset");
     const range = request.headers.get("range");
-    return handleFilesGet(filePath, type, sessionId, range);
+    return handleFilesGet(filePath, type, sessionId, range, offset);
   });
 }
 

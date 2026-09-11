@@ -45,6 +45,7 @@ export interface PiBridge {
   }>>;
   agentCommand(sessionId: string, command: unknown): Promise<IpcResult<unknown>>;
   agentState(sessionId: string): Promise<{ running: boolean; state?: unknown }>;
+  agentLease(sessionId: string): Promise<{ renewed: number }>;
   agentRunning(): Promise<{ runningSessionIds: string[] }>;
   agentBashOutput(sessionId: string, path: string): Promise<IpcResult<{ output: string }>>;
   agentBashOutputDownload(sessionId: string, path: string): Promise<IpcResult<{ output: string }>>;

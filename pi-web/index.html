@@ -4,6 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Pi Agent App</title>
+    <script>
+      // Boot-time theme application — keep in sync with THEME_INIT_SCRIPT in src/lib/theme.ts.
+      (function(){var t="auto";try{var s=localStorage.getItem("pi-theme");if(["light","dark","mist","rose","pine","auto"].includes(s))t=s}catch(e){}if(t==="auto")t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";var r=document.documentElement;r.dataset.theme=t;r.classList.toggle("dark",t==="dark"||t==="pine")})();
+    </script>
   </head>
   <body>
     <div id="root"></div>

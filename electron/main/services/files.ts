@@ -10,7 +10,6 @@ import {
 import {
   DOCX_PREVIEW_MAX_BYTES,
   IMAGE_PREVIEW_MAX_BYTES,
-  TEXT_PREVIEW_MAX_BYTES,
   documentPreviewKind,
   getAudioMime,
   getVideoMime,
@@ -21,6 +20,7 @@ import {
 import { resolveDirentIsDirectory } from "@/lib/file-dirent";
 import { isFilePathReferencedBySession } from "@/lib/session-file-references";
 import { filePathFromApiSegments, samePath } from "@/lib/paths";
+import { readTextPreviewChunk } from "@/lib/text-preview";
 
 /**
  * Port of app/api/files/[...path] (GET) serving through the in-process
@@ -238,6 +238,7 @@ export async function handleFilesGet(
   rawType: string,
   sessionId: string | null,
   rangeHeader: string | null,
+  rawOffset: string | null = null,
 ): Promise<Response> {
   try {
     const type = rawType || "list";
@@ -293,12 +294,17 @@ export async function handleFilesGet(
       if (documentMime) {
         return streamFile(filePath, stat, documentMime, rangeHeader);
       }
-      if (stat.size > TEXT_PREVIEW_MAX_BYTES) {
-        return json({ error: "File too large for preview (>256KB)" }, 413);
+      const rawOffsetValue = rawOffset;
+      if (rawOffsetValue !== null && !/^\d+$/.test(rawOffsetValue)) {
+        return json({ error: "Invalid text preview offset" }, 400);
       }
-      const content = fs.readFileSync(filePath, "utf-8");
+      const offset = Number(rawOffsetValue ?? 0);
+      if (!Number.isSafeInteger(offset) || offset > stat.size) {
+        return json({ error: "Invalid text preview offset" }, 400);
+      }
+      const chunk = readTextPreviewChunk(filePath, stat.size, offset);
       const language = getLanguage(filePath);
-      return json({ content, language, size: stat.size });
+      return json({ ...chunk, language, size: stat.size });
     }
 
     if (type === "download") {
