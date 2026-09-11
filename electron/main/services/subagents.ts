@@ -5,7 +5,7 @@ import {
   listSubagentProfileSources,
   saveSubagentProfile,
 } from "@/lib/subagents";
-import { readSubagentSettings, writeBuiltInSubagentsEnabled } from "@/lib/subagent-settings";
+import { readSubagentSettings, writeBuiltInSubagentsEnabled, writeSubagentMaxConcurrent } from "@/lib/subagent-settings";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import { abortSubagent, getSubagentRun, steerSubagent } from "@/lib/rpc-manager";
 
@@ -108,6 +108,7 @@ export async function subagentsProfilesToggle(body: Record<string, unknown>): Pr
       maxTurns: source.maxTurns,
       inheritContext: source.inheritContext,
       runInBackground: source.runInBackground,
+      promptMode: source.promptMode,
       enabled: source.enabled,
     };
     return { status: 200, body: { profile: saveSubagentProfile(cwd, scope, { ...profile, enabled: body.enabled }) as unknown as Record<string, unknown> } };
@@ -133,7 +134,7 @@ export async function subagentsProfilesDelete(body: Record<string, unknown>): Pr
 export async function subagentsSettingsGet(): Promise<StatusBody> {
   try {
     const settings = readSubagentSettings();
-    return { status: 200, body: { enabled: settings.builtInEnabled } };
+    return { status: 200, body: { enabled: settings.builtInEnabled, maxConcurrent: settings.maxConcurrent } };
   } catch (error) {
     return errorBody(error, 500);
   }
@@ -141,13 +142,21 @@ export async function subagentsSettingsGet(): Promise<StatusBody> {
 
 /** Port of app/api/subagents/settings (PUT) — request-security checks are HTTP
  *  concerns; the typed IPC channel is only reachable from the trusted renderer. */
-export async function subagentsSettingsPut(enabled: unknown): Promise<StatusBody> {
+export async function subagentsSettingsPut(enabled: unknown, maxConcurrent?: unknown): Promise<StatusBody> {
   try {
-    if (typeof enabled !== "boolean") {
+    if (enabled === undefined && maxConcurrent === undefined) {
+      return { status: 400, body: { error: "enabled or maxConcurrent is required" } };
+    }
+    if (enabled !== undefined && typeof enabled !== "boolean") {
       return { status: 400, body: { error: "enabled must be a boolean" } };
     }
-    const settings = writeBuiltInSubagentsEnabled(enabled);
-    return { status: 200, body: { enabled: settings.builtInEnabled } };
+    if (maxConcurrent !== undefined && typeof maxConcurrent !== "number") {
+      return { status: 400, body: { error: "maxConcurrent must be a number" } };
+    }
+    let settings = readSubagentSettings();
+    if (enabled !== undefined) settings = writeBuiltInSubagentsEnabled(enabled);
+    if (maxConcurrent !== undefined) settings = writeSubagentMaxConcurrent(maxConcurrent);
+    return { status: 200, body: { enabled: settings.builtInEnabled, maxConcurrent: settings.maxConcurrent } };
   } catch (error) {
     return errorBody(error, 500);
   }

@@ -132,6 +132,7 @@ contextBridge.exposeInMainWorld("pi", {
   authProviders: () => ipcRenderer.invoke("pi:auth:providers"),
   authAllProviders: () => ipcRenderer.invoke("pi:auth:all-providers"),
   apiKeyStatus: (provider: string) => ipcRenderer.invoke("pi:auth:api-key:get", provider),
+  providerUsageQuery: (providerId: string) => ipcRenderer.invoke("pi:provider-usage:query", providerId),
   apiKeySet: (provider: string, apiKey: string) => ipcRenderer.invoke("pi:auth:api-key:set", provider, apiKey),
   apiKeyDelete: (provider: string) => ipcRenderer.invoke("pi:auth:api-key:delete", provider),
   authLogout: (provider: string) => ipcRenderer.invoke("pi:auth:logout", provider),
@@ -172,7 +173,7 @@ contextBridge.exposeInMainWorld("pi", {
   subagentsProfilesDelete: (body: { cwd: string; scope: string; name: string }) =>
     ipcRenderer.invoke("pi:subagents:profiles:delete", body),
   subagentsSettingsGet: () => ipcRenderer.invoke("pi:subagents:settings:get"),
-  subagentsSettingsPut: (enabled: boolean) => ipcRenderer.invoke("pi:subagents:settings:put", enabled),
+  subagentsSettingsPut: (enabled?: boolean, maxConcurrent?: number) => ipcRenderer.invoke("pi:subagents:settings:put", enabled, maxConcurrent),
 
   // tools settings
   toolsSettingsGet: () => ipcRenderer.invoke("pi:tools:settings:get"),

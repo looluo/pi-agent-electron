@@ -17,6 +17,7 @@ import {
   modelsTest,
   type AuthLoginFrame,
 } from "./services/models-auth";
+import { providerUsageQuery } from "./services/provider-usage";
 
 type LoginSession = {
   webContents: WebContents;
@@ -40,6 +41,7 @@ function registerModelsAuthHandlers(): void {
   ipcMain.handle("pi:auth:providers", () => authProviders());
   ipcMain.handle("pi:auth:all-providers", () => authAllProviders());
   ipcMain.handle("pi:auth:api-key:get", (_e, provider: string) => apiKeyStatus(provider));
+  ipcMain.handle("pi:provider-usage:query", (_e, providerId: unknown) => providerUsageQuery(providerId));
   ipcMain.handle("pi:auth:api-key:set", (_e, provider: string, apiKey: unknown) => apiKeySet(provider, apiKey));
   ipcMain.handle("pi:auth:api-key:delete", (_e, provider: string) => apiKeyDelete(provider));
   ipcMain.handle("pi:auth:logout", (_e, provider: string) => authLogout(provider));

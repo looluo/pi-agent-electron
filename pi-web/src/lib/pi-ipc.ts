@@ -101,6 +101,7 @@ export interface PiBridge {
   authProviders(): Promise<{ providers?: unknown[] }>;
   authAllProviders(): Promise<{ providers?: unknown[] }>;
   apiKeyStatus(provider: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  providerUsageQuery(providerId: string): Promise<unknown>;
   apiKeySet(provider: string, apiKey: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   apiKeyDelete(provider: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   authLogout(provider: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
@@ -124,7 +125,7 @@ export interface PiBridge {
   subagentsProfilesToggle(body: { cwd: string; scope: string; name: string; enabled: boolean }): Promise<{ status: number; body: Record<string, unknown> | null }>;
   subagentsProfilesDelete(body: { cwd: string; scope: string; name: string }): Promise<{ status: number; body: Record<string, unknown> | null }>;
   subagentsSettingsGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
-  subagentsSettingsPut(enabled: boolean): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  subagentsSettingsPut(enabled?: boolean, maxConcurrent?: number): Promise<{ status: number; body: Record<string, unknown> | null }>;
   toolsSettingsGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
   toolsSettingsPut(enabled: boolean): Promise<{ status: number; body: Record<string, unknown> | null }>;
   sessionExport(id: string): Promise<{ status: number; body: Record<string, unknown> | null }>;

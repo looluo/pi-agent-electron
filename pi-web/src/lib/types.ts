@@ -292,6 +292,15 @@ export interface BranchPreview {
   text: string;
 }
 
+export type SubagentSessionStatus =
+  | "starting"
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "aborted"
+  | "interrupted";
+
 export interface SessionTreeNode {
   entry: SessionEntry;
   children: SessionTreeNode[];
@@ -299,14 +308,6 @@ export interface SessionTreeNode {
   compressedEntryIds?: string[];
   branchPreview?: BranchPreview;
 }
-
-export type SubagentSessionStatus =
-  | "starting"
-  | "running"
-  | "completed"
-  | "failed"
-  | "aborted"
-  | "interrupted";
 
 export interface SessionInfo {
   path: string;

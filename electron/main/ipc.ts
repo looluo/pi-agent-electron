@@ -202,7 +202,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("pi:subagents:profiles:toggle", (_e, body: Record<string, unknown>) => subagentsProfilesToggle(body ?? {}));
   ipcMain.handle("pi:subagents:profiles:delete", (_e, body: Record<string, unknown>) => subagentsProfilesDelete(body ?? {}));
   ipcMain.handle("pi:subagents:settings:get", () => subagentsSettingsGet());
-  ipcMain.handle("pi:subagents:settings:put", (_e, enabled: unknown) => subagentsSettingsPut(enabled));
+  ipcMain.handle("pi:subagents:settings:put", (_e, enabled: unknown, maxConcurrent?: unknown) => subagentsSettingsPut(enabled, maxConcurrent));
 
   // ---- tools settings -----------------------------------------------------------
   ipcMain.handle("pi:tools:settings:get", () => toolsSettingsGet());

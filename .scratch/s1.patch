@@ -1,0 +1,5 @@
+commit b77a25fc5e902ecc84f57da0f7eccc92b08e7639
+Author: Alex Yang <agegcn@gmail.com>
+Date:   Fri Sep 11 14:00:42 2026 +0800
+
+    feat(subagents): queue concurrent runs

@@ -246,3 +246,38 @@ PATH baseline failure; 3 win32 skips). New IPC surface: `pi:agent:lease`.
 can't apply (“does not match index”) rolls the whole batch back, and the per-file
 “cleanly applied” messages printed before the failure are misleading. Port
 commit-by-commit and file-by-file when the batch touches files the fork reshaped.
+
+## v0.9.1 (`0ff1138..8366762`) — synced 2026-09 (batch on `main`)
+
+24 non-merge commits; tracker: `.scratch/upstream-sync-v0.9.1/` (issues 01–11 across
+both post-v0.9.0 batches). Local version bumped 0.9.0 → 0.9.1 to match the upstream
+release.
+
+| Upstream | Subject | Status | Notes |
+|---|---|---|---|
+| `b77a25f` | feat(subagents): queue concurrent runs | ported | issue 08; settings IPC gains maxConcurrent |
+| `a31d5c5` | feat(subagents): resume persisted sessions | ported | issue 08 |
+| `bbe2f7d` | feat(subagents): support tintinweb profiles | ported | issue 08 |
+| `2661247` | feat(subagents): isolate agents in worktrees | ported | issue 08 |
+| `e3fbbf6` | feat(subagents): honor extension tool selectors | ported | issue 08 |
+| `b5b52f0` | fix(ui): compact subagent settings | ported | issue 08; settings.css remap |
+| `f106531` | merge: subagent P0 features | ported | issue 08; via constituents, lib byte-identical to 8366762 |
+| `55df7d7` | fix(e2e): tolerate live session metadata | n/a | upstream e2e harness |
+| `fad65c9`/`17ad5c5` | docs(agents) | n/a | upstream AGENTS.md |
+| `dab9850` | fix: @ picker keyboard selection wrap (#769) | ported | issue 09 |
+| `1b88ec7` | fix: @ picker within visible area (#768) | ported | issue 09 |
+| `e83f4b5` | feat(sessions): delete subagent descendants with parent | ported | issue 11; sessionsDelete cascade + rpc-manager includeTransient |
+| `4787a14` | fix(ui): preserve streaming output on open | ported | issue 09 |
+| `f607816` | fix: hide leftover enabledModels warnings (#770) | ported | issue 09 |
+| `a74aef8` | feat: sidebar=collapsed query param (#712) | ported | issue 09 |
+| `c8c63a1`/`0ff32dd` | docs(cli)/docs(i18n) | n/a | upstream docs |
+| `effa464` | ci: pin Node.js 22.19.0 | n/a | upstream CI; our README already requires ≥22.19 |
+| `2eb95b9` | fix: keep theme and language controls in settings (#772) | ported | issue 10; removes the 448e146 toolbar selector, palettes/settings group stay |
+| `894c735` | fix(i18n): clarify main worktree labels | ported | issue 09 |
+| `6d53fd5` | feat(models): show provider usage quotas | ported | issue 11; new `pi:provider-usage:query` IPC, ProviderUsageSummary rides window.pi |
+| `553f2d7` | fix(subagents): keep agent profile fields (#794) | ported | issue 08; frontmatter passthrough |
+| `8366762` | Release v0.9.1 | n/a | local version bumped to 0.9.1 to match |
+
+Verification: `npm run typecheck` clean; `npm test` 917/921 (1 pre-existing Windows
+PATH baseline failure; 3 win32 skips). New IPC surface: `pi:provider-usage:query`;
+`pi:subagents:settings:put` gained a `maxConcurrent` parameter.

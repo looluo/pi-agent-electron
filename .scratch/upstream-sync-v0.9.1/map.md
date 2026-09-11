@@ -27,3 +27,18 @@ form factor), `b1a7296` (upstream's own e2e expectation), `09383ae` (HTTP gzip),
 `3e9fcfa` (iOS web push).
 
 New IPC surface: `pi:agent:lease`.
+
+## v0.9.1 batch (0ff1138..8366762, 2026-09 follow-up)
+
+- 08 subagents-p0 — queue/resume/tintinweb/worktree/tool-selector cluster `b77a25f` `a31d5c5` `bbe2f7d` `2661247` `e3fbbf6` `b5b52f0` + merge `f106531` (—)
+- 09 renderer-fixes-2 — `dab9850` `1b88ec7` `4787a14` `f607816` `a74aef8` `894c735` (—)
+- 10 theme-controls-in-settings — `2eb95b9` (#772) removes the toolbar theme/language selector (02)
+- 11 cascade-delete-quotas — `e83f4b5` + `6d53fd5`, sessions cascade + `pi:provider-usage:query` IPC (08)
+
+n/a this batch: `55df7d7` (upstream e2e), `fad65c9`/`17ad5c5` (upstream AGENTS.md),
+`c8c63a1`/`0ff32dd` (upstream docs), `effa464` (upstream CI), `8366762` (release commit;
+local version independently bumped 0.9.0 → 0.9.1 to match v0.9.1).
+
+New IPC surface: `pi:provider-usage:query`; `pi:subagents:settings:put` gained
+`maxConcurrent`. lib/subagents.ts + lib/subagent-settings.ts verified byte-identical
+to upstream 8366762 after the cluster.
