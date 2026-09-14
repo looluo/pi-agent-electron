@@ -9,6 +9,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { gt, maxSatisfying, rcompare, valid, validRange } from "semver";
 import type { PluginScope, PluginUpdateResult } from "@/lib/api-types";
+import { runNpm } from "./npx";
 import { getProjectTrustStatus } from "./project-trust";
 
 const execFileAsync = promisify(execFile);
@@ -97,9 +98,19 @@ async function runCommand(
   args: string[],
   options: { cwd: string; env?: NodeJS.ProcessEnv },
 ): Promise<string> {
+  const env = options.env ? { ...process.env, ...options.env } : process.env;
+  if (command === "npm") {
+    const { stdout } = await runNpm(args, {
+      cwd: options.cwd,
+      env,
+      timeout: 10_000,
+    });
+    return stdout;
+  }
+
   const { stdout } = await execFileAsync(command, args, {
     cwd: options.cwd,
-    env: options.env ? { ...process.env, ...options.env } : process.env,
+    env,
     encoding: "utf8",
     timeout: 10_000,
   });
