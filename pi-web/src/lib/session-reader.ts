@@ -454,6 +454,28 @@ export interface BuildSessionContextOptions {
   sessionId?: string;
 }
 
+/**
+ * Cap on the anchor rollback below: bounds how far a window (initial or
+ * pagination page) may extend backward so a pathological mega-turn cannot
+ * balloon one load. 2000 covers real agentic sessions (the 2026-09-16 report
+ * that motivated pagination rollback had a 541-entry turn on the active
+ * branch); the renderer virtualizes large windows, so the cost is payload
+ * size, not DOM size. Exported for tests.
+ */
+export const ANCHOR_ROLLBACK_CAP = 2000;
+
+/**
+ * Turn anchors mirror ChatWindow's `isMessageGroupAnchor`: a user message or
+ * a compaction summary both start a new collapsible "process details" group.
+ */
+function isTurnAnchorEntry(entry: SessionEntry): boolean {
+  if (entry.type === "compaction") return true;
+  if (entry.type === "message") {
+    return (entry.message as { role?: string } | undefined)?.role === "user";
+  }
+  return false;
+}
+
 export function buildSessionContext(
   entries: SessionEntry[],
   leafId?: string | null,
@@ -462,9 +484,28 @@ export function buildSessionContext(
   const { tail, excludeLeaf } = options;
   // History pages retain the original branch order, including compacted messages.
   // SDK context filtering can drop a page's messages when firstKeptEntryId is outside it.
-  const sliced = leafId === null ? [] : sliceActiveBranch(
+  let sliced = leafId === null ? [] : sliceActiveBranch(
     entries, leafId ?? null, tail && tail > 0 ? tail : entries.length, excludeLeaf,
   );
+  // Anchor rollback: any window whose head is not itself a turn anchor would
+  // render flat in ChatWindow (no "process details" group to collapse) until
+  // the turn's anchor loads from an older page. Extend backward to the nearest
+  // turn anchor when one exists within ANCHOR_ROLLBACK_CAP entries — for the
+  // initial window AND for pagination pages, so a turn's content never arrives
+  // ahead of its anchor (which used to regroup it flat→collapsed mid-scroll).
+  if (sliced[0]?.parentId && !isTurnAnchorEntry(sliced[0])) {
+    const byId = new Map(entries.map((e) => [e.id, e]));
+    const prefix: SessionEntry[] = [];
+    let cursor: SessionEntry | undefined = byId.get(sliced[0].parentId);
+    while (cursor && prefix.length < ANCHOR_ROLLBACK_CAP) {
+      prefix.push(cursor);
+      if (isTurnAnchorEntry(cursor)) break;
+      cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
+    }
+    if (prefix.length > 0 && isTurnAnchorEntry(prefix[prefix.length - 1])) {
+      sliced = [...prefix.reverse(), ...sliced];
+    }
+  }
   const hasMore = Boolean(tail && tail > 0 && sliced[0]?.parentId);
 
   // Convert messages and their IDs together to keep fork/navigation targets aligned.

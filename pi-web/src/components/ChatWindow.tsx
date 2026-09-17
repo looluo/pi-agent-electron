@@ -7,6 +7,7 @@ import { normalizeCustomPanelLines } from "@/lib/ansi";
 import { AnsiText } from "./AnsiText";
 import { asBracketedPaste, toTerminalKeyData } from "@/lib/terminal-input";
 import { countToolCallBlocks, getAssistantErrorMessage, getDisplayableAssistantBlocks, isMessageGroupAnchor, splitFinalAssistantBlocks } from "@/lib/message-display";
+import { isProcessGroupExpanded, setProcessGroupExpanded } from "@/lib/process-group-expansion";
 import { extractTurnWrittenFiles, type WrittenFile } from "@/lib/turn-written-files";
 import { buildQuotedSelection } from "@/lib/quoted-selection";
 import { MessageView } from "./MessageView";
@@ -191,11 +192,20 @@ function withAssistantBlocks(
   return next;
 }
 
-function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = false, reveal = false, children, t }: { messageCount: number; toolCallCount: number; defaultExpanded?: boolean; reveal?: boolean; children: ReactNode; t: (key: string, params?: Record<string, string | number>) => string }) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
+function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = false, reveal = false, persistence, children, t }: { messageCount: number; toolCallCount: number; defaultExpanded?: boolean; reveal?: boolean; persistence?: { sessionId: string; anchorId: string }; children: ReactNode; t: (key: string, params?: Record<string, string | number>) => string }) {
+  const [expanded, setExpanded] = useState(() => (
+    persistence ? isProcessGroupExpanded(persistence.sessionId, persistence.anchorId) : defaultExpanded
+  ));
   useLayoutEffect(() => {
     if (reveal) setExpanded(true);
   }, [reveal]);
+  // Reveal only flips in-memory state: a search jump is transient navigation
+  // and must not persist expansion the user did not choose.
+  const toggle = () => setExpanded((v) => {
+    const next = !v;
+    if (persistence) setProcessGroupExpanded(persistence.sessionId, persistence.anchorId, next);
+    return next;
+  });
   const parts = [t("chat.processDetails"), `${messageCount} ${t(messageCount === 1 ? "chat.message" : "chat.messages")}`];
   if (toolCallCount > 0) parts.push(`${toolCallCount} ${t(toolCallCount === 1 ? "chat.toolCall" : "chat.toolCalls")}`);
 
@@ -204,7 +214,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = fa
       <button
         type="button"
         aria-expanded={expanded || reveal}
-        onClick={() => setExpanded((v) => !v)}
+        onClick={toggle}
         style={{
           display: "flex",
           alignItems: "center",
@@ -1138,12 +1148,13 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
                 }
 
                 if (processViews.length > 0) {
+                  const anchorId = entryIds[userIdx] ?? String(userIdx);
                   rendered.push(
                     <div
-                      key={`process-group-${entryIds[userIdx] ?? userIdx}`}
+                      key={`process-group-${anchorId}`}
                       ref={processRefIdx === undefined ? undefined : (el) => { messageRefs.current[processRefIdx] = el; }}
                     >
-                      <ProcessDetailsGroup messageCount={processViews.length} toolCallCount={processToolCount} defaultExpanded={!finalAnswerMessage} reveal={revealProcess} t={t}>
+                      <ProcessDetailsGroup messageCount={processViews.length} toolCallCount={processToolCount} reveal={revealProcess} persistence={session?.id ? { sessionId: session.id, anchorId } : undefined} t={t}>
                         {processViews}
                       </ProcessDetailsGroup>
                     </div>,

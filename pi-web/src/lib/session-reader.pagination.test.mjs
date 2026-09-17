@@ -7,7 +7,7 @@ import test from "node:test";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url);
-const { sliceActiveBranch, buildSessionContext } = await jiti.import("./session-reader.ts");
+const { sliceActiveBranch, buildSessionContext, ANCHOR_ROLLBACK_CAP } = await jiti.import("./session-reader.ts");
 const { computeSessionStats } = await jiti.import("./session-stats.ts");
 
 // Build a linear chain of n entries: e0 -> e1 -> ... -> e(n-1).
@@ -128,7 +128,9 @@ test("pagination loses no history when compaction kept entries fall outside the 
       const cursor = page.oldestEntryId;
       page = buildSessionContext(entries, cursor, { tail, excludeLeaf: true });
       assert.notEqual(page.oldestEntryId, cursor);
-      assert.ok(page.entryIds.length <= tail);
+      // Pages may exceed `tail` when the anchor rollback extends them to the
+      // nearest turn anchor — bounded by ANCHOR_ROLLBACK_CAP.
+      assert.ok(page.entryIds.length <= tail + ANCHOR_ROLLBACK_CAP);
       assert.equal(page.messages.length, page.entryIds.length);
       ids = [...page.entryIds, ...ids];
     }
