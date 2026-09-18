@@ -93,12 +93,21 @@ async function loadModels(cwd: string): Promise<ModelsData> {
   if (initial.model) {
     defaultModel = { provider: initial.model.provider, modelId: initial.model.id };
   }
+  // Upstream 3f07a5f: the resolved default the new-session selector shows —
+  // the scope pin, else the per-model setting, else the global default.
+  const defaultThinkingLevel = initial.thinkingLevel
+    ?? (initial.model
+      ? settings.getModelThinkingLevel(initial.model.provider, initial.model.id)
+      : undefined)
+    ?? settings.getDefaultThinkingLevel()
+    ?? null;
 
   return withModelRuntimeError(
     {
       models: Object.fromEntries(nameMap),
       modelList,
       defaultModel,
+      defaultThinkingLevel,
       thinkingLevels,
       thinkingLevelMaps,
       thinkingLevelPins,
@@ -112,6 +121,7 @@ const EMPTY_MODELS: ModelsData = {
   models: {},
   modelList: [],
   defaultModel: null,
+  defaultThinkingLevel: null,
   thinkingLevels: {},
   thinkingLevelMaps: {},
   thinkingLevelPins: {},

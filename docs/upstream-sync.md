@@ -281,3 +281,35 @@ release.
 Verification: `npm run typecheck` clean; `npm test` 917/921 (1 pre-existing Windows
 PATH baseline failure; 3 win32 skips). New IPC surface: `pi:provider-usage:query`;
 `pi:subagents:settings:put` gained a `maxConcurrent` parameter.
+
+## post-v0.9.1 (`8366762..3f07a5f`) — synced 2026-09
+
+13 non-merge commits off `main` after the v0.9.1 tag (no new upstream release;
+local version stays 0.9.2); tracker: `.scratch/upstream-sync-v0.9.2/` (issues 01–07).
+`3f07a5f` is a squash-PR whose constituent fixes were ported separately first.
+
+| Upstream | Subject | Status | Notes |
+|---|---|---|---|
+| `3f07a5f` | feat: show reasoning level of the running turn (#777) | ported | issue 06; `app/api/models` `defaultThinkingLevel` re-homed onto `pi:models` IPC; auto = uncommitted default |
+| `d2056b6` | feat: preview image attachments in chat composer (#735) | ported | issue 05 |
+| `e70c367` | feat: render apply_patch tool calls as split diffs (#744) | ported | issue 04 (after 07 — MessageView import order) |
+| `b42d3f4` | fix: keep user-opened tools expanded across streaming (#743) | ported | issue 07; coexists with local default-collapse (26be91e) |
+| `860698a` | feat: extension widget font size setting (#733) | ported | issue 01; globals.css |
+| `744ee93` | feat(worktree): raised git timeouts + remote-tip start (#732) | ported | issue 03; implicit fetch dropped upstream |
+| `ed0eea9` | fix: extension select scroller edge | ported | issue 01 |
+| `fcd94bf` | fix: preserve newlines in extension dialog titles | ported | issue 01 |
+| `c04bab7` | fix: preserve UNC roots in file API paths | ported | issue 02; matters for our Windows build (pifile:// segments) |
+| `20ad98b` | fix(auth): throttle web password failures | n/a | web password login (HTTP form factor) |
+| `c1e544b` | fix(auth): SameSite=Lax session cookie (#818) | n/a | web-auth |
+| `e5a2434` | fix(deps): Next.js 16.3.5 | n/a | we are Vite |
+| `135517b` | align new-session branding with chat input | n/a | `next/image` + upstream logo; our branding diverged at fork |
+
+Verification: `npm run typecheck` clean; `npm test` 962/964 (2 win32 skips,
+1 first-launch flake re-run green); `npm run test:e2e` 12/12. No new IPC
+channels; `pi:models` response body gained `defaultThinkingLevel`.
+
+#lesson: `git apply --3way` can silently drop hunks when our context drifted
+(indentation artifacts from earlier syncs) while still reporting success — the
+port is only proven by the feature's own source-assertion tests landing in the
+same batch. Port tests with the code, and re-check any hunk list against the
+upstream diff for files our fork reshaped (ChatInput especially).
