@@ -5,7 +5,7 @@ import {
   listSubagentProfileSources,
   saveSubagentProfile,
 } from "@/lib/subagents";
-import { readSubagentSettings, writeBuiltInSubagentsEnabled, writeSubagentMaxConcurrent } from "@/lib/subagent-settings";
+import { readSubagentSettings, writeBuiltInSubagentsEnabled, writeDisabledBuiltInSubagent, writeSubagentMaxConcurrent } from "@/lib/subagent-settings";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import { abortSubagent, getSubagentRun, steerSubagent } from "@/lib/rpc-manager";
 
@@ -87,7 +87,7 @@ export async function subagentsProfilesSave(body: Record<string, unknown>): Prom
 export async function subagentsProfilesToggle(body: Record<string, unknown>): Promise<StatusBody> {
   try {
     const cwd = await validateCwd(body.cwd);
-    const scope = validateScope(body.scope);
+    const scope = body.scope === "builtin" ? "builtin" as const : validateScope(body.scope);
     if (typeof body.name !== "string") return { status: 400, body: { error: "name required" } };
     if (typeof body.enabled !== "boolean") return { status: 400, body: { error: "enabled required" } };
     const name = body.name;
@@ -95,6 +95,12 @@ export async function subagentsProfilesToggle(body: Record<string, unknown>): Pr
       candidate.scope === scope && candidate.name.toLowerCase() === name.toLowerCase()
     );
     if (!source) return { status: 404, body: { error: "Agent profile not found" } };
+    // A built-in has no file to save, but its switch is persisted all the
+    // same — the name lands in agents/settings.json instead (upstream #874).
+    if (scope === "builtin") {
+      writeDisabledBuiltInSubagent(source.name, !body.enabled);
+      return { status: 200, body: { profile: { ...source, enabled: body.enabled } as unknown as Record<string, unknown> } };
+    }
     const profile: Omit<SubagentProfile, "scope" | "filePath"> = {
       name: source.name,
       displayName: source.displayName,

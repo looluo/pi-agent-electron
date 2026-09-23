@@ -333,11 +333,11 @@ models → subagents → chat/ui → session perf → plugins (each batch behind
 | `6e95fba` | OpenCode Go provider usage quota (#844) | **ported** (r2 issue 03) | provider-usage-ids table entry |
 | `79894b9` | extension-registered providers in settings/auth (#833) | **ported** (r2 issue 03; six auth sites in models-auth service) | re-home 4 auth routes onto ipc-models-auth surface |
 | **subagents** | | | |
-| `f07d4a2` | switch individual built-in sub-agents off (#874) | to-port | subagent-settings + AgentsConfig; release gate stays off locally |
-| `54aa49c` | mark background results as non-user messages (#875) | to-port | subagent-runtime/extension |
-| `12d3599` | drop notification for already collected result (#889) | to-port | |
-| `20a2579` | session ID in foreground completion text (#847) | to-port | |
-| `9d282da` | report provider stream errors as failed runs (#886) | to-port | |
+| `f07d4a2` | switch individual built-in sub-agents off (#874) | **ported** (r2 issue 04) | subagent-settings + AgentsConfig; release gate stays off locally |
+| `54aa49c` | mark background results as non-user messages (#875) | **ported** (r2 issue 04) | subagent-runtime/extension |
+| `12d3599` | drop notification for already collected result (#889) | **ported** (r2 issue 04) | |
+| `20a2579` | session ID in foreground completion text (#847) | **ported** (r2 issue 04) | |
+| `9d282da` | report provider stream errors as failed runs (#886) | **ported** (r2 issue 04) | |
 | **chat / ui** | | | |
 | `1eb5e66` | scroll to latest button (#845) | to-port | ChatWindow + chat-lazy-load |
 | `5933184` | grabbable scrollbars, one in chat (#873/#788) | to-port | globals.css (conflicts with local panel styles — 3-way care) |
