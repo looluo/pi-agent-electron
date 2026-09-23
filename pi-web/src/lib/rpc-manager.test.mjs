@@ -38,7 +38,7 @@ test("RPC session startup treats only sessions with messages as continuing", asy
 
   assert.match(
     startupSource,
-    /const hasExistingMessages = branch\.some\(\(entry\) => entry\.type === "message"\)/,
+    /const hasExistingMessages = branch\.some\(\(entry\) => entry\.type === "message" && entry\.message\.role !== "system"\)/,
   );
   assert.match(startupSource, /const initial = hasExistingMessages/);
   assert.match(startupSource, /getLatestModelChange\(branch as unknown as SessionEntry\[\]\)/);
@@ -147,7 +147,9 @@ test("reloading a session invalidates the models cache", async () => {
   );
 
   assert.match(reloadSource, /await this\.inner\.reload\(\)/);
-  assert.match(reloadSource, /this\.applyExactSystemPrompt\(\);\s*invalidateModelsCache\(\)/);
+  // Since pi 0.86 the exact system prompt rides before_agent_start; reload
+  // still drops the models cache after the SDK reload.
+  assert.match(reloadSource, /await this\.inner\.reload\(\);[\s\S]*?invalidateModelsCache\(\)/);
 });
 
 test("clone copies the requested leaf into a child session", async () => {
@@ -452,4 +454,58 @@ test("clone cancels an assistant-free branch without creating a file", async () 
     await rmdir(sessionDir);
     await rmdir(root);
   }
+});
+
+test("exact prompts are sent through before_agent_start instead of the SDK prompt state", async () => {
+  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
+  const subagentSource = await readFile(new URL("./subagent-runtime.ts", import.meta.url), "utf8");
+  const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
+  const promptSource = source.slice(
+    source.indexOf('case "prompt"'),
+    source.indexOf('case "abort"'),
+  );
+
+  // Pi 0.86 replays agent.state.systemPrompt from the transcript: assigning it throws,
+  // and the loop's request context no longer carries a systemPrompt field.
+  assert.doesNotMatch(source, /state\.systemPrompt =/);
+  assert.doesNotMatch(source, /prepareNextTurnWithContext/);
+  assert.doesNotMatch(subagentSource, /state\.systemPrompt =/);
+  assert.match(startupSource, /const exactSystemPromptExtension = createExactSystemPromptExtension\(\(\) => exactSystemPromptRef\.current\?\.\(\)\)/);
+  assert.match(startupSource, /exactSystemPromptRef\.current = exactSystemPrompt;/);
+  assert.match(startupSource, /\{ \.\.\.CHAT_ONLY_RESOURCE_LOADER_OPTIONS, extensionFactories: \[exactSystemPromptExtension\] \}/);
+  assert.match(startupSource, /usesExactSystemPrompt \? \{ extensionFactories: \[exactSystemPromptExtension\] \} : \{\}/);
+  assert.match(subagentSource, /extensionFactories: \[createExactSystemPromptExtension\(\(\) => promptPlan\.exactSystemPrompt\)\]/);
+  assert.match(promptSource, /preflightResult: \(success\) => \{[\s\S]*?if \(success\) acceptPreflight\(\);/);
+  assert.doesNotMatch(promptSource, /requestedToolNames/);
+});
+
+test("normal sessions restore persisted tool selections before loading resources", async () => {
+  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
+  const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
+  const registrationSource = source.slice(
+    source.indexOf("function registerRpcWrapper"),
+    source.indexOf("const SUBAGENT_CONTROLLER"),
+  );
+
+  assert.match(startupSource, /readSessionToolSelection\(sessionManager\.getEntries\(\)/);
+  assert.match(startupSource, /const selectedToolNames = subagentResources\?\.tools \?\? persistedToolNames \?\? requestedToolNames/);
+  assert.match(startupSource, /appendSessionToolSelection\(sessionManager, requestedToolNames\)/);
+  assert.ok(startupSource.indexOf("const chatOnly") < startupSource.indexOf("createAgentSessionServices("));
+  assert.match(startupSource, /chatOnly\s*\? \{ \.\.\.CHAT_ONLY_RESOURCE_LOADER_OPTIONS/);
+  assert.match(startupSource, /const trustReloadOptions = subagentResources[\s\S]*?subagentLoadsResources[\s\S]*?projectTrustReloadOptions\(sessionCwd, agentDir\)/);
+  assert.match(registrationSource, /if \(!wrapper\.isChatOnly\(\)\) wrapper\.beginExtensionBinding\(\)/);
+});
+
+test("crossing the Chat-only boundary persists and rebuilds the wrapper", async () => {
+  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
+  const switchSource = source.slice(
+    source.indexOf("export async function setRpcSessionTools"),
+    source.indexOf("export function getRunningRpcSessionIds"),
+  );
+
+  assert.match(switchSource, /!hasCurrentResourcePolicy\s*\|\| existing\.isChatOnly\(\) !== \(toolNames\.length === 0\)/);
+  assert.match(switchSource, /appendSessionToolSelection\(existing\.inner\.sessionManager, toolNames\)/);
+  assert.match(switchSource, /await existing\.shutdown\(\)/);
+  assert.match(switchSource, /__recreate__\$\{randomUUID\(\)\}/);
+  assert.match(switchSource, /sessionId: started\.realSessionId/);
 });

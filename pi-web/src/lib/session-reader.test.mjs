@@ -807,3 +807,59 @@ test("disk sessions replace runtime snapshots with the same id", () => {
   assert.equal(merged[1], persisted);
   assert.equal(merged[1].transient, undefined);
 });
+
+test("hides transcript system messages and metadata entries while keeping entry ids aligned", () => {
+  // Pi >= 0.86 stores the prompt and tool loadout as system messages, bills
+  // cache warming as usage entries, and edits model context with context_edit.
+  const entries = [
+    {
+      type: "message",
+      id: "sys",
+      parentId: null,
+      timestamp: "2026-01-01T00:00:00.000Z",
+      message: {
+        role: "system",
+        content: "",
+        sections: { preamble: "You are an expert coding assistant.", tools: "- read: Read a file" },
+        toolsAdded: [{ name: "read", description: "Read a file", parameters: {} }],
+        timestamp: 1,
+      },
+    },
+    userEntry("u1", "sys", "hello"),
+    {
+      type: "usage",
+      id: "warm",
+      parentId: "u1",
+      timestamp: "2026-01-01T00:00:01.000Z",
+      kind: "cache_warm",
+      provider: "test",
+      model: "test-model",
+      usage: { input: 0, output: 1, cacheRead: 100, cacheWrite: 0, totalTokens: 101, cost: { input: 0, output: 0, cacheRead: 0.01, cacheWrite: 0, total: 0.01 } },
+    },
+    assistantEntry("a1", "warm", "hi"),
+    {
+      type: "message",
+      id: "sys2",
+      parentId: "a1",
+      timestamp: "2026-01-01T00:00:02.000Z",
+      message: { role: "system", content: "", sections: { tools: null }, toolsRemoved: [{ name: "read" }], timestamp: 2 },
+    },
+    { type: "context_edit", id: "edit", parentId: "sys2", timestamp: "2026-01-01T00:00:03.000Z", targetId: "a1", replacement: null },
+    userEntry("u2", "edit", "again"),
+  ];
+
+  const context = buildSessionContext(entries);
+
+  assert.deepEqual(context.entryIds, ["u1", "a1", "u2"]);
+  assert.deepEqual(context.messages.map((message) => message.role), ["user", "assistant", "user"]);
+  assert.equal(JSON.stringify(context).includes("expert coding assistant"), false);
+
+  // System messages never consume the visible tail budget either. Our local
+  // anchor rollback (26be91e) extends the window to the enclosing turn anchor,
+  // so tail:2 renders [u1, a1, u2] — u1 is the anchor, not a budget miss; the
+  // hidden system/usage/context_edit entries stay out at every size.
+  const tail = buildSessionContext(entries, undefined, { tail: 2 });
+  assert.deepEqual(tail.entryIds, ["u1", "a1", "u2"]);
+  const single = buildSessionContext(entries, undefined, { tail: 1 });
+  assert.deepEqual(single.entryIds, ["u2"]);
+});

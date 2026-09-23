@@ -19,7 +19,9 @@ chat-ui commits — landing 05 first shrinks the conflict surface.
   keys (upstream pagination predates the cache — check cache busting on
   `before` cursors).
 - `50a2fd4` — count only visible messages toward the session tail budget
-  (#810): `lib/session-reader.ts`; re-check against our ported tail window.
+  (#810): **session-reader.ts + pagination tests already landed with issue 01**
+  (da1b28b transcript-system-message tests depend on countsTowardTail);
+  remaining: nothing — only verification landed here.
 - `b44017a` — see sessions written by another pi process (#796):
   external-write invalidation in session-reader + rpc-manager re-read +
   event-stream nudge. Directly relevant to us: desktop app and CLI pi share

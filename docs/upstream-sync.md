@@ -323,7 +323,7 @@ models → subagents → chat/ui → session perf → plugins (each batch behind
 | Upstream | Subject | Status | Notes |
 |---|---|---|---|
 | **base** | | | |
-| `da1b28b` | chore(deps): upgrade pi to 0.87.0 (#931) | to-port first | 0.85.1→0.87.0; 12-file adapter sweep (agent-event-wire, exact-system-prompt, project-tree, session-list-scanner, session-reader, session-stats, session-title, subagent-runtime, rpc-manager, BranchNavigator, pi-types, useAgentSession) — later batches depend on its types |
+| `da1b28b` | chore(deps): upgrade pi to 0.87.0 (#931) | **ported** (r2 issue 01) | 0.85.1→0.87.0; 12-file adapter sweep (agent-event-wire, exact-system-prompt, project-tree, session-list-scanner, session-reader, session-stats, session-title, subagent-runtime, rpc-manager, BranchNavigator, pi-types, useAgentSession) — later batches depend on its types |
 | **naming** | | | |
 | `974c8bb` | Name sessions from a bounded transcript (#807) | to-port | local `session-title.ts` is byte-identical to pre-#807 upstream → clean file swap; `generateSessionTitle` semantics change (no shadow Agent, no idle wait, standalone stream) touches `services/sessions.ts` auto-name call sites (manual button + PR #45 auto path share it); no-idle also lets auto-name fire earlier than `agent_settled` if we want |
 | **models panel** | | | |
@@ -356,7 +356,7 @@ models → subagents → chat/ui → session perf → plugins (each batch behind
 | `03a9f5d` | stop overriding settings.json defaultTools (#700/#936) | to-port | tool-presets + rpc-manager + hook |
 | **session / perf** | | | |
 | `234e19e` | perf: session view cache + revisions, #928+#912 (#940) | to-port (largest) | 1533-line cluster: new session-view-cache/session-revision, session-reader/scanner, AppShell/SessionSearch/SessionSidebar, hook; biggest 3-way risk in the window |
-| `50a2fd4` | count only visible messages toward tail budget (#810) | to-port | session-reader; verify against our tail/before pagination |
+| `50a2fd4` | count only visible messages toward tail budget (#810) | **ported** (r2 issue 01; session-reader half — anchor-rollback divergence recorded in its tests) |
 | `b44017a` | see sessions written by another pi process (#796) | to-port | session-reader external-write invalidation + rpc-manager — applies to us: CLI pi and the app share ~/.pi |
 | `ef1de89` | remember open session per browser tab (#887) | n/a | covered: local workspace-memory already restores last open session per project; Electron has one window |
 | **plugins** | | | |

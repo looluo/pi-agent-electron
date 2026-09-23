@@ -62,10 +62,14 @@ test("compaction entries count as turn anchors", () => {
 });
 
 test("anchor farther than the cap: keeps the plain tail window", () => {
-  const entries = longTurn(2500); // anchor e0, window would open at e2490 — 2490 back > cap
+  const entries = longTurn(2500); // anchor e0, window would open mid-turn — anchor beyond the cap
   const ctx = buildSessionContext(entries, "e2499", { tail: 10 });
-  assert.equal(ctx.entryIds[0], "e2490");
-  assert.equal(ctx.entryIds.length, 10);
+  // Since #810 the tail budget counts visible messages only: the 10th visible
+  // (assistant) entry back is e2481; interleaved toolResults ride along as
+  // attachments and the out-of-reach anchor keeps the window plain.
+  assert.equal(ctx.entryIds[0], "e2481");
+  assert.equal(ctx.messages.filter((m) => m.role === "assistant").length, 10);
+  assert.equal(ctx.entryIds[ctx.entryIds.length - 1], "e2499");
 });
 
 test("real-world mega-turn (541 entries) rolls back within the cap", () => {
