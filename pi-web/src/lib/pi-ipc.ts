@@ -50,9 +50,9 @@ export interface PiBridge {
   agentBashOutput(sessionId: string, path: string): Promise<IpcResult<{ output: string }>>;
   agentBashOutputDownload(sessionId: string, path: string): Promise<IpcResult<{ output: string }>>;
   subscribeAgentEvents(sessionId: string, onFrame: (frame: AgentEventFrame) => void): () => void;
-  sessionsList(force?: boolean): Promise<unknown>;
+  sessionsList(force?: boolean, summary?: boolean): Promise<unknown>;
   sessionsSearch(query: string): Promise<{ status: number; body?: unknown }>;
-  sessionsGet(id: string, options?: { deferThinking?: boolean; deferMedia?: boolean; tail?: number }): Promise<unknown>;
+  sessionsGet(id: string, options?: { deferThinking?: boolean; deferMedia?: boolean; tail?: number; force?: boolean; tree?: "summary" }): Promise<unknown>;
   sessionsContext(id: string, options?: { leafId?: string; deferThinking?: boolean; deferMedia?: boolean; tail?: number; before?: string }): Promise<unknown>;
   sessionsRename(id: string, name: string): Promise<unknown>;
   sessionsDelete(id: string): Promise<unknown>;

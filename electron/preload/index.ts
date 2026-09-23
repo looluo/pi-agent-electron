@@ -44,9 +44,9 @@ contextBridge.exposeInMainWorld("pi", {
   },
 
   // sessions
-  sessionsList: (force?: boolean) => ipcRenderer.invoke("pi:sessions:list", force),
+  sessionsList: (force?: boolean, summary?: boolean) => ipcRenderer.invoke("pi:sessions:list", force, summary),
   sessionsSearch: (query: string) => ipcRenderer.invoke("pi:sessions:search", query),
-  sessionsGet: (id: string, options?: { deferThinking?: boolean; deferMedia?: boolean; tail?: number }) =>
+  sessionsGet: (id: string, options?: { deferThinking?: boolean; deferMedia?: boolean; tail?: number; force?: boolean; tree?: "summary" }) =>
     ipcRenderer.invoke("pi:sessions:get", id, options),
   sessionsContext: (id: string, options?: { leafId?: string; deferThinking?: boolean; deferMedia?: boolean; tail?: number; before?: string }) =>
     ipcRenderer.invoke("pi:sessions:context", id, options),

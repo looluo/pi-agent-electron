@@ -3,6 +3,8 @@ import { dirname, join } from "path";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry } from "@/lib/types";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { computeSessionRevision } from "@/lib/session-revision";
+import { toSummaryTree } from "@/lib/project-tree";
 import { abortSubagent, getRpcSession, getRpcSessionInfos, startRpcSession } from "@/lib/rpc-manager";
 import {
   buildSessionContext,
@@ -11,10 +13,12 @@ import {
   invalidateSessionListCache,
   invalidateSessionPathCache,
   listAllSessions,
+  listSessionSummaries,
   mergeSessionLists,
   attachSessionProjectInfo,
   readSessionHeader,
   resolveSessionIdByPath,
+  openSessionManager,
   resolveSessionPath,
 } from "@/lib/session-reader";
 import { sessionPathKey } from "@/lib/session-path";
@@ -38,10 +42,12 @@ async function guarded<T extends object>(fn: () => Promise<T>): Promise<T | { er
 }
 
 /** Port of app/api/sessions (GET) — list + running snapshot. */
-export async function sessionsList(force: boolean) {
+export async function sessionsList(force: boolean, summary = false) {
   return guarded(async () => {
+    // Summary listings serve header/stat metadata so the sidebar can paint
+    // without waiting for every session transcript to be parsed (#928).
     const [persistedSessions, runtimeSessions] = await Promise.all([
-      listAllSessions({ force }),
+      summary ? listSessionSummaries() : listAllSessions({ force }),
       attachSessionProjectInfo(getRpcSessionInfos()),
     ]);
     return {
@@ -73,21 +79,45 @@ export async function sessionsSearch(query: string) {
 /** Port of app/api/sessions/[id] (GET) — full session payload for the viewer. */
 export async function sessionsGet(
   id: string,
-  options: { deferThinking?: boolean; deferMedia?: boolean; tail?: number } = {},
+  options: { deferThinking?: boolean; deferMedia?: boolean; tail?: number; force?: boolean; tree?: "summary" } = {},
 ) {
   return guarded(async () => {
   const rpc = getRpcSession(id);
-  const liveRpc = rpc?.isAlive() ? rpc : undefined;
+  // A live wrapper only reflects the appends this app itself made. When another
+  // pi process (the TUI) writes the same session file, the in-memory index
+  // stays stale. Only probe on force (session mount / page refresh): two
+  // processes writing one JSONL is unsupported, so post-turn reads must not
+  // scan disk. Eviction is idle-only; mid-run the wrapper owns the write path
+  // (upstream #796).
+  let liveWrapper = rpc?.isAlive() ? rpc : undefined;
+  let wrapperRebuilt = false;
+  if (options.force && liveWrapper?.evictIfDiskAhead()) {
+    wrapperRebuilt = true;
+    liveWrapper = undefined;
+  }
+  const liveRpc = liveWrapper;
   const resolvedPath = liveRpc ? null : await resolveSessionPath(id);
   if (!liveRpc && !resolvedPath) {
     return { notFound: true as const };
   }
 
-  const sm = liveRpc?.inner.sessionManager ?? SessionManager.open(resolvedPath!);
+  const sm = liveRpc?.inner.sessionManager ?? openSessionManager(resolvedPath!);
   const filePath = liveRpc?.sessionFile || sm.getSessionFile() || resolvedPath || "";
   const entries = sm.getEntries();
   const leafId = sm.getLeafId();
-  const tree = projectTreeForResponse(sm.getTree());
+  // Opaque freshness token for the session view cache. Derived from the
+  // disk fingerprint and the actual read source; null tells the client the
+  // snapshot is unstable and must not be cached as fresh.
+  const latestEntry = entries[entries.length - 1] as { id?: string } | undefined;
+  const snapshotRevision = computeSessionRevision({
+    filePath,
+    sourceId: liveRpc ? `runtime:${String(liveRpc.inner.sessionId)}` : "disk",
+    entryCount: entries.length,
+    latestEntryId: typeof latestEntry?.id === "string" ? latestEntry.id : null,
+    leafId: leafId ?? null,
+  });
+  const summaryTree = options.tree === "summary";
+  const tree = summaryTree ? toSummaryTree(projectTreeForResponse(sm.getTree())) : projectTreeForResponse(sm.getTree());
   const rawTail = Number(options.tail);
   const tail = Number.isFinite(rawTail) && rawTail > 0 ? Math.min(rawTail, 1000) : 50;
   const context = buildSessionContext(entries as never, leafId, {
@@ -141,6 +171,9 @@ export async function sessionsGet(
 
     return {
       sessionId: id,
+      ...(wrapperRebuilt ? { wrapperRebuilt: true as const } : {}),
+      ...(summaryTree ? { treeFormat: "summary" as const } : {}),
+      snapshotRevision,
       filePath,
       info,
       leafId,
@@ -172,7 +205,7 @@ export async function sessionsContext(
   const tail = Number.isFinite(rawTail) && rawTail > 0 ? Math.min(rawTail, 1000) : 50;
   const before = options.before ?? undefined;
 
-  const sm = liveRpc?.inner.sessionManager ?? SessionManager.open(filePath!);
+  const sm = liveRpc?.inner.sessionManager ?? openSessionManager(filePath!);
   // `before` is the oldest entry already on the client; fetch its ancestors
   // only (excludeLeaf) so prepending the page does not duplicate `before`.
   const context = buildSessionContext(sm.getEntries() as never, before ?? options.leafId, {

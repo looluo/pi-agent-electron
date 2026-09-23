@@ -1,7 +1,7 @@
 # Issue 06: session-perf-batch
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01, 05
 
 Largest cluster; serialized after issue 05 because `234e19e` reshapes the
@@ -33,3 +33,34 @@ Order: `50a2fd4` → `b44017a` → `234e19e` (the big one last, on top of both).
 Gate: typecheck ×2; full test suite; manual check — open app, append to a
 session from CLI pi, watch the sidebar/`sessionsList` pick it up without a
 forced refresh; perf sanity on a large project dir (session list scan).
+
+
+## Answer
+
+Resolved. Order: 50a2fd4 (already landed with issue 01) -> b44017a -> 234e19e.
+
+- b44017a (#796): session-reader external-write probe (readEntryId/
+  readLatestSessionEntryId, bounded 64KB tail) + rpc-manager evictIfDiskAhead
+  (emits session_shutdown; our IPC push forwards it -> renderer reconnects,
+  same SSE semantic) + hook force option. Re-home: sessionsGet gained
+  `force` — evicts a stale live wrapper to a disk read and reports
+  `wrapperRebuilt`; threaded through ipc/preload/pi-ipc. The test dropped
+  in issue 05 returned and was adapted to the IPC options form (force spread
+  + call-site counting).
+- 234e19e (#940): session-view-cache + session-revision + perf libs, scanner
+  tie-ordering, summary trees, catalog merge — renderer applied; route
+  semantics re-homed: sessionsGet gained `tree: "summary"` (toSummaryTree +
+  treeFormat + snapshotRevision via computeSessionRevision) and
+  openSessionManager caching; sessionsContext uses openSessionManager;
+  sessionsList gained `summary` (listSessionSummaries) — all threaded
+  through the transport.
+- AppShell x4 conflicts merged: catalog fast paths kept with window.pi
+  transports; web-only push-client/tab-session imports dropped (#887 stays
+  n/a); duplicate local handleOpenSession/handleSessionsChange/sessionCatalog
+  declarations deduped.
+- Ops: heredoc-embedded JS keeps losing backslash escapes (two test regexes
+  arrived unescaped and silently matched nothing) — write scripts to files,
+  or verify regex assertions with a direct .test() before running the suite.
+
+Gate: typecheck x2 clean; npm test 1165/1169 (1 pre-existing Windows PATH
+baseline); e2e 8 passed 1 skipped.

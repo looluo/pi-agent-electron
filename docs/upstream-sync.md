@@ -355,9 +355,9 @@ models → subagents → chat/ui → session perf → plugins (each batch behind
 | `f2d600b` | /auto-compact slash command (#828) | **ported** (r2 issue 05) | ChatInput + hook builtin (3-way care) |
 | `03a9f5d` | stop overriding settings.json defaultTools (#700/#936) | **ported** (r2 issue 05) | tool-presets + rpc-manager + hook |
 | **session / perf** | | | |
-| `234e19e` | perf: session view cache + revisions, #928+#912 (#940) | to-port (largest) | 1533-line cluster: new session-view-cache/session-revision, session-reader/scanner, AppShell/SessionSearch/SessionSidebar, hook; biggest 3-way risk in the window |
+| `234e19e` | perf: session view cache + revisions, #928+#912 (#940) | **ported** (r2 issue 06; view-cache + summary listings behind IPC options) |
 | `50a2fd4` | count only visible messages toward tail budget (#810) | **ported** (r2 issue 01; session-reader half — anchor-rollback divergence recorded in its tests) |
-| `b44017a` | see sessions written by another pi process (#796) | to-port | session-reader external-write invalidation + rpc-manager — applies to us: CLI pi and the app share ~/.pi |
+| `b44017a` | see sessions written by another pi process (#796) | **ported** (r2 issue 06; external-write eviction via sessionsGet force) |
 | `ef1de89` | remember open session per browser tab (#887) | n/a | covered: local workspace-memory already restores last open session per project; Electron has one window |
 | **plugins** | | | |
 | `38cba2b` | package description in Plugins panel (#868) | to-port | |

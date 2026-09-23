@@ -90,9 +90,9 @@ export function registerIpcHandlers(): void {
   });
 
   // ---- sessions ---------------------------------------------------------------
-  ipcMain.handle("pi:sessions:list", (_e, force?: boolean) => sessionsList(Boolean(force)));
+  ipcMain.handle("pi:sessions:list", (_e, force?: boolean, summary?: boolean) => sessionsList(Boolean(force), Boolean(summary)));
   ipcMain.handle("pi:sessions:search", (_e, query: string) => sessionsSearch(query));
-  ipcMain.handle("pi:sessions:get", (_e, id: string, options?: { deferThinking?: boolean; deferMedia?: boolean; tail?: number }) =>
+  ipcMain.handle("pi:sessions:get", (_e, id: string, options?: { deferThinking?: boolean; deferMedia?: boolean; tail?: number; force?: boolean; tree?: "summary" }) =>
     sessionsGet(id, options ?? {}));
   ipcMain.handle("pi:sessions:context", (_e, id: string, options?: { leafId?: string; deferThinking?: boolean; deferMedia?: boolean; tail?: number; before?: string }) =>
     guard(() => sessionsContext(id, options ?? {})));

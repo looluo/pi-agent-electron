@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const source = await readFile(new URL("./useAgentSession.ts", import.meta.url), "utf8");
-const chatWindowSource = await readFile(new URL("../components/ChatWindow.tsx", import.meta.url), "utf8");
-const chatInputSource = await readFile(new URL("../components/ChatInput.tsx", import.meta.url), "utf8");
-const appShellSource = await readFile(new URL("../components/AppShell.tsx", import.meta.url), "utf8");
+const jitiSource = async (url) => (await readFile(url, "utf8")).replace(/\r\n/g, "\n");
+const source = await jitiSource(new URL("./useAgentSession.ts", import.meta.url));
+const chatWindowSource = await jitiSource(new URL("../components/ChatWindow.tsx", import.meta.url));
+const chatInputSource = await jitiSource(new URL("../components/ChatInput.tsx", import.meta.url));
+const appShellSource = await jitiSource(new URL("../components/AppShell.tsx", import.meta.url));
 
 test("keeps the session event stream open through the idle grace window", () => {
   const finishSource = source.slice(
@@ -138,7 +139,27 @@ test("sessions the user never overrode follow pi's configured defaultTools (#700
   );
 });
 
-// (b44017a external-append probing test returns with r2 issue 06)
+test("only the session-mount load probes disk for external appends", () => {
+  const loadSessionSource = source.slice(
+    source.indexOf("  const loadSession = useCallback"),
+    source.indexOf("  const loadContext = useCallback"),
+  );
+  const mountSource = source.slice(
+    source.indexOf("// Load session on mount"),
+    source.indexOf("sessionHookMountedRef.current = false"),
+  );
+  assert.match(loadSessionSource, /options\?: \{ force\?: boolean \}/);
+  // Electron fork: the force flag rides the sessionsGet IPC options object,
+  // not a URLSearchParams query string.
+  assert.match(loadSessionSource, /\.\.\.\(options\?\.force \? \{ force: true \} : \{\}\)/);
+  assert.match(loadSessionSource, /d\.wrapperRebuilt[\s\S]*?eventConnectionRef\.current\?\.close\(\)[\s\S]*?maintain\(sid\)/);
+  assert.match(mountSource, /loadSession\(session\.id, !cached, true, \{ force: true \}\)/);
+  assert.match(source, /await loadSession\(sid\)/);
+  // Exactly one call site passes force: the session mount. (Our IPC options
+  // spread also contains the literal, so count calls, not raw occurrences.)
+  assert.equal([...source.matchAll(/loadSession\([^)]*\{ force: true \}\)/g)].length, 1);
+});
+
 test("first user messages expose both branch actions and edit before their own entry", () => {
   const navigateSource = source.slice(
     source.indexOf("  const handleNavigate = useCallback"),
