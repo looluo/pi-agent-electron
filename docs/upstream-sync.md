@@ -313,3 +313,73 @@ channels; `pi:models` response body gained `defaultThinkingLevel`.
 port is only proven by the feature's own source-assertion tests landing in the
 same batch. Port tests with the code, and re-check any hunk list against the
 upstream diff for files our fork reshaped (ChatInput especially).
+
+## drift inventory: `3f07a5f..040fadd` (upstream v0.9.2) — 2026-09-23, pending
+
+47 non-merge commits after our last sync point (`3f07a5f`). Nothing ported yet; statuses below
+are the inventory classification, not sync results. Suggested port order: base → naming →
+models → subagents → chat/ui → session perf → plugins (each batch behind its own gate).
+
+| Upstream | Subject | Status | Notes |
+|---|---|---|---|
+| **base** | | | |
+| `da1b28b` | chore(deps): upgrade pi to 0.87.0 (#931) | to-port first | 0.85.1→0.87.0; 12-file adapter sweep (agent-event-wire, exact-system-prompt, project-tree, session-list-scanner, session-reader, session-stats, session-title, subagent-runtime, rpc-manager, BranchNavigator, pi-types, useAgentSession) — later batches depend on its types |
+| **naming** | | | |
+| `974c8bb` | Name sessions from a bounded transcript (#807) | to-port | local `session-title.ts` is byte-identical to pre-#807 upstream → clean file swap; `generateSessionTitle` semantics change (no shadow Agent, no idle wait, standalone stream) touches `services/sessions.ts` auto-name call sites (manual button + PR #45 auto path share it); no-idle also lets auto-name fire earlier than `agent_settled` if we want |
+| **models panel** | | | |
+| `50f6cce` | enabledModels switches in Settings → Models (#930) | to-port | new `lib/enabled-models{,-runtime}.ts` + EnabledModelsSection; re-home `app/api/models/enabled` onto `pi:models` IPC |
+| `058341d` | manual "Refresh catalog" button (#914) (#938) | to-port | new `lib/model-catalog-refresh.ts`; rides existing models IPC |
+| `8b084d3` | relative time when usage quota stale | to-port | ProviderUsageSummary small |
+| `6e95fba` | OpenCode Go provider usage quota (#844) | to-port | provider-usage-ids table entry |
+| `79894b9` | extension-registered providers in settings/auth (#833) | to-port | re-home 4 auth routes onto ipc-models-auth surface |
+| **subagents** | | | |
+| `f07d4a2` | switch individual built-in sub-agents off (#874) | to-port | subagent-settings + AgentsConfig; release gate stays off locally |
+| `54aa49c` | mark background results as non-user messages (#875) | to-port | subagent-runtime/extension |
+| `12d3599` | drop notification for already collected result (#889) | to-port | |
+| `20a2579` | session ID in foreground completion text (#847) | to-port | |
+| `9d282da` | report provider stream errors as failed runs (#886) | to-port | |
+| **chat / ui** | | | |
+| `1eb5e66` | scroll to latest button (#845) | to-port | ChatWindow + chat-lazy-load |
+| `5933184` | grabbable scrollbars, one in chat (#873/#788) | to-port | globals.css (conflicts with local panel styles — 3-way care) |
+| `ed50d88` | resizable conversation/file panes in sidebar (#825) | to-port | local sidebar already two-pane (sessions+FileExplorer); new `useResizablePanel` |
+| `1bd40e4` | minimap per-turn tool-call hover (#939) | to-port | ChatMinimap |
+| `c844973` | surface output-limit truncation (#830) | to-port | message-display |
+| `002400d` | stop duplicating first streamed chunk (#835) | to-port | streaming-message lib (not the hook — contained) |
+| `0611857` | keep earlier replies visible after subagent notification (#891) | to-port | message-display |
+| `f3a4ff6` | selection toolbar above sidebar (#855) | to-port | z-index one-liner |
+| `0b307d5` | reopen event stream under Strict Mode re-runs (#933) | to-port | local main.tsx runs StrictMode; hook-level 3-way (see risks) |
+| `8df5132` | preserve extension widget order on updates (#839) | to-port | new `lib/extension-widgets.ts` + hook hunk |
+| `be38e5d` | mention button + middle-ellipsis in changed-file rows (#853) | to-port | FileExplorer |
+| `5e9b997` | honor #page= in PDF links (#841) | to-port | file-links/FileViewer |
+| `d11d344` | tool-result images while card collapsed (#826) | to-port | MessageView/ImagePreview |
+| `f2d600b` | /auto-compact slash command (#828) | to-port | ChatInput + hook builtin (3-way care) |
+| `03a9f5d` | stop overriding settings.json defaultTools (#700/#936) | to-port | tool-presets + rpc-manager + hook |
+| **session / perf** | | | |
+| `234e19e` | perf: session view cache + revisions, #928+#912 (#940) | to-port (largest) | 1533-line cluster: new session-view-cache/session-revision, session-reader/scanner, AppShell/SessionSearch/SessionSidebar, hook; biggest 3-way risk in the window |
+| `50a2fd4` | count only visible messages toward tail budget (#810) | to-port | session-reader; verify against our tail/before pagination |
+| `b44017a` | see sessions written by another pi process (#796) | to-port | session-reader external-write invalidation + rpc-manager — applies to us: CLI pi and the app share ~/.pi |
+| `ef1de89` | remember open session per browser tab (#887) | n/a | covered: local workspace-memory already restores last open session per project; Electron has one window |
+| **plugins** | | | |
+| `38cba2b` | package description in Plugins panel (#868) | to-port | |
+| `fce666a` | normalize relativePath separators, Windows (#827) | to-port | Windows-first for us |
+| `afd2575` | npm update checks without npm.cmd shim, Windows (#837) | to-port | new `lib/node-cli.ts`; our npx.ts base already landed |
+| **web/server-only — dropped** | | | |
+| `ffb2daf` | full-width file panel toggle (#790) | n/a | local PR #548 maximized panel is a superset (fullscreen + focus transfer); maximized-close already fixed in d8e3b85; optionally borrow its inert-sidebar/dropdown-dismiss hardening if missing |
+| `31f0505` | Next.js proxy body buffer (#846) | n/a | no server |
+| `1f79174` | close SSE streams on shutdown (#809) | n/a | no Next drain; verify equivalent teardown exists on window-close (ipc push channels) opportunistically |
+| `b4a4539` | PWA bounded fetches (#879) | n/a | PWA |
+| `404923e` | CLI: Wasm on RISC-V (#823) | n/a | no pi-web CLI |
+| `a84093e` | shutdown hook out of Edge instrumentation | n/a | Next server |
+| `47a0bb2` | crypto randomUUID handshake tokens (#811) | n/a | web auth route |
+| `58c1a21` | ignore .agents/ + skills-lock.json | n/a | our .gitignore already diverged |
+| `040fadd` | Release v0.9.2 | n/a | we version independently (local 0.9.2 already) |
+| `eac6f14` / `ed7a4d7` / `6edbecb` / `5b96a9d` | e2e fixture + docs | n/a | |
+
+Three-way risk callouts (per the earlier #lesson — port each with its source-assertion tests):
+
+- `hooks/useAgentSession.ts` — upstream touched it 8× in this window (234e19e, 03a9f5d, f2d600b,
+  8df5132, 1eb5e66, b44017a, 0b307d5, da1b28b); ours carries the PR #45 auto-title trigger and the
+  local settle/event-stream flow. Highest-conflict file; port batch-by-batch, never wholesale.
+- `components/ChatInput.tsx` (03a9f5d, f2d600b) — previously bitten by silently-dropped hunks.
+- `app/globals.css` (5933184, 1eb5e66, ed50d88) — local PR #548 panel styles live here.
+- `974c8bb` depends on `da1b28b`'s session-title adapter changes — order enforced (base first).
