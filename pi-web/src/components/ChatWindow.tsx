@@ -6,7 +6,7 @@ import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecuti
 import { normalizeCustomPanelLines } from "@/lib/ansi";
 import { AnsiText } from "./AnsiText";
 import { asBracketedPaste, toTerminalKeyData } from "@/lib/terminal-input";
-import { countToolCallBlocks, getAssistantErrorMessage, getDisplayableAssistantBlocks, isMessageGroupAnchor, splitFinalAssistantBlocks } from "@/lib/message-display";
+import { countToolCallBlocks, getAssistantErrorMessage, getDisplayableAssistantBlocks, isAssistantTruncated, isMessageGroupAnchor, splitFinalAssistantBlocks } from "@/lib/message-display";
 import { isProcessGroupExpanded, setProcessGroupExpanded } from "@/lib/process-group-expansion";
 import { extractTurnWrittenFiles, type WrittenFile } from "@/lib/turn-written-files";
 import { buildQuotedSelection } from "@/lib/quoted-selection";
@@ -54,7 +54,7 @@ interface Props {
   onSessionStatsChange?: (stats: SessionStatsInfo | null) => void;
   onSessionStatsPanelOpen?: () => void;
   onContextUsageChange?: (usage: { percent: number | null; contextWindow: number; tokens: number | null } | null) => void;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (filePath: string, page?: number) => void;
   onOpenSession?: (sessionId: string) => void;
   onAskInNewChat?: (prompt: string, sourceSessionId: string, sourceEntryId: string) => Promise<void>;
   quoteSelectionEnabled?: boolean;
@@ -291,6 +291,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
     isAutoThinkingSelection,
     agentPhase,
     isNew,
+    showScrollToBottom,
     sessionIdRef, messagesEndRef, scrollContainerRef,
     lastUserMsgRef, promptAnchorActive,
     handleSend, handleAbort, handleFork, handleNavigate, handleModelChange,
@@ -994,7 +995,11 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
         {!isEmptyNew && <>
         <div
           ref={scrollContainerRef}
-          className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto pt-4 [scrollbar-width:none]"
+          // The message list is the one place long output has to be dragged through,
+          // so it shows its scrollbar instead of hiding it behind the minimap (#788).
+          // A stable gutter keeps the centred column from shifting when a short
+          // session grows past one screen.
+          className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto pt-4 [scrollbar-gutter:stable]"
           style={{ visibility: pendingScrollRestore ? "hidden" : undefined }}
         >
           <div style={{ minWidth: 0, padding: `0 ${CHAT_COLUMN_PADDING}px` }}>
@@ -1004,11 +1009,9 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
               for (let i = messages.length - 1; i >= 0; i--) {
                 if (messages[i].role === "user") { lastUserIdx = i; break; }
               }
-              // Anchor for live-tail detection: the last user message, or a
-              // compaction summary when compaction has replaced it mid-turn.
-              // Computed independently from lastUserIdx (which is kept for the
-              // scroll-to-user ref) because a compaction summary can sit after
-              // the last user message and anchor the still-streaming segment.
+              // Anchor for live-tail detection. A compaction summary or subagent
+              // completion can sit after the last user message and own the
+              // still-streaming segment. lastUserIdx stays the scroll target.
               let lastAnchorIdx = -1;
               for (let i = messages.length - 1; i >= 0; i--) {
                 if (isMessageGroupAnchor(messages[i])) { lastAnchorIdx = i; break; }
@@ -1112,7 +1115,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
 
                 const finalAssistant = messages[finalAssistantIdx] as AssistantMessage;
                 const finalSplit = splitFinalAssistantBlocks(finalAssistant);
-                const finalAnswerMessage = finalSplit.answerBlocks.length > 0 || getAssistantErrorMessage(finalAssistant)
+                const finalAnswerMessage = finalSplit.answerBlocks.length > 0 || getAssistantErrorMessage(finalAssistant) || isAssistantTruncated(finalAssistant)
                   ? withAssistantBlocks(finalAssistant, finalSplit.answerBlocks)
                   : null;
 
@@ -1254,7 +1257,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
             position: "fixed",
             top: quotedSelection.top,
             left: quotedSelection.left,
-            zIndex: 130,
+            zIndex: 260,
             display: "flex",
             flexWrap: "wrap",
             gap: 3,
@@ -1325,6 +1328,33 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
       )}
 
       <div className="relative shrink-0">
+        {!isEmptyNew && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "100%",
+              left: 0,
+              right: isMobile ? 0 : CHAT_MINIMAP_WIDTH,
+              display: "flex",
+              justifyContent: "center",
+              paddingBottom: 10,
+              pointerEvents: "none",
+              zIndex: 20,
+            }}
+          >
+            <button
+              type="button"
+              className={`chat-scroll-to-bottom${showScrollToBottom && !pendingScrollRestore ? " is-visible" : ""}`}
+              title={t("chat.scrollToLatest")}
+              aria-label={t("chat.scrollToLatest")}
+              onClick={() => scrollToBottom("smooth")}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 5v14M5 12l7 7 7-7" />
+              </svg>
+            </button>
+          </div>
+        )}
         {isEmptyNew && (
           <div className="mx-auto mb-3 w-full" style={{ maxWidth: "var(--chat-content-max-width, 820px)", paddingLeft: 32, paddingRight: isMobile ? 32 : 68 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, fontFamily: "var(--font-mono)" }}>

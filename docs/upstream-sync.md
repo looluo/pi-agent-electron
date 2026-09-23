@@ -339,21 +339,21 @@ models → subagents → chat/ui → session perf → plugins (each batch behind
 | `20a2579` | session ID in foreground completion text (#847) | **ported** (r2 issue 04) | |
 | `9d282da` | report provider stream errors as failed runs (#886) | **ported** (r2 issue 04) | |
 | **chat / ui** | | | |
-| `1eb5e66` | scroll to latest button (#845) | to-port | ChatWindow + chat-lazy-load |
-| `5933184` | grabbable scrollbars, one in chat (#873/#788) | to-port | globals.css (conflicts with local panel styles — 3-way care) |
-| `ed50d88` | resizable conversation/file panes in sidebar (#825) | to-port | local sidebar already two-pane (sessions+FileExplorer); new `useResizablePanel` |
-| `1bd40e4` | minimap per-turn tool-call hover (#939) | to-port | ChatMinimap |
-| `c844973` | surface output-limit truncation (#830) | to-port | message-display |
-| `002400d` | stop duplicating first streamed chunk (#835) | to-port | streaming-message lib (not the hook — contained) |
-| `0611857` | keep earlier replies visible after subagent notification (#891) | to-port | message-display |
-| `f3a4ff6` | selection toolbar above sidebar (#855) | to-port | z-index one-liner |
-| `0b307d5` | reopen event stream under Strict Mode re-runs (#933) | to-port | local main.tsx runs StrictMode; hook-level 3-way (see risks) |
-| `8df5132` | preserve extension widget order on updates (#839) | to-port | new `lib/extension-widgets.ts` + hook hunk |
-| `be38e5d` | mention button + middle-ellipsis in changed-file rows (#853) | to-port | FileExplorer |
-| `5e9b997` | honor #page= in PDF links (#841) | to-port | file-links/FileViewer |
-| `d11d344` | tool-result images while card collapsed (#826) | to-port | MessageView/ImagePreview |
-| `f2d600b` | /auto-compact slash command (#828) | to-port | ChatInput + hook builtin (3-way care) |
-| `03a9f5d` | stop overriding settings.json defaultTools (#700/#936) | to-port | tool-presets + rpc-manager + hook |
+| `1eb5e66` | scroll to latest button (#845) | **ported** (r2 issue 05) | ChatWindow + chat-lazy-load |
+| `5933184` | grabbable scrollbars, one in chat (#873/#788) | **ported** (r2 issue 05) | globals.css (conflicts with local panel styles — 3-way care) |
+| `ed50d88` | resizable conversation/file panes in sidebar (#825) | **ported** (r2 issue 05) | local sidebar already two-pane (sessions+FileExplorer); new `useResizablePanel` |
+| `1bd40e4` | minimap per-turn tool-call hover (#939) | **ported** (r2 issue 05) | ChatMinimap |
+| `c844973` | surface output-limit truncation (#830) | **ported** (r2 issue 05) | message-display |
+| `002400d` | stop duplicating first streamed chunk (#835) | **ported** (r2 issue 05) | streaming-message lib (not the hook — contained) |
+| `0611857` | keep earlier replies visible after subagent notification (#891) | **ported** (r2 issue 05) | message-display |
+| `f3a4ff6` | selection toolbar above sidebar (#855) | **ported** (r2 issue 05) | z-index one-liner |
+| `0b307d5` | reopen event stream under Strict Mode re-runs (#933) | **ported** (r2 issue 05) | local main.tsx runs StrictMode; hook-level 3-way (see risks) |
+| `8df5132` | preserve extension widget order on updates (#839) | **ported** (r2 issue 05) | new `lib/extension-widgets.ts` + hook hunk |
+| `be38e5d` | mention button + middle-ellipsis in changed-file rows (#853) | **ported** (r2 issue 05) | FileExplorer |
+| `5e9b997` | honor #page= in PDF links (#841) | **ported** (r2 issue 05) | file-links/FileViewer |
+| `d11d344` | tool-result images while card collapsed (#826) | **ported** (r2 issue 05) | MessageView/ImagePreview |
+| `f2d600b` | /auto-compact slash command (#828) | **ported** (r2 issue 05) | ChatInput + hook builtin (3-way care) |
+| `03a9f5d` | stop overriding settings.json defaultTools (#700/#936) | **ported** (r2 issue 05) | tool-presets + rpc-manager + hook |
 | **session / perf** | | | |
 | `234e19e` | perf: session view cache + revisions, #928+#912 (#940) | to-port (largest) | 1533-line cluster: new session-view-cache/session-revision, session-reader/scanner, AppShell/SessionSearch/SessionSidebar, hook; biggest 3-way risk in the window |
 | `50a2fd4` | count only visible messages toward tail budget (#810) | **ported** (r2 issue 01; session-reader half — anchor-rollback divergence recorded in its tests) |

@@ -106,15 +106,39 @@ test("fresh sessions use the preference while persisted and live sessions restor
     /const existingSessionId = session\?\.id;[\s\S]*?useLayoutEffect\(\(\) => \{\s*if \(!existingSessionId && \(!isNew \|\| sessionIdRef\.current\)\) return;\s*setToolPresetState\(getPreferredToolPreset\(\)\)/,
   );
   assert.match(source, /if \(agentState\?\.running\) \{\s*loadTools\(session\.id\)/);
-  assert.match(source, /d\.toolNames !== undefined \? getPresetFromToolNames\(d\.toolNames\) : "default"/);
+  assert.match(source, /d\.toolNames !== undefined \? getPresetFromToolNames\(d\.toolNames\) : CONFIGURED_TOOL_PRESET/);
   assert.match(changeSource, /setPreferredToolPreset\(preset\)/);
-  assert.match(changeSource, /\(sid, \{ type: "set_tools", toolNames \}\)/);
+  assert.match(changeSource, /type: "set_tools",\s*\.\.\.\(toolNames !== undefined \? \{ toolNames \} : \{\}\),/);
   assert.match(changeSource, /activeSessionId !== sid \|\| result\?\.recreated/);
   assert.match(changeSource, /result\?\.recreated[\s\S]*?maintainEventsConnected\(activeSessionId\)/);
   assert.match(changeSource, /sessionIdRef\.current = activeSessionId/);
   assert.doesNotMatch(loadToolsSource, /setPreferredToolPreset/);
 });
 
+test("sessions the user never overrode follow pi's configured defaultTools (#700)", () => {
+  const ensureSource = source.slice(
+    source.indexOf("  const ensureNewSession = useCallback"),
+    source.indexOf("  const loadSystemInfo = useCallback"),
+  );
+  const loadToolsSource = source.slice(
+    source.indexOf("  const loadTools = useCallback"),
+    source.indexOf("  const promoteNewSession"),
+  );
+
+  // A new session must omit toolNames entirely rather than pin pi-web's own preset.
+  assert.match(ensureSource, /\.\.\.\(toolNames !== undefined \? \{ toolNames \} : \{\}\),/);
+  assert.doesNotMatch(ensureSource, /^ +toolNames,$/m);
+  assert.match(ensureSource, /sessionToolsPinnedRef\.current = toolNames !== undefined/);
+
+  // An unpinned session keeps saying "configured" instead of borrowing whichever
+  // preset its resolved tools happen to match.
+  assert.match(
+    loadToolsSource,
+    /setToolPresetState\(sessionToolsPinnedRef\.current \? getPresetFromTools\(tools\) : CONFIGURED_TOOL_PRESET\)/,
+  );
+});
+
+// (b44017a external-append probing test returns with r2 issue 06)
 test("first user messages expose both branch actions and edit before their own entry", () => {
   const navigateSource = source.slice(
     source.indexOf("  const handleNavigate = useCallback"),
@@ -298,6 +322,30 @@ test("keeps the selected session warm while idle and renews its lease", () => {
   assert.doesNotMatch(appShellSource, /sessionRunning=\{/);
   assert.match(appShellSource, /runningSessionIds=\{runningSessionIds\}/);
   assert.match(appShellSource, /onRunningSessionIdsChange=\{handleRunningSessionIdsChange\}/);
+});
+
+test("opens the selected session's event stream even when Strict Mode re-runs effects", () => {
+  // Strict Mode re-runs effects in declaration order after a simulated
+  // unmount. The mount-only effect's cleanup flips sessionHookMountedRef to
+  // false and only restores it when it re-runs, which happens after the
+  // warm-session effect. That effect must therefore re-assert the ref itself
+  // or shouldMaintain() refuses to open the stream on mount and on every
+  // switch back to a running session.
+  const warmSource = source.slice(
+    source.indexOf("  // Keep the selected session warm even while its agent is idle."),
+    source.indexOf("    const renewLease = async () => {"),
+  );
+  assert.match(warmSource, /sessionHookMountedRef\.current = true;\s*maintainEventsConnected\(sid\);/);
+  assert.ok(
+    warmSource.indexOf("sessionHookMountedRef.current = true;")
+      < warmSource.indexOf("maintainEventsConnected(sid);"),
+  );
+  const mountSource = source.slice(
+    source.indexOf("  useEffect(() => {\n    sessionHookMountedRef.current = true;"),
+    source.indexOf("  useEffect(() => {\n    onSystemPromptChange?.(systemPrompt);"),
+  );
+  assert.match(mountSource, /return \(\) => \{\s*sessionHookMountedRef\.current = false;/);
+  assert.match(mountSource, /closeEvents\(\);\s*\};\s*\/\/ eslint-disable-next-line react-hooks\/exhaustive-deps\s*\}, \[\]\);/);
 });
 
 test("keeps one reducer-owned assistant partial and consumes Pi JSON deltas", () => {
@@ -576,4 +624,20 @@ test("suppresses sounds and browser attention for the active subagent session", 
   assert.match(chatWindowSource, /!completionNotificationsEnabled[\s\S]*?!extensionDialog/);
   assert.match(completionSource, /selectedSession\?\.relation\?\.kind === "subagent"\) return/);
   assert.match(attentionSource, /selectedSession\?\.relation\?\.kind === "subagent"\) return/);
+});
+
+test("auto-compact slash command toggles session auto-compaction", () => {
+  const commandSource = source.slice(
+    source.indexOf('case "auto-compact"'),
+    source.indexOf('case "reload"'),
+  );
+  assert.ok(commandSource.length > 0, "auto-compact case not found before reload case");
+  assert.match(commandSource, /sendAgentCommand<AgentStateResponse>\(sid, \{\s*type: "get_state"\s*\}\)/);
+  assert.match(commandSource, /!\(liveState\?\.autoCompactionEnabled \?\? true\)/);
+  assert.match(commandSource, /sendAgentCommand\(sid, \{\s*type: "set_auto_compaction",\s*enabled: nextEnabled,\s*\}\)/);
+  assert.match(commandSource, /setAutoCompactionEnabled\(nextEnabled\)/);
+  assert.doesNotMatch(commandSource, /!autoCompactionEnabled/);
+  // State mirrors the wrapper so the toggle reflects server-side changes too.
+  assert.match(source, /setAutoCompactionEnabled\(state\?\.autoCompactionEnabled \?\? true\)/);
+  assert.match(source, /setAutoCompactionEnabled\(liveState\.autoCompactionEnabled \?\? true\)/);
 });
