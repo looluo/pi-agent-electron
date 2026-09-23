@@ -1,7 +1,7 @@
 # Issue 02: bounded-session-title
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 
 `974c8bb` — Name sessions from a bounded transcript (#807, merged upstream;
@@ -39,3 +39,21 @@ largely moot here; note it if we ever fire earlier.
 Gate: session-title test suite ported and green; auto-title + manual paths
 manually verified once in a packaged build (title lands in jsonl as
 `session_info`, `skipIfNamed` idempotent).
+
+
+## Answer
+
+Resolved. Wholesale file swap from piweb/main (session-title.ts + suite; both
+call sites already matched upstream's route shape verbatim — the
+"session.inner as unknown as AgentSession" cast — no service changes needed).
+PR #45 auto path untouched: skipIfNamed + the agent_settled trigger contract
+test stays green.
+
+Real-chain verification (jiti in-process, real provider stream, old unnamed
+session): title in 3.8s at 149 input tokens — the pre-#807 shadow-agent path
+measured 19,666 input tokens / 7.6s on a comparable session (~130x cheaper).
+skipIfNamed idempotent (0.0s skipped). session_info persisted.
+
+Gate: session-title suite 14/14; auto-title contract test green; typecheck x2
+clean; full suite 977/981 (1 pre-existing Windows PATH baseline). Packaged
+manual verify rides the next r2 build.

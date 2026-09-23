@@ -325,7 +325,7 @@ models → subagents → chat/ui → session perf → plugins (each batch behind
 | **base** | | | |
 | `da1b28b` | chore(deps): upgrade pi to 0.87.0 (#931) | **ported** (r2 issue 01) | 0.85.1→0.87.0; 12-file adapter sweep (agent-event-wire, exact-system-prompt, project-tree, session-list-scanner, session-reader, session-stats, session-title, subagent-runtime, rpc-manager, BranchNavigator, pi-types, useAgentSession) — later batches depend on its types |
 | **naming** | | | |
-| `974c8bb` | Name sessions from a bounded transcript (#807) | to-port | local `session-title.ts` is byte-identical to pre-#807 upstream → clean file swap; `generateSessionTitle` semantics change (no shadow Agent, no idle wait, standalone stream) touches `services/sessions.ts` auto-name call sites (manual button + PR #45 auto path share it); no-idle also lets auto-name fire earlier than `agent_settled` if we want |
+| `974c8bb` | Name sessions from a bounded transcript (#807) | **ported** (r2 issue 02; measured 19,666 → 149 input tokens on a comparable session) | local `session-title.ts` is byte-identical to pre-#807 upstream → clean file swap; `generateSessionTitle` semantics change (no shadow Agent, no idle wait, standalone stream) touches `services/sessions.ts` auto-name call sites (manual button + PR #45 auto path share it); no-idle also lets auto-name fire earlier than `agent_settled` if we want |
 | **models panel** | | | |
 | `50f6cce` | enabledModels switches in Settings → Models (#930) | to-port | new `lib/enabled-models{,-runtime}.ts` + EnabledModelsSection; re-home `app/api/models/enabled` onto `pi:models` IPC |
 | `058341d` | manual "Refresh catalog" button (#914) (#938) | to-port | new `lib/model-catalog-refresh.ts`; rides existing models IPC |
