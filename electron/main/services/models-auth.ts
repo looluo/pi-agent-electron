@@ -6,6 +6,7 @@ import { app } from "electron";
 import type { AssistantMessage } from "@earendil-works/pi-ai/compat";
 import { completeSimple } from "@earendil-works/pi-ai/compat";
 import { createAgentSessionServices, getAgentDir, ModelRuntime, type SettingsManager } from "@earendil-works/pi-coding-agent";
+import { createModelRuntimeWithExtensions } from "@/lib/model-runtime";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import {
   loadModelsWithCache,
@@ -443,7 +444,7 @@ export async function modelsCatalog(query: string, provider: string, limit: numb
 /** GET /api/auth/providers — merged listing (upstream 602b1b6): oauth and
  *  api-key provider rows from one call; `providers` kept for older callers. */
 export async function authProviders(): Promise<Record<string, unknown>> {
-  const modelRuntime = await ModelRuntime.create();
+  const modelRuntime = await createModelRuntimeWithExtensions();
   const inputs = await collectProviderListingInputs(modelRuntime);
   const oauthProviders = buildOAuthProviderList(inputs);
   const apiKeyProviders = buildApiKeyProviderList(inputs);
@@ -452,14 +453,14 @@ export async function authProviders(): Promise<Record<string, unknown>> {
 
 /** GET /api/auth/all-providers */
 export async function authAllProviders(): Promise<Record<string, unknown>> {
-  const modelRuntime = await ModelRuntime.create();
+  const modelRuntime = await createModelRuntimeWithExtensions();
   const providers = buildApiKeyProviderList(await collectProviderListingInputs(modelRuntime));
   return { providers };
 }
 
 /** GET /api/auth/api-key/[provider] */
 export async function apiKeyStatus(provider: string): Promise<StatusBody> {
-  const modelRuntime = await ModelRuntime.create();
+  const modelRuntime = await createModelRuntimeWithExtensions();
   const status = modelRuntime.getProviderAuthStatus(provider);
   const displayName = modelRuntime.getProvider(provider)?.name ?? provider;
   const models = modelRuntime.getModels(provider).length;
@@ -472,7 +473,7 @@ export async function apiKeySet(provider: string, apiKey: unknown): Promise<Stat
     if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) {
       return { status: 400, body: { error: "apiKey is required" } };
     }
-    const modelRuntime = await ModelRuntime.create();
+    const modelRuntime = await createModelRuntimeWithExtensions();
     const apiKeyAuth = modelRuntime.getProvider(provider)?.auth.apiKey;
     if (!apiKeyAuth?.login) {
       throw new Error(`${provider} does not support API key login`);
@@ -518,7 +519,7 @@ export async function apiKeyDelete(provider: string): Promise<StatusBody> {
 
 /** POST /api/auth/logout/[provider] */
 export async function authLogout(provider: string): Promise<StatusBody> {
-  const modelRuntime = await ModelRuntime.create();
+  const modelRuntime = await createModelRuntimeWithExtensions();
   if (!modelRuntime.getProvider(provider)?.auth.oauth) {
     return { status: 400, body: { error: `Unknown provider: ${provider}` } };
   }
@@ -574,7 +575,7 @@ export async function authLoginStart(
   push: (frame: AuthLoginFrame) => void,
   registerCleanup: (cleanup: () => void) => void,
 ): Promise<void> {
-  const modelRuntime = await ModelRuntime.create();
+  const modelRuntime = await createModelRuntimeWithExtensions();
   if (!modelRuntime.getProvider(provider)?.auth.oauth) {
     push({ event: "error", data: { type: "error", message: `Unknown provider: ${provider}` } });
     return;

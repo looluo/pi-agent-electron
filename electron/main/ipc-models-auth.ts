@@ -17,6 +17,7 @@ import {
   modelsTest,
   type AuthLoginFrame,
 } from "./services/models-auth";
+import { modelsCatalogRefresh, modelsEnabledGet, modelsEnabledPut } from "./services/models-enabled";
 import { providerUsageQuery } from "./services/provider-usage";
 
 type LoginSession = {
@@ -36,6 +37,9 @@ function registerModelsAuthHandlers(): void {
   ipcMain.handle("pi:models-config:discover", (_e, body: Record<string, unknown>) => modelsDiscover(body ?? {}));
   ipcMain.handle("pi:models-config:catalog", (_e, q: string, provider: string, limit: number) =>
     modelsCatalog(q ?? "", provider ?? "", Number.isFinite(limit) ? limit : 50));
+  ipcMain.handle("pi:models:enabled:get", (_e, cwd: string | null) => modelsEnabledGet(cwd));
+  ipcMain.handle("pi:models:enabled:put", (_e, body: Record<string, unknown> | undefined | null) => modelsEnabledPut(body));
+  ipcMain.handle("pi:models:catalog:refresh", (_e, provider: string | null) => modelsCatalogRefresh(provider));
 
   // auth
   ipcMain.handle("pi:auth:providers", () => authProviders());

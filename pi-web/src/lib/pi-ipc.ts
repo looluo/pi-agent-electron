@@ -98,6 +98,9 @@ export interface PiBridge {
   modelsTest(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   modelsDiscover(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   modelsCatalog(q: string, provider: string, limit: number): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  modelsEnabledGet(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  modelsEnabledPut(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  modelsCatalogRefresh(provider: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
   authProviders(): Promise<{ providers?: unknown[] }>;
   authAllProviders(): Promise<{ providers?: unknown[] }>;
   apiKeyStatus(provider: string): Promise<{ status: number; body: Record<string, unknown> | null }>;

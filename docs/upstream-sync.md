@@ -327,11 +327,11 @@ models → subagents → chat/ui → session perf → plugins (each batch behind
 | **naming** | | | |
 | `974c8bb` | Name sessions from a bounded transcript (#807) | **ported** (r2 issue 02; measured 19,666 → 149 input tokens on a comparable session) | local `session-title.ts` is byte-identical to pre-#807 upstream → clean file swap; `generateSessionTitle` semantics change (no shadow Agent, no idle wait, standalone stream) touches `services/sessions.ts` auto-name call sites (manual button + PR #45 auto path share it); no-idle also lets auto-name fire earlier than `agent_settled` if we want |
 | **models panel** | | | |
-| `50f6cce` | enabledModels switches in Settings → Models (#930) | to-port | new `lib/enabled-models{,-runtime}.ts` + EnabledModelsSection; re-home `app/api/models/enabled` onto `pi:models` IPC |
-| `058341d` | manual "Refresh catalog" button (#914) (#938) | to-port | new `lib/model-catalog-refresh.ts`; rides existing models IPC |
-| `8b084d3` | relative time when usage quota stale | to-port | ProviderUsageSummary small |
-| `6e95fba` | OpenCode Go provider usage quota (#844) | to-port | provider-usage-ids table entry |
-| `79894b9` | extension-registered providers in settings/auth (#833) | to-port | re-home 4 auth routes onto ipc-models-auth surface |
+| `50f6cce` | enabledModels switches in Settings → Models (#930) | **ported** (r2 issue 03) | new `lib/enabled-models{,-runtime}.ts` + EnabledModelsSection; re-home `app/api/models/enabled` onto `pi:models` IPC |
+| `058341d` | manual "Refresh catalog" button (#914) (#938) | **ported** (r2 issue 03) | new `lib/model-catalog-refresh.ts`; rides existing models IPC |
+| `8b084d3` | relative time when usage quota stale | **ported** (r2 issue 03) | ProviderUsageSummary small |
+| `6e95fba` | OpenCode Go provider usage quota (#844) | **ported** (r2 issue 03) | provider-usage-ids table entry |
+| `79894b9` | extension-registered providers in settings/auth (#833) | **ported** (r2 issue 03; six auth sites in models-auth service) | re-home 4 auth routes onto ipc-models-auth surface |
 | **subagents** | | | |
 | `f07d4a2` | switch individual built-in sub-agents off (#874) | to-port | subagent-settings + AgentsConfig; release gate stays off locally |
 | `54aa49c` | mark background results as non-user messages (#875) | to-port | subagent-runtime/extension |
