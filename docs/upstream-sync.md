@@ -360,9 +360,9 @@ models → subagents → chat/ui → session perf → plugins (each batch behind
 | `b44017a` | see sessions written by another pi process (#796) | **ported** (r2 issue 06; external-write eviction via sessionsGet force) |
 | `ef1de89` | remember open session per browser tab (#887) | n/a | covered: local workspace-memory already restores last open session per project; Electron has one window |
 | **plugins** | | | |
-| `38cba2b` | package description in Plugins panel (#868) | to-port | |
-| `fce666a` | normalize relativePath separators, Windows (#827) | to-port | Windows-first for us |
-| `afd2575` | npm update checks without npm.cmd shim, Windows (#837) | to-port | new `lib/node-cli.ts`; our npx.ts base already landed |
+| `38cba2b` | package description in Plugins panel (#868) | **ported** (r2 issue 07) | route re-homed onto `services/plugins.ts` (readPackageMetadata gains description); route test ported as `lib/plugins-route.test.mjs` |
+| `fce666a` | normalize relativePath separators, Windows (#827) | **ported** (r2 issue 07) | applied on the Electron service side (`services/plugins.ts` getRelativePath), verified by ported route test on Windows |
+| `afd2575` | npm update checks without npm.cmd shim, Windows (#837) | **ported** (r2 issue 07) | new `lib/node-cli.ts` keeps upstream API but adds PATH scan for packaged Electron; npx.ts becomes thin wrapper keeping runNpm + win32 strictness |
 | **web/server-only — dropped** | | | |
 | `ffb2daf` | full-width file panel toggle (#790) | n/a | local PR #548 maximized panel is a superset (fullscreen + focus transfer); maximized-close already fixed in d8e3b85; optionally borrow its inert-sidebar/dropdown-dismiss hardening if missing |
 | `31f0505` | Next.js proxy body buffer (#846) | n/a | no server |

@@ -100,6 +100,9 @@ async function runCommand(
 ): Promise<string> {
   const env = options.env ? { ...process.env, ...options.env } : process.env;
   if (command === "npm") {
+    // A bare `npm` resolves to `npm.cmd` on Windows, which `execFile` cannot
+    // spawn (CVE-2024-27980); run the bundled `npm-cli.js` through `node`
+    // (see `lib/node-cli.ts`).
     const { stdout } = await runNpm(args, {
       cwd: options.cwd,
       env,
