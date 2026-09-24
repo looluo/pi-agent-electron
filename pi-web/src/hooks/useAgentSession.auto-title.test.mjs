@@ -53,6 +53,10 @@ test("agent completion triggers silent title generation for unnamed sessions", (
     source.indexOf('case "agent_settled"'),
     source.indexOf('case "prompt_done"'),
   );
+  const agentEndSource = source.slice(
+    source.indexOf('case "agent_end"'),
+    source.indexOf('case "agent_settled"'),
+  );
   const promptDoneSource = source.slice(
     source.indexOf('case "prompt_done"'),
     source.indexOf('case "prompt_error"'),
@@ -76,15 +80,21 @@ test("agent completion triggers silent title generation for unnamed sessions", (
     settledSource,
     /sdkAgentActiveRef\.current = false;[\s\S]*?if \(agentWasActive && rpcPromptPendingRef\.current\) maybeAutoNameSession\(\);[\s\S]*?if \(!agentWasActive \|\| rpcPromptPendingRef\.current\) break;/,
   );
+  // Since #807 the generator snapshots the transcript without waiting for
+  // idle, so the PRIMARY trigger is agent_end (upstream PR #45's original
+  // placement): the first completed turn names the session while retries,
+  // compactions, or queued turns continue toward settle.
+  assert.match(agentEndSource, /maybeAutoNameSession\(\);/);
 
+  // Fallbacks keep covering the no-prompt (extension) and missed-event paths.
   // Fires where the SDK agent (not a bare prompt) is known to have settled.
   assert.match(
     finishSource,
-    /agentWasActive && wasRunning\) \{\s*onAgentEnd\?\.\(\);\s*maybeAutoNameSession\(\);/,
+    /agentWasActive && wasRunning\) \{\s*onAgentEnd\?\.\(\);[\s\S]*?maybeAutoNameSession\(\);/,
   );
   assert.match(
     settledSource,
-    /if \(wasRunning\) \{\s*onAgentEnd\?\.\(\);\s*maybeAutoNameSession\(\);/,
+    /if \(wasRunning\) \{\s*onAgentEnd\?\.\(\);[\s\S]*?maybeAutoNameSession\(\);/,
   );
   // Bare prompts (slash commands without an agent run) never trigger a title.
   assert.doesNotMatch(promptDoneSource, /maybeAutoNameSession/);

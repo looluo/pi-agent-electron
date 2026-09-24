@@ -1168,6 +1168,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         notifyPromptStage(runId);
       } else if (agentWasActive && wasRunning) {
         onAgentEnd?.();
+        // Fallback for missed agent_end events (no-stream reconcile path);
+        // normally a no-op thanks to in-flight dedupe + skipIfNamed.
         maybeAutoNameSession();
       }
       if (sid) scheduleEventStreamClose(sid);
@@ -1323,6 +1325,13 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         setAgentPhase(null);
         setRetryInfo(null);
         dispatch({ type: "end" });
+        // PR #45 auto-title, primary trigger (upstream PR's original placement,
+        // unlocked by #807): the bounded-transcript generator snapshots whatever
+        // the session holds and never waits for idle, so the first completed
+        // turn can name the session while retries/compactions/queued turns
+        // continue. In-flight dedupe absorbs the extra agent_end events and the
+        // settle-path fallbacks; skipIfNamed keeps later runs no-ops.
+        maybeAutoNameSession();
         if (sessionIdRef.current) {
           loadSession(sessionIdRef.current);
           window.pi.agentState(sessionIdRef.current)
@@ -1346,11 +1355,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         // The SDK emits agent_settled from inside prompt()'s finally — BEFORE
         // rpc-manager resolves prompt_done — so for a normal send this event
         // arrives while rpcPromptPendingRef is still true and the UI-settle
-        // branch below bails out. The agent run has genuinely settled here,
-        // so auto-name before that gate (pi-web PR #45 port); the wasRunning
-        // branch below keeps covering the no-prompt (extension) path, so fire
-        // early only when that branch is unreachable. Slash-command prompts
-        // never set sdkAgentActiveRef and stay excluded.
+        // branch below bails out. Fallback (agent_end is primary since #807):
+        // fires only when the early trigger was missed (SSE glitch). Slash-
+        // command prompts never set sdkAgentActiveRef and stay excluded.
         if (agentWasActive && rpcPromptPendingRef.current) maybeAutoNameSession();
         if (!agentWasActive || rpcPromptPendingRef.current) break;
 
@@ -1363,6 +1370,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         }
         if (wasRunning) {
           onAgentEnd?.();
+          // Fallback (extension-run path has no pending prompt, so the early
+          // gate above skips); dedupe + skipIfNamed make repeat fires no-ops.
           maybeAutoNameSession();
         }
         break;

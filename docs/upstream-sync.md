@@ -124,7 +124,9 @@ visible.
 - **pi-web PR #45** — automatic session titles. Upstream rejected the PR and later shipped manual
   naming (`auto-name`) instead; this port keeps the PR's client-side trigger but **shares the
   manual path**: `sessionsAutoName` gained a `skipIfNamed` option (guard before `startRpcSession`),
-  the hook fires it silently on agent settle (`agent_settled` + no-stream finish, never bare
+  the hook fires it silently at `agent_end` (the upstream PR's placement, unlocked by #807's
+  no-idle snapshot — the first completed turn names the session while retries/compactions continue;
+  the `agent_settled`/no-stream paths remain as missed-event fallbacks, never bare
   `prompt_done`), skipping subagent sessions and in-flight duplicates. The PR's separate
   `generate-title` route with `completeSimple` was deliberately **not** ported. Contract guarded by
   `hooks/useAgentSession.auto-title.test.mjs`.
