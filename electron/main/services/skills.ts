@@ -9,6 +9,7 @@ import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-acces
 import { runNpx } from "@/lib/npx";
 import { getProjectTrustStatus } from "@/lib/project-trust";
 import { checkSkillUpdates, buildSkillUpdateArgs } from "@/lib/skill-updates";
+import { waitForPathRepair } from "./shell-path";
 
 /**
  * Ports of app/api/skills/{route,check,install,search,update}.
@@ -141,6 +142,8 @@ export async function skillsToggle(filePath: string, disableModelInvocation: boo
 /** POST /api/skills/check */
 export async function skillsCheck(body: Record<string, unknown>): Promise<StatusBody> {
   try {
+    // `npx` below resolves Node from PATH; wait for the startup PATH repair.
+    await waitForPathRepair();
     const cwd = typeof body.cwd === "string" ? body.cwd : "";
     if (!cwd) return { status: 400, body: { error: "cwd required" } };
     const allowedRoots = await getAllowedFileRoots();
@@ -178,6 +181,8 @@ export async function skillsCheck(body: Record<string, unknown>): Promise<Status
 /** POST /api/skills/install */
 export async function skillsInstall(body: Record<string, unknown>): Promise<StatusBody> {
   try {
+    // `npx` below resolves Node from PATH; wait for the startup PATH repair.
+    await waitForPathRepair();
     const pkg = typeof body.package === "string" ? body.package : undefined;
     const scope = typeof body.scope === "string" ? body.scope : undefined;
     const cwd = typeof body.cwd === "string" ? body.cwd : undefined;

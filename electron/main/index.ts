@@ -4,7 +4,7 @@ import { registerIpcHandlers } from "./ipc";
 import { registerModelsAuthHandlers } from "./ipc-models-auth";
 import { registerSkillsPluginsHandlers } from "./ipc-skills-plugins";
 import { registerEarlySchemes, registerFilesProtocol } from "./files-protocol";
-import { applyStaticToolDirsToPath, enrichPathFromLoginShell } from "./services/shell-path";
+import { repairPathAtStartup } from "./services/shell-path";
 import { configureHttpDispatcher } from "@/lib/http-dispatcher";
 
 registerEarlySchemes();
@@ -16,8 +16,7 @@ configureHttpDispatcher();
 // spawns like the plugin manager's `npm` ("spawn npm ENOENT"). Repair it
 // before anything spawns: static tool dirs synchronously, login-shell
 // capture in the background (nvm/volta/pnpm prefixes live in shell init).
-applyStaticToolDirsToPath();
-void enrichPathFromLoginShell();
+repairPathAtStartup();
 
 let mainWindow: BrowserWindow | null = null;
 

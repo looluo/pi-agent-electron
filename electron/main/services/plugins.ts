@@ -11,6 +11,7 @@ import {
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import { checkPluginUpdates, isPluginSourceCheckable } from "@/lib/plugin-updates";
 import { getProjectTrustStatus } from "@/lib/project-trust";
+import { waitForPathRepair } from "./shell-path";
 import type {
   PluginDiagnostic,
   PluginPackageInfo,
@@ -320,6 +321,9 @@ export async function pluginsAction(body: {
   cwd?: string;
 }): Promise<{ status: number; body: Record<string, unknown> }> {
   try {
+    // install/update/remove spawn `npm`; do not race the startup PATH repair
+    // (GUI launches: npm may only be reachable after the login-shell capture).
+    await waitForPathRepair();
     if (!body.cwd) return { status: 400, body: { error: "cwd required" } };
     if (!body.action) return { status: 400, body: { error: "action required" } };
     const allowedRoots = await getAllowedFileRoots();
@@ -386,6 +390,8 @@ export async function pluginsCheck(body: {
   scope?: string;
 }): Promise<{ status: number; body: Record<string, unknown> }> {
   try {
+    // `npm view` below resolves Node from PATH; wait for the PATH repair.
+    await waitForPathRepair();
     const cwd = typeof body.cwd === "string" ? body.cwd : "";
     if (!cwd) return { status: 400, body: { error: "cwd required" } };
     const allowedRoots = await getAllowedFileRoots();
