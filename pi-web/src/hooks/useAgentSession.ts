@@ -1399,12 +1399,21 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       case "prompt_error":
         addNotice({ type: "error", message: (event.errorMessage as string | undefined) ?? "Command failed" });
         break;
-      case "extension_error":
+      case "extension_error": {
+        const message = (event.error as string | undefined) ?? "Extension command failed";
+        const extensionPath = event.extensionPath as string | undefined;
+        const extensionEvent = event.event as string | undefined;
+        const source = [extensionPath, extensionEvent].filter(Boolean).join(" · ");
+        // Keep the SDK's source metadata: a bare error code (for example
+        // `unsafe_directory`) is otherwise impossible to attribute after the
+        // event leaves the extension runner.
+        console.error("[pi-web] extension_error", { extensionPath, event: extensionEvent, error: message });
         addNotice({
           type: "error",
-          message: (event.error as string | undefined) ?? "Extension command failed",
+          message: source ? `${message} — ${source}` : message,
         });
         break;
+      }
       case "message_start":
       case "message_update": {
         // Ignore streaming events arriving after this run already finished

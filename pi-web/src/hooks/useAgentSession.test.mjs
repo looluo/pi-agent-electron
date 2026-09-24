@@ -479,6 +479,18 @@ test("routes blocking extension requests through deduplicated browser attention 
   assert.match(appShellSource, /onAttentionNeeded=\{handleAttentionNeeded\}/);
 });
 
+test("extension errors preserve their source path and event in the toast", () => {
+  const extensionErrorSource = source.slice(
+    source.indexOf('case "extension_error"'),
+    source.indexOf('case "message_start"'),
+  );
+
+  assert.match(extensionErrorSource, /event\.extensionPath as string \| undefined/);
+  assert.match(extensionErrorSource, /event\.event as string \| undefined/);
+  assert.match(extensionErrorSource, /source \? `\$\{message\} — \$\{source\}` : message/);
+  assert.match(extensionErrorSource, /console\.error\("\[pi-web\] extension_error"/);
+});
+
 test("keeps live following cancellable when the user scrolls away from the tail", () => {
   const streamUpdateSource = source.slice(
     source.indexOf('case "message_start"'),
