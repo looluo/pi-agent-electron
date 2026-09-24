@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGlobalKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -394,6 +395,8 @@ export function AppShell() {
     setRightPanelOpen(false);
   }, []);
 
+
+
   const handleRightPanelToggle = useCallback(() => {
     if (isMobile) {
       setSidebarOpen(false);
@@ -465,6 +468,35 @@ export function AppShell() {
   // Files unmount when inactive; workspace terminals stay mounted until closed.
   const [fileTabs, setFileTabs] = useState<Tab[]>([]);
   const [activeFileTabId, setActiveFileTabId] = useState<string | null>(null);
+  /** Parked per-project file-panel layouts: switching directories preserves
+   *  each project's open tabs (and panel state) for the switch back. Memory
+   *  only — app restart starts each project with a clean panel. */
+  const fileTabsByProjectRef = useRef<Map<string, { tabs: Tab[]; activeFileTabId: string | null; panelOpen: boolean }>>(new Map());
+
+  /** Cross-project switch point for the file panel: park the leaving
+   *  project's tabs (plus active tab and panel state), restore the entering
+   *  project's parked layout, or fall back to the legacy clear when it has
+   *  none. Same-project worktree moves never reach this. Terminal tabs are
+   *  global workspace state and are not parked. */
+  const switchProjectFileTabs = useCallback((fromKey: string | null, toKey: string | null) => {
+    if (fromKey) {
+      fileTabsByProjectRef.current.set(fromKey, { tabs: fileTabs, activeFileTabId, panelOpen: rightPanelOpen });
+    }
+    const parked = toKey ? fileTabsByProjectRef.current.get(toKey) : undefined;
+    if (!parked) {
+      setFileTabs([]);
+      // A terminal tab keeps the panel mounted across the switch; only the
+      // file/none cases close it (legacy semantics).
+      if (!activeFileTabId || activeFileTabId.startsWith("file:")) {
+        setActiveFileTabId(null);
+        handleRightPanelClose();
+      }
+      return;
+    }
+    setFileTabs(parked.tabs);
+    setActiveFileTabId(parked.activeFileTabId);
+    setRightPanelOpen(parked.panelOpen);
+  }, [activeFileTabId, fileTabs, handleRightPanelClose, rightPanelOpen]);
   const [terminalTabs, setTerminalTabs] = useState<TerminalTab[]>([]);
   const [terminalsRestored, setTerminalsRestored] = useState(false);
   const panelTabs: Tab[] = [...fileTabs, ...terminalTabs.map((tab) => ({
@@ -698,18 +730,16 @@ export function AppShell() {
     setActiveTopPanel(null);
     if (currentProject !== newProject) {
       // File tabs are keyed by absolute path, so tabs opened in the previous
-      // project must not linger. Same-project worktree switches keep them.
-      setFileTabs([]);
-      if (!activeFileTabId || activeFileTabId.startsWith("file:")) {
-        setActiveFileTabId(null);
-        handleRightPanelClose();
-      }
+      // project must not linger in the new one — park them for the switch
+      // back and restore whatever the entering project had open. Same-project
+      // worktree switches keep them (early return above).
+      switchProjectFileTabs(currentProject, newProject);
       // Restore the workspace we switched to: its last open session, or keep
       // the default welcome page when none is remembered.
       restoreWorkspaceContext(newProject, cwd);
     }
     router.replace("/", { scroll: false });
-  }, [activeCwd, activeFileTabId, handleRightPanelClose, invalidateWorkspaceRestore, newSessionCwd, router, selectedSession, restoreWorkspaceContext]);
+  }, [activeCwd, handleRightPanelClose, invalidateWorkspaceRestore, newSessionCwd, restoreWorkspaceContext, router, selectedSession, switchProjectFileTabs]);
 
   const handleSelectSession = useCallback((session: SessionInfo, isRestore = false, entryId?: string, blockIndex?: number) => {
     setSearchTarget(entryId ? { sessionId: session.id, entryId, blockIndex } : null);
@@ -723,11 +753,7 @@ export function AppShell() {
     // Adopt an explicitly selected session before the sidebar reports its cwd.
     const projectKey = workspaceKeyOf(session);
     if (activeProjectKeyRef.current !== projectKey) {
-      setFileTabs([]);
-      if (!activeFileTabId || activeFileTabId.startsWith("file:")) {
-        setActiveFileTabId(null);
-        handleRightPanelClose();
-      }
+      switchProjectFileTabs(activeProjectKeyRef.current, projectKey);
       setActiveTopPanel(null);
     }
     activeProjectKeyRef.current = projectKey;
@@ -765,7 +791,7 @@ export function AppShell() {
     if (!isRestore) {
       router.replace(`?session=${encodeURIComponent(session.id)}`, { scroll: false });
     }
-  }, [activeFileTabId, invalidateWorkspaceRestore, router, isMobile, selectedSession]);
+  }, [activeFileTabId, invalidateWorkspaceRestore, router, isMobile, selectedSession, switchProjectFileTabs]);
 
   const handleNewSession = useCallback((sessionId: string, cwd: string) => {
     invalidateWorkspaceRestore();

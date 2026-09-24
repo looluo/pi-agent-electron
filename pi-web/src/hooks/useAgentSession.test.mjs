@@ -239,7 +239,7 @@ test("stale fresh-session completion cannot replace the active composer", () => 
     cwdChangeSource,
     /currentProject === newProject\s*&& \(selectedSession !== null \|\| currentFreshCwd === cwd\)/,
   );
-  assert.match(cwdChangeSource, /if \(currentProject !== newProject\) \{[\s\S]*?setFileTabs\(\[\]\)/);
+  assert.match(cwdChangeSource, /if \(currentProject !== newProject\) \{[\s\S]*?switchProjectFileTabs\(currentProject, newProject\)/);
   assert.match(
     appShellSource,
     /useLayoutEffect\(\(\) => \{\s*activeNewSessionDraftKeyRef\.current = newSessionDraftKey;/,
