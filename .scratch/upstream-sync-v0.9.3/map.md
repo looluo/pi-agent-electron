@@ -33,7 +33,7 @@ Execution order (risk first):
   (#871) (—) — **resolved**
 - 07 subagents-fixes — ext: selector resolution (#946), resumed-run
   report (#991), orphan→interrupted (#990), result keying (#987/#989),
-  model-only control tools (62542da) (—)
+  model-only control tools (62542da) (—) — **resolved**
 - 08 tools-codemode — Code mode via tools settings (1c387b4/ba044f9),
   CodemodeToolView (—)
 - 09 mcp-wave — ADR 0006 P1/P2: per-session MCP host, Settings › MCP

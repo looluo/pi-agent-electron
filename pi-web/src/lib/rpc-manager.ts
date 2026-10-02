@@ -221,17 +221,37 @@ class PlainTextTheme extends Theme {
 const PLAIN_TEXT_THEME = new PlainTextTheme();
 const CUSTOM_UI_KEYBINDINGS = new TuiKeybindingsManager(TUI_KEYBINDINGS);
 
-function withExtensionTools(session: AgentSessionLike, toolNames: string[]): string[] {
-  if (toolNames.length === 0) return [];
+// Tools that belong to the session, not to a branch of it: the ones that reach other tools,
+// and pi-web's subagent tools, which the built-in subagent setting switches on for the whole
+// session. Navigation keeps them although the target branch was recorded without them.
+const SESSION_TOOL_NAMES = new Set<string>(["codemode", "tool_search", ...SUBAGENT_CONTROL_TOOL_NAMES]);
+
+/**
+ * The active tools for a coding tool selection. The selection replaces only the coding
+ * tools: every other tool named in `carry` that is still registered and not withdrawn stays
+ * active, so a tool an extension, `tool_search`, or `defaultTools` activated survives, and a
+ * tool one switched off stays off. Nothing else is added: pi itself activates the extension
+ * tools it registers, so `carry` already holds them. An empty selection is Chat only.
+ */
+export function resolveActiveToolNames(
+  session: AgentSessionLike,
+  requested: readonly string[],
+  carry: readonly string[],
+): string[] {
+  if (requested.length === 0) return [];
 
   const codingToolNames = new Set(CODING_TOOL_NAMES);
-  const selectedToolNames = resolveShellTools(toolNames, session.settingsManager.getDefaultTools());
-  const extensionToolNames = session
-    .getAllTools()
-    .map((t) => t.name)
-    .filter((name) => !codingToolNames.has(name));
+  const registered = new Map(session.getAllTools().map((tool) => [tool.name, tool]));
+  const selectedToolNames = resolveShellTools(
+    requested.filter((name) => codingToolNames.has(name)),
+    session.settingsManager.getDefaultTools(),
+  );
+  const carriedToolNames = carry.filter((name) => {
+    const tool = registered.get(name);
+    return tool !== undefined && !codingToolNames.has(name) && tool.exposure !== "hidden";
+  });
 
-  return [...new Set([...selectedToolNames, ...extensionToolNames])];
+  return [...new Set([...selectedToolNames, ...carriedToolNames])];
 }
 
 // ============================================================================
@@ -481,8 +501,34 @@ export class AgentSessionWrapper {
     }
   }
 
-  setActiveToolSelection(toolNames: string[]): void {
-    this.inner.setActiveToolsByName(withExtensionTools(this.inner, toolNames));
+  /** Apply a coding tool selection; `carry` defaults to the tools active now. */
+  setActiveToolSelection(toolNames: string[], carry: readonly string[] = this.inner.getActiveToolNames()): void {
+    this.inner.setActiveToolsByName(resolveActiveToolNames(this.inner, toolNames, carry));
+  }
+
+  /**
+   * pi restores the target branch's loadout from its transcript when it navigates the tree,
+   * which can bring back coding tools the pinned preset leaves out and drop codemode, so a
+   * normal session applies its selection again. Chat only declares no tools, and a
+   * subagent's tools are fixed by its profile; both keep what pi restored.
+   */
+  private async navigateTreeKeepingToolSelection(
+    targetId: string,
+    options: { summarize?: boolean },
+  ): Promise<{ cancelled: boolean }> {
+    const activeBefore = this.inner.getActiveToolNames();
+    const result = await this.inner.navigateTree(targetId, options);
+    if (result.cancelled || this.chatOnly) return { cancelled: result.cancelled };
+
+    const entries = this.inner.sessionManager.getEntries() as unknown as SessionEntry[];
+    if (!readSubagentSessionResources(entries)) {
+      const activeAfter = this.inner.getActiveToolNames();
+      this.setActiveToolSelection(
+        readSessionToolSelection(entries) ?? activeAfter,
+        [...activeAfter, ...activeBefore.filter((name) => SESSION_TOOL_NAMES.has(name))],
+      );
+    }
+    return { cancelled: false };
   }
 
   private emit(event: AgentEvent): void {
@@ -905,8 +951,7 @@ export class AgentSessionWrapper {
         if (this.inner.isBashRunning) {
           throw new Error("Cannot navigate while a shell command is running");
         }
-        const result = await this.inner.navigateTree(command.targetId as string, {});
-        return { cancelled: result.cancelled };
+        return this.navigateTreeKeepingToolSelection(command.targetId as string, {});
       }
 
       case "set_thinking_level": {
@@ -975,7 +1020,8 @@ export class AgentSessionWrapper {
       }
 
       case "get_tools": {
-        const all: ToolInfo[] = this.inner.getAllTools();
+        // A hidden tool is withdrawn: pi ignores it when setting the active tools.
+        const all: ToolInfo[] = this.inner.getAllTools().filter((t) => t.exposure !== "hidden");
         const active = new Set<string>(this.inner.getActiveToolNames());
         return all.map((t) => ({
           ...t,
@@ -1744,10 +1790,8 @@ export class AgentSessionWrapper {
       },
       newSession: async () => ({ cancelled: true }),
       fork: async () => ({ cancelled: true }),
-      navigateTree: async (targetId, options) => {
-        const result = await this.inner.navigateTree(targetId, { summarize: options?.summarize });
-        return { cancelled: result.cancelled };
-      },
+      navigateTree: (targetId, options) =>
+        this.navigateTreeKeepingToolSelection(targetId, { summarize: options?.summarize }),
       switchSession: async () => ({ cancelled: true }),
       reload: async () => {
         this.extensionStatuses.clear();
@@ -2287,11 +2331,15 @@ export async function startRpcSession(
       ...(subagentResources ? { excludeTools: [...SUBAGENT_CONTROL_TOOL_NAMES] } : {}),
     });
 
-    // If specific tool names were requested (non-empty), set the active tools to the
-    // requested builtin coding tools PLUS all extension/package tools, so installed
-    // extensions stay usable in Pi Web just like in the `pi` CLI.
+    // A pinned selection replaces only the coding tools of the SDK's initial loadout, which
+    // already holds the extension tools pi activates on registration and whatever
+    // `defaultTools` names, so installed extensions stay usable in Pi Web just like in
+    // the `pi` CLI.
     if (!subagentResources && !chatOnly) {
-      inner.setActiveToolsByName(withExtensionTools(inner, selectedToolNames ?? inner.getActiveToolNames()));
+      const initialToolNames = inner.getActiveToolNames();
+      inner.setActiveToolsByName(
+        resolveActiveToolNames(inner, selectedToolNames ?? initialToolNames, initialToolNames),
+      );
     }
 
     const exactSystemPrompt = subagentResources?.exactSystemPrompt !== undefined
