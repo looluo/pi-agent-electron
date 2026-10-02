@@ -35,10 +35,10 @@ Execution order (risk first):
   report (#991), orphan→interrupted (#990), result keying (#987/#989),
   model-only control tools (62542da) (—) — **resolved**
 - 08 tools-codemode — Code mode via tools settings (1c387b4/ba044f9),
-  CodemodeToolView (—)
+  CodemodeToolView (—) — **resolved**
 - 09 mcp-wave — ADR 0006 P1/P2: per-session MCP host, Settings › MCP
   (list/add/parse/remove/test/OAuth), trust integration, security
-  hardening; new `pi:mcp:*` IPC surface + OAuth push channel (01, 02, 08)
+  hardening; new `pi:mcp:*` IPC surface + OAuth push channel (01, 02, 08) — **in progress: lib core + session wiring landed; app surface next**
 
 n/a (no ticket): demo Pages site (96966e5 etc.), Safari 16.2 (f52fd84),
 PI_WEB_PASSWORD/Basic Auth (6ad18cd/beb32a9/3e1f436), Next/semver/undici
@@ -47,4 +47,4 @@ survives renderer reconnects; verify opportunistically).
 
 ## Status
 
-In progress.
+Issues 01–08 resolved; 09 in progress (part 1 landed).

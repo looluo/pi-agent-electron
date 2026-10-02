@@ -206,7 +206,7 @@ export function registerIpcHandlers(): void {
 
   // ---- tools settings -----------------------------------------------------------
   ipcMain.handle("pi:tools:settings:get", () => toolsSettingsGet());
-  ipcMain.handle("pi:tools:settings:put", (_e, enabled: unknown) => toolsSettingsPut(enabled));
+  ipcMain.handle("pi:tools:settings:put", (_e, changes: unknown) => toolsSettingsPut((changes ?? {}) as { enabled?: unknown; codemode?: unknown }));
 }
 
 function dropFileWatch(token: string): void {

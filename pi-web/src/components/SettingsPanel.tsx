@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useI18n } from "@/hooks/useI18n";
+import { useEnterSendMode, setEnterSendMode } from "@/hooks/useEnterSendMode";
 import { useTheme } from "@/hooks/useTheme";
 import { THEME_OPTIONS } from "@/lib/theme";
 import { ThemeIcon } from "./ThemeIcon";
@@ -15,7 +16,7 @@ import {
   useChatAppearance,
 } from "@/hooks/useChatAppearance";
 import { sendAgentCommand } from "@/lib/agent-client";
-import type { ShellToolSettingsResponse } from "@/lib/api-types";
+import type { ToolSettingsResponse } from "@/lib/api-types";
 import {
   setLastSettingsSection,
   type SettingsSection,
@@ -65,7 +66,8 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
   const { locale, setLocale, supportedLocales, t } = useI18n();
   const { preference, setThemePreference } = useTheme();
   const { width: chatContentWidth, setWidth: setChatContentWidth, fontSize, setFontSize } = useChatAppearance();
-  const [shellSettings, setShellSettings] = useState<ShellToolSettingsResponse | null>(null);
+  const enterSendMode = useEnterSendMode();
+  const [shellSettings, setShellSettings] = useState<ToolSettingsResponse | null>(null);
   const [shellSaving, setShellSaving] = useState(false);
   const [shellError, setShellError] = useState<string | null>(null);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
@@ -78,7 +80,7 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
     let cancelled = false;
     void window.pi.toolsSettingsGet()
       .then(async (response) => {
-        const data = (response.body ?? {}) as unknown as ShellToolSettingsResponse & { error?: string };
+        const data = (response.body ?? {}) as unknown as ToolSettingsResponse & { error?: string };
         if (response.status !== 200 || data.error) throw new Error(data.error ?? "Failed to load shell settings");
         if (!cancelled) setShellSettings(data);
       })
@@ -92,8 +94,8 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
     setShellSaving(true);
     setShellError(null);
     try {
-      const response = await window.pi.toolsSettingsPut(enabled);
-      const data = (response.body ?? {}) as unknown as ShellToolSettingsResponse & { error?: string };
+      const response = await window.pi.toolsSettingsPut({ enabled });
+      const data = (response.body ?? {}) as unknown as ToolSettingsResponse & { error?: string };
       if (response.status !== 200 || data.error) throw new Error(data.error ?? "Failed to save shell settings");
       setShellSettings(data);
       if (sessionId) {

@@ -131,7 +131,7 @@ export interface PiBridge {
   subagentsSettingsGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
   subagentsSettingsPut(enabled?: boolean, maxConcurrent?: number): Promise<{ status: number; body: Record<string, unknown> | null }>;
   toolsSettingsGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
-  toolsSettingsPut(enabled: boolean): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  toolsSettingsPut(changes: { enabled?: boolean; codemode?: "automatic" | "always" }): Promise<{ status: number; body: Record<string, unknown> | null }>;
   sessionExport(id: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
 }
 

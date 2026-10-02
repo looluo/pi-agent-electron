@@ -182,6 +182,7 @@ contextBridge.exposeInMainWorld("pi", {
 
   // tools settings
   toolsSettingsGet: () => ipcRenderer.invoke("pi:tools:settings:get"),
-  toolsSettingsPut: (enabled: boolean) => ipcRenderer.invoke("pi:tools:settings:put", enabled),
+  toolsSettingsPut: (changes: { enabled?: boolean; codemode?: "automatic" | "always" }) =>
+    ipcRenderer.invoke("pi:tools:settings:put", changes),
   sessionExport: (id: string) => ipcRenderer.invoke("pi:sessions:export", id),
 });
