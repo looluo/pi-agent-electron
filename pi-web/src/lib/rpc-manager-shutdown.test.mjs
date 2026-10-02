@@ -207,10 +207,9 @@ test("suppressed sessions do not emit completion notifications", (t) => {
 });
 
 test("prompt commands reject when SDK preflight fails", async (t) => {
-  const inner = makePromptInner((_message, options) => {
-    options.preflightResult(false);
-    return Promise.reject(new Error("Authentication failed"));
-  });
+  // SDK 0.99: a rejected prompt never calls preflightResult; it only rejects
+  // the returned promise.
+  const inner = makePromptInner(() => Promise.reject(new Error("Authentication failed")));
   const wrapper = new AgentSessionWrapper(inner);
   t.after(() => wrapper.destroy());
   const events = [];
@@ -228,7 +227,7 @@ test("prompt commands reject when SDK preflight fails", async (t) => {
 test("accepted prompt failures still finish through the event stream", async (t) => {
   let failPrompt;
   const inner = makePromptInner((_message, options) => {
-    options.preflightResult(true);
+    options.preflightResult("started");
     return new Promise((_resolve, reject) => {
       failPrompt = () => reject(new Error("post-accept failure"));
     });
@@ -353,13 +352,10 @@ test("prompt admission continues after the preceding preflight rejects", async (
     callCount += 1;
     if (callCount === 1) {
       return new Promise((_resolve, reject) => {
-        rejectFirst = () => {
-          options.preflightResult(false);
-          reject(new Error("first rejected"));
-        };
+        rejectFirst = () => reject(new Error("first rejected"));
       });
     }
-    options.preflightResult(true);
+    options.preflightResult("started");
     return Promise.resolve();
   });
   const wrapper = new AgentSessionWrapper(inner);

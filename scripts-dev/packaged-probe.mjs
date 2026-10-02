@@ -85,9 +85,11 @@ try {
   const sessions = await evalJs("window.pi.sessionsList(false).then((r) => ({ ok: Array.isArray(r.sessions), n: r.sessions?.length }))");
   check("sessionsList over IPC", sessions.result.value.ok === true, `${sessions.result.value.n} sessions`);
 
-  // 3. subagents IPC surface (issue 01)
+  // 3. subagents IPC surface (issue 01). Enabled reflects the live
+  //    ~/pi/agent/agents/settings.json — assert the channel, not the default
+  //    (the machine running the probe may have subagents turned on).
   const sub = await evalJs("window.pi.subagentsSettingsGet().then((r) => ({ status: r.status, enabled: r.body?.enabled }))");
-  check("subagents settings channel", sub.result.value.status === 200 && sub.result.value.enabled === false, `status=${sub.result.value.status} enabled=${sub.result.value.enabled} (default off, user-settable since upstream 237d0ca)`);
+  check("subagents settings channel", sub.result.value.status === 200 && typeof sub.result.value.enabled === "boolean", `status=${sub.result.value.status} enabled=${sub.result.value.enabled} (live setting; default off, user-settable since upstream 237d0ca)`);
 
   // 4. tools settings channel (issue 02; platform-aware isWindows flag)
   const expectWin = process.platform === "win32";
