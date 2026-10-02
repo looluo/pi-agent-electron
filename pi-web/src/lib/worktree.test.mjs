@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -48,3 +49,26 @@ test("main and linked worktrees share one canonical project root", async (t) => 
   assert.ok(listedLinked);
   assert.equal(findCurrentWorktreePath(worktrees, `${linked}${path.sep}`), listedLinked.path);
 });
+
+test("worktree removal accepts a path that runs through a link", async (t) => {
+  // Git lists worktrees by their real path; macOS's tmpdir is a link to /private/var.
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-web-worktree-link-"));
+  t.after(() => rm(tempRoot, { recursive: true, force: true }));
+
+  const repo = path.join(tempRoot, "repo");
+  const alias = path.join(tempRoot, "alias");
+  await execFileAsync("git", ["init", repo]);
+  await git(repo, ["config", "user.name", "Pi Web Test"]);
+  await git(repo, ["config", "user.email", "pi-web-test@example.invalid"]);
+  await git(repo, ["config", "commit.gpgsign", "false"]);
+  await writeFile(path.join(repo, "README.md"), "# test\n");
+  await git(repo, ["add", "README.md"]);
+  await git(repo, ["commit", "-m", "initial"]);
+  await git(repo, ["worktree", "add", "-b", "feature/link", path.join(tempRoot, "linked")]);
+  await symlink(tempRoot, alias, "dir");
+
+  const { removeWorktree } = await loadSubject();
+  await removeWorktree(repo, path.join(alias, "linked"));
+  assert.equal(existsSync(path.join(tempRoot, "linked")), false);
+});
+

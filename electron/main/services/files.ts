@@ -1,12 +1,15 @@
 import fs from "fs";
 import path from "path";
 import {
+  allowFileRoot,
   getAllowedFileRoots,
   isExistingFilePathAllowed,
   isFilePathAllowed,
   isWindowsAbsolutePath,
   normalizeSlashes,
 } from "@/lib/file-access";
+import { checkLinkedDirectoryApproval, withOutsideLinkTargets } from "@/lib/linked-directory";
+import { hasParentDirectorySegment } from "@/lib/path-security";
 import {
   DOCX_PREVIEW_MAX_BYTES,
   IMAGE_PREVIEW_MAX_BYTES,
@@ -233,6 +236,37 @@ ${bodyHtml}
 }
 
 /** GET core, shared by the pifile protocol handler. Mirrors the route. */
+/** Port of POST /api/files/<path>?type=allow-link (upstream 687af27): the
+ *  operator explicitly widens the browsable roots to a directory link's
+ *  target — the same grant cwd-validate gives any chosen directory, in
+ *  memory only. Rides the pifile:// protocol instead of a route. */
+export async function handleFilesAllowLink(
+  filePath: string,
+  contentType: string | null,
+  body: unknown,
+): Promise<Response> {
+  try {
+    if (!contentType?.toLowerCase().includes("application/json")) {
+      return json({ error: "Content-Type must be application/json" }, 415);
+    }
+    const target = (body as { target?: unknown } | null)?.target;
+    if (typeof target !== "string" || !target) {
+      return json({ error: "target must be the link target shown in the listing" }, 400);
+    }
+    if (hasParentDirectorySegment(filePath)) {
+      return json({ error: "Access denied" }, 403);
+    }
+    const approval = checkLinkedDirectoryApproval(filePath, target, await getAllowedFileRoots());
+    if (!approval.ok) {
+      return json({ error: approval.error }, approval.status);
+    }
+    if (!approval.alreadyAllowed) allowFileRoot(approval.target);
+    return json({ path: approval.target });
+  } catch (error) {
+    return json({ error: String(error) }, 500);
+  }
+}
+
 export async function handleFilesGet(
   filePath: string,
   rawType: string,
@@ -242,8 +276,26 @@ export async function handleFilesGet(
 ): Promise<Response> {
   try {
     const type = rawType || "list";
-    if (!["list", "read", "download", "meta", "preview", "watch"].includes(type)) {
+    if (![
+      "list",
+      "read",
+      "download",
+      "meta",
+      "preview",
+      "watch",
+      "allow-link",
+    ].includes(type)) {
       return json({ error: "Invalid file request type" }, 400);
+    }
+
+    // Authorization collapses `..` lexically, but the filesystem applies it
+    // after following links, so `link/../x` names a file beside the link's
+    // target, outside the roots. URL parsing already drops real `..` segments;
+    // only an encoded slash inside a segment still carries one here. The
+    // existing-path check refuses them too, but a file referenced by the
+    // session skips that check.
+    if (hasParentDirectorySegment(filePath)) {
+      return json({ error: "Access denied" }, 403);
     }
 
     const allowedRoots = await getAllowedFileRoots();
@@ -374,7 +426,10 @@ export async function handleFilesGet(
         return a.name.localeCompare(b.name);
       });
 
-    return json({ entries, path: filePath });
+    return json({
+      entries: withOutsideLinkTargets(filePath, entries, dirents, allowedRoots),
+      path: filePath,
+    });
   } catch (error) {
     return json({ error: String(error) }, 500);
   }

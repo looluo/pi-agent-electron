@@ -15,7 +15,7 @@ Execution order (risk first):
 - 01 sdk-upgrade — pi 0.87.0 → 0.99.1, fix import/runtime fallout (—) — **resolved**
 - 02 security-paths — `b3c7255` system-message/tool-result path
   authorization block; `687af27` symlinked folders (#1018); worktree
-  real-path `82d1f54` (—)
+  real-path `82d1f54` (—) — **resolved**
 - 03 chat-fixes — renderer fixes incl. reconciliation points:
   `d0bf6be` streaming reasoning-level change (#851, supersedes the
   disabled-control behavior we ported in 3f07a5f), `0bae9b6` collapse

@@ -1,5 +1,5 @@
 import { protocol } from "electron";
-import { handleFilesGet, filePathFromSegments } from "./services/files";
+import { handleFilesAllowLink, handleFilesGet, filePathFromSegments } from "./services/files";
 import { sessionToolResultImage } from "./services/sessions";
 
 /**
@@ -26,7 +26,7 @@ export function registerEarlySchemes(): void {
 }
 
 export function registerFilesProtocol(): void {
-  protocol.handle("pifile", (request) => {
+  protocol.handle("pifile", async (request) => {
     const url = new URL(request.url);
     // pifile://session/<sessionId>/entries/<entryId>/tool-result-image — lazy
     // historical tool-result images (upstream 70c871b), served from the session
@@ -40,6 +40,17 @@ export function registerFilesProtocol(): void {
       .map((segment) => decodeURIComponent(segment));
     const filePath = filePathFromSegments(segments);
     const type = url.searchParams.get("type") ?? "list";
+    if (request.method === "POST" && type === "allow-link") {
+      // Operator-approved root widening for a directory link (upstream
+      // 687af27): the body carries the target the listing showed.
+      let body: unknown = null;
+      try {
+        body = await request.json();
+      } catch {
+        body = null;
+      }
+      return handleFilesAllowLink(filePath, request.headers.get("content-type"), body);
+    }
     const sessionId = url.searchParams.get("sessionId");
     const offset = url.searchParams.get("offset");
     const range = request.headers.get("range");
