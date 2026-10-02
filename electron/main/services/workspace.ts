@@ -14,6 +14,7 @@ import {
   isFilePathAllowed,
   isWindowsAbsolutePath,
 } from "@/lib/file-access";
+import { readProjectMcpServers } from "@/lib/mcp-config-read";
 import { projectIdentityKey } from "@/lib/project-identity";
 import { resolveProject, addWorktree, findCurrentWorktreePath, listWorktrees, removeWorktree } from "@/lib/worktree";
 import {
@@ -138,7 +139,23 @@ async function validateTrustedCwd(value: unknown): Promise<{ cwd: string } | { e
 export async function projectTrustGet(cwd: string | null) {
   const result = await validateTrustedCwd(cwd);
   if ("error" in result) return { status: result.status, body: { error: result.error } };
-  return { status: 200, body: getProjectTrustStatus(result.cwd, getAgentDir()) as unknown as Record<string, unknown> };
+  const agentDir = getAgentDir();
+  // The trust dialog lists the project's MCP servers before anyone trusts the
+  // folder (ADR 0006). Reads the files only: no server is spawned, no value
+  // resolved, no `!command` run.
+  let listing: Record<string, unknown> = {};
+  try {
+    const read = await readProjectMcpServers({ agentDir, cwd: result.cwd, allowedRoots: await getAllowedFileRoots() });
+    listing = { mcpFile: read.file, mcpServers: read.servers };
+  } catch (error) {
+    listing = { mcpServers: [], mcpError: error instanceof Error ? error.message : String(error) };
+  }
+  try {
+    return { status: 200, body: { ...getProjectTrustStatus(result.cwd, agentDir), ...listing } as unknown as Record<string, unknown> };
+  } catch (error) {
+    // trust.json unreadable or locked past the store's short wait.
+    return { status: 500, body: { error: error instanceof Error ? error.message : String(error), reason: "trust-unreadable", ...listing } };
+  }
 }
 
 /** POST /api/project-trust { cwd } */

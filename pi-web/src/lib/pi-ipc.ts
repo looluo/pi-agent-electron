@@ -130,6 +130,13 @@ export interface PiBridge {
   subagentsProfilesDelete(body: { cwd: string; scope: string; name: string }): Promise<{ status: number; body: Record<string, unknown> | null }>;
   subagentsSettingsGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
   subagentsSettingsPut(enabled?: boolean, maxConcurrent?: number): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  mcpOverview(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  mcpAction(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  mcpTest(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  mcpSignInStart(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  mcpSignInStatus(flowId: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  mcpSignInPaste(flowId: string, redirectUrl: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  mcpSignInCancel(flowId: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   toolsSettingsGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
   toolsSettingsPut(changes: { enabled?: boolean; codemode?: "automatic" | "always" }): Promise<{ status: number; body: Record<string, unknown> | null }>;
   sessionExport(id: string): Promise<{ status: number; body: Record<string, unknown> | null }>;

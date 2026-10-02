@@ -1,7 +1,7 @@
 # Issue 09: mcp-wave
 
 Type: task
-Status: in-progress (core landed; app surface next)
+Status: resolved
 
 ADR 0006 P1/P2. Part 1 (this batch): the lib core + session wiring.
 
@@ -24,7 +24,16 @@ Known skips (4 integration tests, documented in-file): extension-registered
 server connections over stdio hang under this repo's Node 26 — upstream CI
 pins 22.19. Host logic is unit-covered; the mcp.json path passes.
 
-Remaining (part 2): app/api/mcp routes → pi:mcp:* IPC (list/add/remove/
-switch/test/sign-in with an OAuth push channel), McpConfig/McpSignIn/
-McpAddServer UI + SettingsUi MCP section, trust-dialog MCP listing, /mcp
-command entry.
+Part 2 (app surface): the four mcp routes re-homed onto seven typed IPC
+channels (pi:mcp:overview/action/test + sign-in start/status/paste/cancel)
+via electron/main/services/mcp.ts — a faithful translation of the route
+layer (refusals carry status+reason; every file write rides the locked
+writer). The renderer keeps upstream's helpers wholesale: mcp-bridge-fetch
+serves the helpers' /api/mcp* FetchLike calls from the typed bridge (and
+falls back to global fetch under the node test harness, so upstream's
+mocked tests pass unmodified). McpConfig/McpSignIn/McpAddServer +
+SettingsPanel's MCP section and the trust-dialog MCP listing landed
+(projectTrustGet now answers the MCP listing beside the status). A
+renderer-build hazard was caught and fixed: projectTrustReloadKey must
+live in settings-ui-helpers (browser-safe), not lib/project-trust (node
+SDK graph).

@@ -9,11 +9,11 @@ import { ChatWindow } from "./ChatWindow";
 import { FileViewer } from "./FileViewer";
 import { TabBar, type Tab } from "./TabBar";
 import { openFileTab, saveFileViewerState } from "./file-tab-state";
-import { ProjectTrustDialog } from "./ProjectTrustDialog";
+import { ProjectTrustDialog, type ProjectTrustFailure } from "./ProjectTrustDialog";
 import { BranchNavigator, hasSessionBranches } from "./BranchNavigator";
 import { AgentSessionPanel } from "./AgentSessionPanel";
 import { SettingsPanel, SettingsSectionIcon } from "./SettingsPanel";
-import { getLastSettingsSection, type SettingsSection } from "@/lib/settings-navigation";
+import { getLastSettingsSection, settingsSectionRequiresProject, type SettingsSection } from "@/lib/settings-navigation";
 import { getSessionFamily } from "@/lib/session-family";
 import { SystemPromptPanel } from "./SystemPromptPanel";
 import { ToolDefinitionsPanel } from "./ToolDefinitionsPanel";
@@ -161,7 +161,8 @@ export function AppShell() {
   const [projectTrust, setProjectTrust] = useState<ProjectTrustStatus | null>(null);
   const [projectTrustDialogOpen, setProjectTrustDialogOpen] = useState(false);
   const [projectTrustBusy, setProjectTrustBusy] = useState(false);
-  const [projectTrustError, setProjectTrustError] = useState<string | null>(null);
+  const [projectTrustError, setProjectTrustError] = useState<ProjectTrustFailure | null>(null);
+
   const [sidebarOpen, setSidebarOpen] = useState(() => !initialNavigation.sidebarCollapsed);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [rightPanelMaximized, setRightPanelMaximized] = useState(false);
@@ -1114,6 +1115,20 @@ export function AppShell() {
   }, [newSessionDraftKey]);
   const showChat = selectedSession !== null || effectiveNewSessionCwd !== null;
   const projectTrustCwd = selectedSession?.cwd ?? effectiveNewSessionCwd;
+
+  // Settings › MCP offers Trust through the page's dialog (upstream 92489b7).
+  const openProjectTrustDialog = useCallback(() => {
+    setProjectTrustError(null);
+    setProjectTrustDialogOpen(true);
+  }, []);
+
+  // Settings › MCP added a project server: `.pi/mcp.json` alone makes a folder
+  // require trust, and a fresh folder was trusted in the same step. Every
+  // mounted section reloads in place on the new status (projectTrustReloadKey).
+  const handleProjectTrustChanged = useCallback((cwd: string, status: ProjectTrustStatus) => {
+    if (cwd === projectTrustCwd) setProjectTrust(status);
+  }, [projectTrustCwd]);
+
   // While restoring initial session from URL, don't show the placeholder
   const showPlaceholder = initialSessionRestored && !showChat;
 
@@ -1140,14 +1155,17 @@ export function AppShell() {
     setProjectTrustError(null);
     try {
       const result = await window.pi.projectTrustPost(projectTrustCwd);
-      const data = result.body as unknown as ProjectTrustStatus & { error?: string };
-      if (result.status !== 200 || data.error) throw new Error(data.error ?? "Trust failed");
+      const data = result.body as unknown as ProjectTrustStatus & { error?: string; reason?: ProjectTrustFailure["reason"] };
+      if (result.status !== 200 || data.error) {
+        setProjectTrustError({ error: data.error ?? `HTTP ${result.status}`, ...(data.reason ? { reason: data.reason } : {}) });
+        return;
+      }
       setProjectTrust(data);
       setProjectTrustDialogOpen(false);
       setModelsRefreshKey((key) => key + 1);
       setSessionKey((key) => key + 1);
     } catch (error) {
-      setProjectTrustError(error instanceof Error ? error.message : String(error));
+      setProjectTrustError({ error: error instanceof Error ? error.message : String(error) });
     } finally {
       setProjectTrustBusy(false);
     }
@@ -1196,7 +1214,7 @@ export function AppShell() {
           ["models", translate("common.models")],
           ["skills", translate("common.skills")],
         ] as const).map(([section, label]) => {
-          const disabled = section !== "models" && !projectTrustCwd;
+          const disabled = settingsSectionRequiresProject(section) && !projectTrustCwd;
           return (
             <button
               key={section}
@@ -1276,10 +1294,7 @@ export function AppShell() {
     return (
       <button
         type="button"
-        onClick={() => {
-          setProjectTrustError(null);
-          setProjectTrustDialogOpen(true);
-        }}
+        onClick={openProjectTrustDialog}
         title={translate("trust.resourcesNotLoaded")}
         aria-label={translate("trust.resourcesNotLoaded")}
         style={{
@@ -2543,17 +2558,6 @@ export function AppShell() {
       </div>
     </div>
 
-    {projectTrustDialogOpen && projectTrustCwd && (
-      <ProjectTrustDialog
-        cwd={projectTrustCwd}
-        busy={projectTrustBusy}
-        error={projectTrustError}
-        onCancel={() => {
-          if (!projectTrustBusy) setProjectTrustDialogOpen(false);
-        }}
-        onConfirm={() => void handleTrustProject()}
-      />
-    )}
     {settingsSection && (
       <SettingsPanel
         cwd={projectTrustCwd}
@@ -2566,6 +2570,22 @@ export function AppShell() {
           setModelsRefreshKey((key) => key + 1);
         }}
         onSessionReloaded={() => setSessionKey((key) => key + 1)}
+        projectTrust={projectTrust}
+        onOpenTrustDialog={openProjectTrustDialog}
+        onProjectTrustChanged={handleProjectTrustChanged}
+      />
+    )}
+    {/* After Settings, so it opens above it (z-index 1100 over 1000) when Settings › MCP asks for it. */}
+    {projectTrustDialogOpen && projectTrustCwd && (
+      <ProjectTrustDialog
+        cwd={projectTrustCwd}
+        busy={projectTrustBusy}
+        error={projectTrustError}
+        onCancel={() => {
+          if (!projectTrustBusy) setProjectTrustDialogOpen(false);
+        }}
+        onConfirm={() => void handleTrustProject()}
+        onStatus={setProjectTrust}
       />
     )}
     </>

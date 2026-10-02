@@ -7,6 +7,8 @@ import type { SubagentProfilesResponse, SubagentSettingsResponse } from "@/lib/a
 import { sendAgentCommand } from "@/lib/agent-client";
 import { displayPathWithin, shortenPath } from "@/lib/display-path";
 import type { ModelsData } from "@/lib/models-cache";
+import type { ProjectTrustStatus } from "@/lib/api-types";
+import { projectTrustReloadKey } from "./settings-ui-helpers";
 import { isSubagentProfileOverridden } from "@/lib/subagent-profile-precedence";
 import type { SubagentProfile, SubagentScope, SubagentWritableScope } from "@/lib/subagents";
 import {
@@ -146,12 +148,15 @@ export function AgentsConfig({
   onClose,
   onReloaded,
   embedded = false,
+  trust,
 }: {
   cwd: string;
   sessionId?: string | null;
   onClose: () => void;
   onReloaded?: () => void;
   embedded?: boolean;
+  /** The page's trust status for `cwd"; a new decision loads the model list again. */
+  trust?: ProjectTrustStatus | null;
 }) {
   const isMobile = useIsMobile();
   const { t } = useI18n();
@@ -266,7 +271,11 @@ export function AgentsConfig({
       }
     })();
     return () => controller.abort();
-  }, [cwd]);
+    // The model list follows the folder's trust: untrusted projects leave out
+    // extension-registered providers. Trust can change while this section
+    // stays mounted in Settings (trusting from Settings › MCP); a new decision
+    // loads the list again in place, keeping any profile draft.
+  }, [cwd, projectTrustReloadKey(trust)]);
 
   const selectProfile = (profile: SubagentProfile) => {
     setSelectedKey(profileKey(profile));

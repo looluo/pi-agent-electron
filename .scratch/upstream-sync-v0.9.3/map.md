@@ -38,7 +38,7 @@ Execution order (risk first):
   CodemodeToolView (—) — **resolved**
 - 09 mcp-wave — ADR 0006 P1/P2: per-session MCP host, Settings › MCP
   (list/add/parse/remove/test/OAuth), trust integration, security
-  hardening; new `pi:mcp:*` IPC surface + OAuth push channel (01, 02, 08) — **in progress: lib core + session wiring landed; app surface next**
+  hardening; new `pi:mcp:*` IPC surface + OAuth push channel (01, 02, 08) — **resolved**
 
 n/a (no ticket): demo Pages site (96966e5 etc.), Safari 16.2 (f52fd84),
 PI_WEB_PASSWORD/Basic Auth (6ad18cd/beb32a9/3e1f436), Next/semver/undici
@@ -47,4 +47,4 @@ survives renderer reconnects; verify opportunistically).
 
 ## Status
 
-Issues 01–08 resolved; 09 in progress (part 1 landed).
+All issues resolved. Local version bumped 0.9.2 → 0.9.3 to match the upstream release.

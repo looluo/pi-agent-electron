@@ -385,3 +385,42 @@ Three-way risk callouts (per the earlier #lesson — port each with its source-a
 - `components/ChatInput.tsx` (03a9f5d, f2d600b) — previously bitten by silently-dropped hunks.
 - `app/globals.css` (5933184, 1eb5e66, ed50d88) — local PR #548 panel styles live here.
 - `974c8bb` depends on `da1b28b`'s session-title adapter changes — order enforced (base first).
+
+## v0.9.3 (`040fadd..5d4c0b5`) — synced 2026-10
+
+100 non-merge commits; tracker: `.scratch/upstream-sync-v0.9.3/` (issues 01–09).
+SDK jumped 0.87.0 → 0.99.1; the MCP wave (ADR 0006) is the dominant theme.
+Every upstream commit in the range is accounted for below or in the tracker's
+issue docs; `b908729`/`2bb48f5` (SDK upgrades) landed as issue 01.
+
+| Upstream | Subject | Status | Notes |
+|---|---|---|---|
+| `3f07a5f` | reasoning level of the running turn (#777) | ported | v0.9.2 wave; superseded by d0bf6be mid-run change |
+| `d2056b6`…`c04bab7` | v0.9.2 wave (8 commits) | ported | issues recorded in `.scratch/upstream-sync-v0.9.2/` |
+| `2bb48f5` | pi SDK 0.99.1 | ported | issue 01; pi-types taken from upstream verbatim |
+| `b3c7255`/`687af27`/`82d1f54` | security: untrusted tool results, `..` escape, links, worktree real-path | ported | issue 02; allow-link POST rides pifile:// |
+| chat cluster (16 commits) | fork-while-running, edit drafts/branch-on-send, dialog queue, composer text, compaction reporting, worktree force, process-details | ported | issue 03; onNavigate retired for edit-then-branch |
+| settings cluster (5) | shared blocks, group switches, enable/disable-all, send key | ported | issue 04; bulk toggles = new IPC + service ports |
+| session cluster (15) | shutdown races, coalescing/backpressure, git tree hiding, scroll, keyboard, folder picker, Finder, pi-cwd | ported | issue 05; SSE backpressure adapted to IPC |
+| models cluster (5) | models.json like pi, catalog discovery, provider name, #871 | ported | issue 06 |
+| subagents/tools (7) | ext: selectors, run reports, control tools model-only, resolveActiveToolNames | ported | issue 07 |
+| codemode (3) | tools-settings writer, CodemodeToolView, builtins | ported | issue 08 |
+| MCP wave (~35) | per-session host, Settings › MCP, OAuth, trust, security hardening | ported | issue 09; routes → 7 IPC channels, bridge-fetch seam |
+| `4857da3`/`96966e5` | GitHub Pages demo | n/a | no demo site |
+| `f52fd84` | Safari/iOS 16.2 | n/a | Electron |
+| `6ad18cd`/`beb32a9`/`3e1f436` | web password auth | n/a | no HTTP surface |
+| `79c2a44` | Next/semver/undici bumps | n/a | Vite |
+| `a91c830`-era docs | — | n/a | |
+
+Verification: `npm run typecheck` clean; `npm test` 1704/1710 (2 win32 skips,
+4 Node-26 stdio-fixture skips documented in-file); `test:e2e` 12/12; packaged
+probes and dmg smoke green on the final build. New IPC surface: `pi:mcp:*` (7
+channels), `pi:skills:bulk-toggle`; `pi:tools:settings:put` takes
+{enabled} XOR {codemode}; `pi:plugins:action` gains the packages-array bulk
+form; `pi:models` body gained `defaultThinkingLevel`/`savedDefaultThinkingLevel`;
+`pi:project-trust:get` answers the MCP listing.
+
+#lesson: the renderer graph is a security boundary of its own — a helper
+imported by a component must not pull node-only SDK modules (projectTrustReloadKey
+belongs in settings-ui-helpers, not lib/project-trust; the vite build catches
+it, the test runner does not).

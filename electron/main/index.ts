@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { registerIpcHandlers } from "./ipc";
 import { registerModelsAuthHandlers } from "./ipc-models-auth";
 import { registerSkillsPluginsHandlers } from "./ipc-skills-plugins";
+import { registerMcpHandlers } from "./ipc-mcp";
 import { registerEarlySchemes, registerFilesProtocol } from "./files-protocol";
 import { repairPathAtStartup } from "./services/shell-path";
 import { configureHttpDispatcher } from "@/lib/http-dispatcher";
@@ -53,6 +54,7 @@ app.whenReady().then(() => {
   registerIpcHandlers();
   registerModelsAuthHandlers();
   registerSkillsPluginsHandlers();
+  registerMcpHandlers();
   createWindow();
 
   app.on("activate", () => {

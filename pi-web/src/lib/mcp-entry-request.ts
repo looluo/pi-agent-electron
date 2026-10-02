@@ -9,7 +9,6 @@ import { readMcpServerEntry } from "./mcp-config-read";
 import { findWebPasswordField } from "./mcp-transport";
 import { loadPiSdkInternals, type PiSdkInternals } from "./pi-sdk-internals";
 import { getProjectTrustStatus } from "./project-trust";
-import { hasJsonContentType, isApiRequestAllowed } from "./request-security";
 
 // The checks a route makes before it connects one `mcp.json` entry outside any
 // session: Settings › MCP's Test (`POST /api/mcp/test`) and its sign-in
@@ -145,15 +144,9 @@ export function mcpProjectTrustRefusal(
  * (`server-missing`), not an object, refused by the SDK's validator
  * (`server-invalid`), or referencing PI_WEB_PASSWORD (`web-password`).
  */
-export async function readConnectableMcpEntry(req: Request): Promise<McpConnectableEntry | McpEntryRefusal> {
-  if (!isApiRequestAllowed(req)) return mcpEntryRefusal(403, "request-denied", "Untrusted API request");
-  if (!hasJsonContentType(req)) return mcpEntryRefusal(415, "content-type", "Content-Type must be application/json");
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return mcpEntryRefusal(400, "invalid-request", "Invalid JSON body");
-  }
+/** The entry checks without HTTP armor: the typed IPC channel is only
+ *  reachable from the renderer, so the Electron service calls this directly. */
+export async function readConnectableMcpEntryValue(body: unknown): Promise<McpConnectableEntry | McpEntryRefusal> {
   if (!isRecord(body)) return mcpEntryRefusal(400, "invalid-request", "Expected a JSON object");
   const scope = readScope(body.scope);
   const name = typeof body.name === "string" && body.name.length > 0 && body.name.length <= 1024 ? body.name : undefined;

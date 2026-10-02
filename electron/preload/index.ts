@@ -180,6 +180,15 @@ contextBridge.exposeInMainWorld("pi", {
   subagentsSettingsGet: () => ipcRenderer.invoke("pi:subagents:settings:get"),
   subagentsSettingsPut: (enabled?: boolean, maxConcurrent?: number) => ipcRenderer.invoke("pi:subagents:settings:put", enabled, maxConcurrent),
 
+  // mcp (Settings › MCP, ADR 0006)
+  mcpOverview: (cwd: string | null) => ipcRenderer.invoke("pi:mcp:overview", cwd),
+  mcpAction: (body: unknown) => ipcRenderer.invoke("pi:mcp:action", body),
+  mcpTest: (body: unknown) => ipcRenderer.invoke("pi:mcp:test", body),
+  mcpSignInStart: (body: unknown) => ipcRenderer.invoke("pi:mcp:sign-in:start", body),
+  mcpSignInStatus: (flowId: string) => ipcRenderer.invoke("pi:mcp:sign-in:status", flowId),
+  mcpSignInPaste: (flowId: string, redirectUrl: unknown) => ipcRenderer.invoke("pi:mcp:sign-in:paste", flowId, redirectUrl),
+  mcpSignInCancel: (flowId: string) => ipcRenderer.invoke("pi:mcp:sign-in:cancel", flowId),
+
   // tools settings
   toolsSettingsGet: () => ipcRenderer.invoke("pi:tools:settings:get"),
   toolsSettingsPut: (changes: { enabled?: boolean; codemode?: "automatic" | "always" }) =>
