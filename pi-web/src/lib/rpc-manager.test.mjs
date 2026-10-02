@@ -120,14 +120,6 @@ test("prompt routes mark only preflight failures as rejected", async () => {
   }
 });
 
-test("RPC session startup persists explicit preferences without replaying setters", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
-
-  assert.match(startupSource, /persistExplicitStartupPreferences\(/);
-  assert.match(startupSource, /modelDefaultChanged\) invalidateModelsCache\(\)/);
-});
-
 test("custom extension UI receives the fixed headless terminal facade", async () => {
   const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
   const customUiSource = source.slice(
@@ -477,6 +469,38 @@ test("exact prompts are sent through before_agent_start instead of the SDK promp
   assert.match(subagentSource, /extensionFactories: \[createExactSystemPromptExtension\(\(\) => promptPlan\.exactSystemPrompt\)\]/);
   assert.match(promptSource, /preflightResult: \(\) => acceptPreflight\(\),/);
   assert.doesNotMatch(promptSource, /requestedToolNames/);
+});
+
+test("RPC session startup never writes the global model defaults", async () => {
+  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
+  const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
+
+  // A model picked for one chat is session-scoped, as in the TUI. Saving a
+  // default is its own request (PUT /api/models/default).
+  assert.doesNotMatch(startupSource, /setDefaultModelAndProvider\(|setDefaultThinkingLevel\(/);
+  assert.doesNotMatch(source, /startup-preferences/);
+});
+
+test("custom extension UI receives the fixed headless terminal facade", async () => {
+  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
+  const customUiSource = source.slice(
+    source.indexOf("private requestExtensionCustomUi"),
+    source.indexOf("private requestExtensionUi"),
+  );
+
+  assert.match(customUiSource, /createHeadlessCustomUiTui\(/);
+  assert.match(customUiSource, /width,/);
+});
+
+test("reloading a session invalidates the models cache", async () => {
+  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
+  const reloadSource = source.slice(
+    source.indexOf('case "reload"'),
+    source.indexOf('case "abort_compaction"'),
+  );
+
+  assert.match(reloadSource, /await this\.inner\.reload\(\)/);
+  assert.match(reloadSource, /await this\.inner\.reload\(\);[\s\S]*?invalidateModelsCache\(\)/);
 });
 
 test("normal sessions restore persisted tool selections before loading resources", async () => {

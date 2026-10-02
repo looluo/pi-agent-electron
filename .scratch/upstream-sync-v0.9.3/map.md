@@ -30,7 +30,7 @@ Execution order (risk first):
   (#1008), truncation→compact (#968), history anchor paging (#941) (—) — **resolved**
 - 06 models-fixes — discovery from provider catalog (#1006), typed
   provider save (#969), no global persistence of new-session picks
-  (#871) (—)
+  (#871) (—) — **resolved**
 - 07 subagents-fixes — ext: selector resolution (#946), resumed-run
   report (#991), orphan→interrupted (#990), result keying (#987/#989),
   model-only control tools (62542da) (—)

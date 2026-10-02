@@ -102,6 +102,9 @@ async function loadModels(cwd: string): Promise<ModelsData> {
       : undefined)
     ?? settings.getDefaultThinkingLevel()
     ?? null;
+  // The global default the Save button wrote, before per-session overrides —
+  // the selector marks it as the saved default (upstream 6a1246e).
+  const savedDefaultThinkingLevel = settings.getDefaultThinkingLevel() ?? null;
 
   return withModelRuntimeError(
     {
@@ -109,6 +112,7 @@ async function loadModels(cwd: string): Promise<ModelsData> {
       modelList,
       defaultModel,
       defaultThinkingLevel,
+      savedDefaultThinkingLevel,
       thinkingLevels,
       thinkingLevelMaps,
       thinkingLevelPins,
@@ -123,6 +127,7 @@ const EMPTY_MODELS: ModelsData = {
   modelList: [],
   defaultModel: null,
   defaultThinkingLevel: null,
+  savedDefaultThinkingLevel: null,
   thinkingLevels: {},
   thinkingLevelMaps: {},
   thinkingLevelPins: {},
