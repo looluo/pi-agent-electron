@@ -27,7 +27,7 @@ Execution order (risk first):
   (#4de9f77) (—) — **resolved**
 - 05 sessions-agent — SSE backlog bound (#997), shutdown races
   (aed0f3c/34c8fdf), system prompt first (#974), compaction reporting
-  (#1008), truncation→compact (#968), history anchor paging (#941) (—)
+  (#1008), truncation→compact (#968), history anchor paging (#941) (—) — **resolved**
 - 06 models-fixes — discovery from provider catalog (#1006), typed
   provider save (#969), no global persistence of new-session picks
   (#871) (—)

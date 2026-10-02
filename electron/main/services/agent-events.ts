@@ -1,6 +1,7 @@
 import type { AgentEventLike } from "@/lib/agent-event-wire";
 import {
   isEventIncludedInSnapshot,
+  isNestedToolExecutionEvent,
   toClientAgentEvent,
 } from "@/lib/agent-event-wire";
 import type { AgentSessionWrapper } from "@/lib/rpc-manager";
@@ -32,6 +33,26 @@ type Subscription = {
 };
 
 const subscriptions = new Map<string, Subscription>();
+
+/** How long tool_execution_update events wait to be coalesced (upstream
+ *  b8e0b71): each update carries the tool's whole partial result, so only the
+ *  latest per tool call matters — a burst reaches the renderer as one frame. */
+const TOOL_UPDATE_COALESCE_MS = 150;
+
+/** Pre-snapshot buffer cap (upstream 6b0c6a5 semantics adapted to IPC): a
+ *  session that publishes no snapshot must not accumulate unbounded events;
+ *  repairable events (deltas, partial tool results) are dropped first. */
+const BUFFER_HIGH_WATER_EVENTS = 500;
+
+function isDroppableEvent(event: AgentEventLike): boolean {
+  if (event.type === "tool_execution_update") return true;
+  if (event.type !== "message_update") return false;
+  const update = event.assistantMessageEvent;
+  return typeof update === "object"
+    && update !== null
+    && typeof (update as { type?: unknown }).type === "string"
+    && (update as { type: string }).type.endsWith("_delta");
+}
 
 function send(subscription: Subscription, frame: AgentEventFrame): void {
   if (subscription.closed) return;
@@ -78,16 +99,51 @@ export async function openAgentEvents(
 
     const buffered: AgentEventLike[] = [];
     let snapshotPublished = false;
+    // Coalesced tool updates: latest partial result per tool call, flushed on a
+    // short timer so a burst crosses the IPC boundary once per call.
+    const pendingToolUpdates = new Map<string, AgentEventLike>();
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    const flushToolUpdates = () => {
+      flushTimer = null;
+      for (const update of pendingToolUpdates.values()) {
+        forward(update, session.streamingMessage);
+      }
+      pendingToolUpdates.clear();
+    };
     const forward = (event: AgentEventLike, snapshot: unknown) => {
       if (isEventIncludedInSnapshot(event, snapshot)) return;
+      // A call a tool made itself (a codemode script's) belongs to its parent's
+      // card; forwarded here it would show as a top-level running tool.
+      if (isNestedToolExecutionEvent(event)) return;
       const clientEvent = toClientAgentEvent(event);
       if (clientEvent) send(subscription, { kind: "event", data: JSON.stringify(clientEvent) });
     };
 
     const stopListening = session.onEvent((event: AgentEventLike) => {
       if (!snapshotPublished) {
+        // Bounded pre-snapshot buffering (6b0c6a5 adapted): drop repairable
+        // events first, then oldest non-droppables, rather than grow forever.
+        if (event.type === "tool_execution_update") {
+          pendingToolUpdates.set(String(event.toolCallId), event);
+          if (!flushTimer) flushTimer = setTimeout(flushToolUpdates, TOOL_UPDATE_COALESCE_MS);
+          return;
+        }
         buffered.push(event);
+        if (buffered.length > BUFFER_HIGH_WATER_EVENTS) {
+          const droppable = buffered.findIndex((e) => isDroppableEvent(e));
+          if (droppable >= 0) buffered.splice(droppable, 1);
+          else buffered.shift();
+        }
         return;
+      }
+      if (event.type === "tool_execution_update") {
+        pendingToolUpdates.set(String(event.toolCallId), event);
+        if (!flushTimer) flushTimer = setTimeout(flushToolUpdates, TOOL_UPDATE_COALESCE_MS);
+        return;
+      }
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushToolUpdates();
       }
       forward(event, session.streamingMessage);
     });
