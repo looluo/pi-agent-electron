@@ -70,9 +70,25 @@ export interface SkillsResponse {
   projectResourcesLoaded: boolean;
 }
 
+/** One file of a bulk skills toggle; `error` means it was left as it was. */
+export interface SkillToggleResult {
+  filePath: string;
+  error?: string;
+}
+
 export interface ProjectTrustStatus {
   requiresTrust: boolean;
   trusted: boolean;
+  /** The nearest decision trust.json records for this folder or an ancestor,
+   *  null when there is none. Read for a folder that requires no trust too.
+   *  Populated by the MCP wave's trust work; absent until then. */
+  decision?: boolean | null;
+  /** The folder that decision is recorded for, as trust.json keys it. */
+  decisionPath?: string;
+  /** The decision is recorded for an ancestor, so every folder below shares it. */
+  inherited?: boolean;
+  /** Set only for a no-trust-required folder whose trust.json was unreadable. */
+  decisionError?: string;
 }
 
 export interface AppUpdateResponse {
@@ -84,6 +100,16 @@ export interface AppUpdateResponse {
 
 export type PluginScope = "global" | "project";
 export type PluginResourceKind = "extension" | "skill" | "prompt" | "theme";
+
+export interface PluginToggleResult {
+  source: string;
+  scope: PluginScope;
+  error?: string;
+}
+
+export interface PluginsBulkResponse extends PluginsResponse {
+  results: PluginToggleResult[];
+}
 
 export interface PluginResourceCounts {
   extensions: number;

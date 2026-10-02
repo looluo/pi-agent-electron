@@ -114,6 +114,7 @@ export interface PiBridge {
 
   skillsList(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
   skillsToggle(filePath: string, disable: boolean): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  skillsBulkToggle(filePaths: string[], disable: boolean): Promise<{ status: number; body: Record<string, unknown> | null }>;
   skillsCheck(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   skillsInstall(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   skillsSearch(query: string, limit?: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;

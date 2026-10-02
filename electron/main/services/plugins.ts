@@ -314,6 +314,116 @@ export async function pluginsList(cwd: string | null): Promise<{ status: number;
 }
 
 // POST /api/plugins body: { action, source?, scope?, cwd }
+/** Port of the upstream bulk toggle (eceac13 route): disable or re-enable
+ *  the given packages of one scope with a single settings write. Returns the
+ *  sources that scope does not configure, and with `keepEntrySettings` the
+ *  ones left enabled because disabling would drop their filters. */
+function setPackagesDisabled(
+  settingsManager: SettingsManager,
+  sources: readonly string[],
+  scope: PluginScope,
+  disabled: boolean,
+  { keepEntrySettings = false }: { keepEntrySettings?: boolean } = {},
+): { missing: Set<string>; kept: Set<string> } {
+  const current = scope === "project"
+    ? settingsManager.getProjectSettings().packages ?? []
+    : settingsManager.getGlobalSettings().packages ?? [];
+  const missing = new Set(sources);
+  const kept = new Set<string>();
+  let changed = false;
+  const next = current.map((entry): PackageSource => {
+    const source = getPackageSource(entry);
+    if (!sources.includes(source)) return entry;
+    missing.delete(source);
+    if (isDisabledPackage(entry) === disabled) return entry;
+    if (disabled && keepEntrySettings && hasEntrySettings(entry)) {
+      kept.add(source);
+      return entry;
+    }
+    changed = true;
+    if (disabled) {
+      return {
+        ...(typeof entry === "string" ? { source: entry } : entry),
+        extensions: [],
+        skills: [],
+        prompts: [],
+        themes: [],
+      };
+    }
+    if (typeof entry === "string") return source;
+    const rest = { ...entry };
+    delete rest.extensions;
+    delete rest.skills;
+    delete rest.prompts;
+    delete rest.themes;
+    return Object.keys(rest).length > 1 ? rest : source;
+  });
+  if (changed) {
+    if (scope === "project") settingsManager.setProjectPackages(next);
+    else settingsManager.setPackages(next);
+  }
+  return { missing, kept };
+}
+
+/** An enabled entry that is an object: it filters the package's resources, or
+ *  sets `autoload`. Disabling replaces its resource lists, and Pi Web keeps no
+ *  copy, so enabling it again cannot bring the filters back. */
+function hasEntrySettings(entry: PackageSource): boolean {
+  return typeof entry === "object" && !isDisabledPackage(entry);
+}
+
+const FILTERED_PACKAGE_ERROR =
+  "Has resource filters, which disabling would remove; use the package's own switch";
+
+/** The bulk form of enable/disable behind the panel's "Enable all" /
+ *  "Disable all": one result per package, so one refusal (untrusted project,
+ *  removed package, filtered package) does not stop the rest. */
+async function setPackageListDisabled(
+  settingsManager: SettingsManager,
+  packages: readonly { source: string; scope: PluginScope }[],
+  disabled: boolean,
+  projectTrusted: boolean,
+): Promise<{ source: string; scope: PluginScope; error?: string }[]> {
+  const errors = new Map<string, string>();
+  for (const scope of ["global", "project"] as const) {
+    const sources = packages.filter((pkg) => pkg.scope === scope).map((pkg) => pkg.source);
+    if (sources.length === 0) continue;
+    if (scope === "project" && !projectTrusted) {
+      for (const source of sources) {
+        errors.set(keyFor(source, scope), "Project resources must be trusted before modifying project plugins");
+      }
+      continue;
+    }
+    // "Disable all" must not wipe filters the operator set up by hand.
+    const { missing, kept } = setPackagesDisabled(settingsManager, sources, scope, disabled, {
+      keepEntrySettings: true,
+    });
+    for (const source of missing) errors.set(keyFor(source, scope), "Package is not configured");
+    for (const source of kept) errors.set(keyFor(source, scope), FILTERED_PACKAGE_ERROR);
+  }
+  await settingsManager.flush();
+  const settingsErrors = new Map<string, string>();
+  for (const { scope, path, error } of settingsManager.drainErrors()) {
+    if (!settingsErrors.has(scope)) settingsErrors.set(scope, path ? `${path}: ${error.message}` : error.message);
+  }
+  return packages.map((pkg) => {
+    const error = settingsErrors.get(pkg.scope) ?? errors.get(keyFor(pkg.source, pkg.scope));
+    return error ? { ...pkg, error } : { ...pkg };
+  });
+}
+
+function readPackageList(value: unknown): { source: string; scope: PluginScope }[] | null {
+  if (!Array.isArray(value)) return null;
+  const packages = new Map<string, { source: string; scope: PluginScope }>();
+  for (const item of value) {
+    const source = typeof item?.source === "string" ? item.source.trim() : "";
+    if (!source) return null;
+    const scope = readScope(item.scope);
+    packages.set(keyFor(source, scope), { source, scope });
+  }
+  return [...packages.values()];
+}
+
 export async function pluginsAction(body: {
   action?: PluginAction;
   source?: string;
@@ -350,6 +460,20 @@ export async function pluginsAction(body: {
     });
     const source = body.source?.trim();
     const local = scope === "project";
+
+    // Bulk enable/disable (upstream eceac13): one result per package.
+    if (body.action === "enable" || body.action === "disable") {
+      const packages = readPackageList((body as { packages?: unknown }).packages);
+      if (!packages) return { status: 400, body: { error: "packages must be a list of {source, scope}" } };
+      const results = await setPackageListDisabled(
+        settingsManager,
+        packages,
+        body.action === "disable",
+        projectTrust.trusted,
+      );
+      const plugins = await readPlugins(body.cwd) as unknown as Record<string, unknown>;
+      return { status: 200, body: { ...plugins, results } };
+    }
 
     if (body.action === "install") {
       if (!source) return { status: 400, body: { error: "source required" } };

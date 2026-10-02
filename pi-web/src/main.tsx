@@ -4,6 +4,9 @@ import { AppShell } from "@/components/AppShell";
 import { I18nProvider } from "@/hooks/useI18n";
 import "katex/dist/katex.min.css";
 import "./globals.css";
+// Upstream loads this from app/layout.tsx (settings.css); the fork loads both
+// stylesheets once at the renderer entry.
+import "./settings.css";
 import "./settings.css";
 
 // Dev-only shim: Vite applies `define` only at build time for client code,

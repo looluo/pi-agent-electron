@@ -139,6 +139,47 @@ export async function skillsToggle(filePath: string, disableModelInvocation: boo
   }
 }
 
+/** PATCH /api/skills bulk form (upstream eceac13): toggle many SKILL.md files,
+ *  one result each, so one refusal does not stop the rest. */
+export async function skillsBulkToggle(
+  filePaths: string[],
+  disableModelInvocation: boolean,
+): Promise<StatusBody> {
+  try {
+    if (!Array.isArray(filePaths) || !filePaths.every((item) => typeof item === "string" && item)) {
+      return { status: 400, body: { error: "filePaths must be a list of paths" } };
+    }
+    if (typeof disableModelInvocation !== "boolean") {
+      return { status: 400, body: { error: "disableModelInvocation must be a boolean" } };
+    }
+    const allowedRoots = new Set(await getAllowedFileRoots());
+    allowedRoots.add(getAgentDir());
+    const globalSkillsDir = path.join(homedir(), ".agents", "skills");
+    if (existsSync(globalSkillsDir)) allowedRoots.add(globalSkillsDir);
+    const results: { filePath: string; error?: string }[] = [];
+    for (const target of new Set(filePaths)) {
+      try {
+        if (!existsSync(target)) {
+          results.push({ filePath: target, error: "file not found" });
+          continue;
+        }
+        if (!isExistingFilePathAllowed(target, allowedRoots)) {
+          results.push({ filePath: target, error: "Access denied" });
+          continue;
+        }
+        const content = readFileSync(target, "utf8");
+        writeFileSync(target, setDisableModelInvocation(content, disableModelInvocation), "utf8");
+        results.push({ filePath: target });
+      } catch (e) {
+        results.push({ filePath: target, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    return { status: 200, body: { results } };
+  } catch (e) {
+    return { status: 500, body: { error: String(e) } };
+  }
+}
+
 /** POST /api/skills/check */
 export async function skillsCheck(body: Record<string, unknown>): Promise<StatusBody> {
   try {

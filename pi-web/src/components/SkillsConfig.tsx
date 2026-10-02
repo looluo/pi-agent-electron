@@ -7,8 +7,11 @@ import type {
   SkillInstallScope,
   SkillSearchResult,
   SkillsResponse,
+  SkillToggleResult,
   SkillUpdateResult,
+  ProjectTrustStatus,
 } from "@/lib/api-types";
+import { displayPathWithin, shortenPath } from "@/lib/display-path";
 import {
   getLastSettingsSelection,
   setLastSettingsSelection,
@@ -26,27 +29,37 @@ import {
   ConfigFooter,
   ConfigListAction,
   ConfigPanelShell,
+  ConfigScopeSwitch,
+  ConfigScopeTag,
   ConfigSidebar,
   ConfigSidebarGroupLabel,
+  ConfigSidebarGroupStatus,
+  ConfigSidebarGroupSwitch,
   ConfigSidebarItem,
   ConfigSidebarList,
   ConfigSidebarText,
   ConfigSplitView,
   ConfigStatusDot,
   ConfigSwitch,
+  ConfigTrustNotice,
 } from "./SettingsUi";
+import { itemsToSwitch, projectTrustReloadKey } from "./settings-ui-helpers";
 
-function shortenPath(p: string): string {
-  // Match common home dir patterns: /Users/xxx, /home/xxx
-  return p.replace(/^\/(?:Users|home)\/[^/]+/, "~");
-}
+type SkillScope = "global" | "project" | "path";
+type Translate = ReturnType<typeof useI18n>["t"];
 
-function sourceLabel(skill: Skill): string {
+function sourceLabel(skill: Skill): SkillScope {
   const src = skill.sourceInfo?.source;
   const scope = skill.sourceInfo?.scope;
   if (scope === "user" || src === "user") return "global";
   if (scope === "project" || src === "project") return "project";
   return "path";
+}
+
+function scopeLabel(scope: SkillScope, t: Translate): string {
+  if (scope === "project") return t("skills.scope.project");
+  if (scope === "global") return t("skills.scope.global");
+  return t("skills.scope.path");
 }
 
 export function orderSkillsByDormancy<
@@ -58,14 +71,34 @@ export function orderSkillsByDormancy<
   ];
 }
 
+/**
+ * The skills a group switch would change: those of the group not already in
+ * the requested state.
+ */
+export function skillsToSwitch<
+  T extends Pick<Skill, "disableModelInvocation">,
+>(skills: T[], enabled: boolean): T[] {
+  return itemsToSwitch(skills, enabled, (skill) => !skill.disableModelInvocation);
+}
+
+/** Applies a bulk toggle's results; a skill whose file reported an error keeps its state. */
+export function applySkillToggleResults<
+  T extends Pick<Skill, "filePath" | "disableModelInvocation">,
+>(skills: T[], results: SkillToggleResult[], disableModelInvocation: boolean): T[] {
+  const changed = new Set(results.filter((result) => !result.error).map((result) => result.filePath));
+  return skills.map((skill) =>
+    changed.has(skill.filePath) ? { ...skill, disableModelInvocation } : skill,
+  );
+}
+
 function updateKey(skill: Skill): string | null {
   return skill.install
     ? `${skill.install.scope}\0${skill.install.package}`
     : null;
 }
 
-function shortVersion(version?: string): string {
-  return version ? version.slice(0, 8) : "unknown";
+function shortVersion(version: string | undefined, unknown: string): string {
+  return version ? version.slice(0, 8) : unknown;
 }
 
 function SkillDetail({
@@ -97,25 +130,15 @@ function SkillDetail({
   const label = sourceLabel(skill);
   const enabled = !skill.disableModelInvocation;
 
-  function displayPath(p: string): string {
-    if (label === "project" && p.startsWith(cwd)) {
-      const rel = p.slice(cwd.length).replace(/^[/\\]/, "");
-      return `./${rel}`;
-    }
-    return shortenPath(p);
-  }
-
   return (
     <ConfigDetailStack>
       {/* Path + tag + toggle, with a stable status row below. */}
       <div className="skill-detail-heading">
         <ConfigDetailHeader>
           <ConfigDetailHeaderInfo>
-            <span className={`config-scope-tag${label === "project" ? " is-project" : ""}`}>
-              {label}
-            </span>
+            <ConfigScopeTag scope={label}>{scopeLabel(label, t)}</ConfigScopeTag>
             <span className="config-detail-path">
-              {displayPath(skill.filePath)}
+              {label === "project" ? displayPathWithin(skill.filePath, cwd) : shortenPath(skill.filePath)}
             </span>
           </ConfigDetailHeaderInfo>
           <ConfigDetailActions>
@@ -142,7 +165,7 @@ function SkillDetail({
       </div>
 
       {skill.install?.skillsShUrl && (
-        <ConfigField label="Source">
+        <ConfigField label={t("config.source")}>
           <a
             href={skill.install.skillsShUrl}
             target="_blank"
@@ -158,10 +181,10 @@ function SkillDetail({
       )}
 
       {skill.install && (
-        <ConfigField label="Version">
+        <ConfigField label={t("i18n.version")}>
           <div className="skill-version-row">
             <span className="skill-version-value">
-              {shortVersion(updateStatus?.currentVersion ?? skill.install.versionHash)}
+              {shortVersion(updateStatus?.currentVersion ?? skill.install.versionHash, t("i18n.unknown"))}
             </span>
             {skill.install.canCheckForUpdates && (
               <ConfigButton
@@ -174,7 +197,7 @@ function SkillDetail({
             )}
             {updateStatus?.state === "update-available" && (
               <span className="skill-version-value is-update">
-                {shortVersion(updateStatus.latestVersion)}
+                {shortVersion(updateStatus.latestVersion, t("i18n.unknown"))}
               </span>
             )}
             {(checkingUpdate ||
@@ -214,13 +237,13 @@ function SkillDetail({
         </ConfigField>
       )}
 
-      <ConfigField label="Name">
+      <ConfigField label={t("config.name")}>
         <span className="skill-name-value">
           {skill.name}
         </span>
       </ConfigField>
 
-      <ConfigField label="Description">
+      <ConfigField label={t("i18n.description")}>
         <span className="skill-description">
           {skill.description}
         </span>
@@ -263,8 +286,8 @@ function AddSkillPanel({
     setSearchError(null);
     setResults([]);
     try {
-      const result = await window.pi.skillsSearch(q.trim(), undefined);
-      const d = (result.body ?? {}) as unknown as {
+      const res = await window.pi.skillsSearch(q.trim());
+      const d = (res.body ?? {}) as {
         results?: SkillSearchResult[];
         error?: string;
       };
@@ -273,23 +296,23 @@ function AddSkillPanel({
         return;
       }
       setResults(d.results ?? []);
-      if ((d.results ?? []).length === 0) setSearchError("No skills found");
+      if ((d.results ?? []).length === 0) setSearchError(t("i18n.noSkills"));
     } catch (e) {
       setSearchError(String(e));
     } finally {
       setSearching(false);
     }
-  }, []);
+  }, [t]);
 
   const install = useCallback(
     async (pkg: string) => {
       setInstalling(pkg);
       setInstallError(null);
       try {
-        const result = await window.pi.skillsInstall({ package: pkg, scope, cwd });
-        const d = (result.body ?? {}) as { success?: boolean; error?: string };
-        if (result.status !== 200 || d.error) {
-          setInstallError(d.error ?? "Install failed");
+        const res = await window.pi.skillsInstall({ package: pkg, scope, cwd });
+        const d = (res.body ?? {}) as { success?: boolean; error?: string };
+        if (res.status !== 200 || d.error) {
+          setInstallError(d.error ?? `HTTP ${res.status}`);
           return;
         }
         setNewlyInstalledPkgs((prev) =>
@@ -309,6 +332,8 @@ function AddSkillPanel({
     scope === "global"
       ? "~/.pi/agent/skills/"
       : `${shortenPath(cwd)}/.pi/skills/`;
+  // The link sits inside the sentence, so each language places it with {site}.
+  const [discoverBefore, discoverAfter = ""] = t("skills.discoverHint").split("{site}");
 
   return (
     <ConfigDetailStack className="is-full-height">
@@ -354,43 +379,22 @@ function AddSkillPanel({
         </div>
 
         {/* Scope + install path row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div
-            style={{
-              display: "flex",
-              borderRadius: 5,
-              border: "1px solid var(--border)",
-              overflow: "hidden",
-              fontSize: 12,
-              flexShrink: 0,
-            }}
-          >
-            {(["global", "project"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => {
-                  if (s === "global" || projectResourcesLoaded) setScope(s);
-                }}
-                disabled={s === "project" && !projectResourcesLoaded}
-                title={s === "project" && !projectResourcesLoaded ? t("trust.projectScopeUnavailable") : undefined}
-                style={{
-                  padding: "3px 10px",
-                  border: "none",
-                  cursor: s === "project" && !projectResourcesLoaded ? "not-allowed" : "pointer",
-                  background: scope === s ? "var(--bg-selected)" : "none",
-                  color: scope === s ? "var(--text)" : "var(--text-dim)",
-                  fontWeight: scope === s ? 600 : 400,
-                  opacity: s === "project" && !projectResourcesLoaded ? 0.45 : 1,
-                  borderRight:
-                    s === "global" ? "1px solid var(--border)" : "none",
-                }}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+        <ConfigScopeSwitch
+          size="small"
+          value={scope}
+          label={t("config.scope")}
+          options={[
+            { value: "global", label: scopeLabel("global", t) },
+            { value: "project", label: scopeLabel("project", t), disabled: !projectResourcesLoaded },
+          ]}
+          disabledReason={t("trust.projectScopeUnavailable")}
+          onChange={setScope}
+        >
+          {/* A zero basis keeps a long path on the switch's line, cut short. */}
           <span
             style={{
+              flex: "1 1 0",
+              minWidth: 0,
               fontSize: 12,
               color: "var(--text-dim)",
               fontFamily: "var(--font-mono)",
@@ -401,7 +405,7 @@ function AddSkillPanel({
           >
             → {installPath}
           </span>
-        </div>
+        </ConfigScopeSwitch>
 
         {/* Errors */}
         {searchError && (
@@ -526,7 +530,7 @@ function AddSkillPanel({
           <div
             style={{ fontSize: 13, color: "var(--text-dim)", lineHeight: 1.8 }}
           >
-            Search{" "}
+            {discoverBefore}
             <a
               href="https://skills.sh"
               target="_blank"
@@ -534,8 +538,8 @@ function AddSkillPanel({
               style={{ color: "var(--accent)", textDecoration: "none" }}
             >
               skills.sh
-            </a>{" "}
-            to discover and install skills for your agent.
+            </a>
+            {discoverAfter}
           </div>
         )
       )}
@@ -547,10 +551,13 @@ export function SkillsConfig({
   cwd,
   onClose,
   embedded = false,
+  trust,
 }: {
   cwd: string;
   onClose: () => void;
   embedded?: boolean;
+  /** The page's trust status for `cwd`; a new decision loads the list again. */
+  trust?: ProjectTrustStatus | null;
 }) {
   const { t } = useI18n();
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -559,6 +566,9 @@ export function SkillsConfig({
   const [selected, setSelected] = useState<string | null>(() => getLastSettingsSelection("skills", cwd));
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [saveError, setSaveError] = useState<string | null>(null);
+  // The group switch that is running, and what the last one left undone.
+  const [bulkGroup, setBulkGroup] = useState<string | null>(null);
+  const [groupStatus, setGroupStatus] = useState<{ group: string; error: string } | null>(null);
   const [addMode, setAddMode] = useState(false);
   const [updateStatuses, setUpdateStatuses] = useState<Record<string, SkillUpdateResult>>({});
   const [checkingUpdates, setCheckingUpdates] = useState<Set<string>>(new Set());
@@ -571,9 +581,9 @@ export function SkillsConfig({
     setLoading(true);
     setError(null);
     try {
-      const result = await window.pi.skillsList(cwd);
-      const d = (result.body ?? {}) as unknown as Partial<SkillsResponse> & { error?: string };
-      if (result.status !== 200 || d.error) throw new Error(d.error ?? "Failed to load skills");
+      const res = await window.pi.skillsList(cwd);
+      const d = (res.body ?? {}) as Partial<SkillsResponse> & { error?: string };
+      if (res.status !== 200 || d.error) throw new Error(d.error ?? `HTTP ${res.status}`);
       const list = d.skills ?? [];
       setSkills(list);
       setProjectResourcesLoaded(d.projectResourcesLoaded ?? true);
@@ -597,6 +607,18 @@ export function SkillsConfig({
     void loadSkills();
   }, [cwd]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Whether the project's skills load follows its trust, which can change while
+  // this section stays mounted (hidden) in Settings: trusting from Settings ›
+  // MCP. A new decision loads the list again in place, keeping the selection and
+  // any update checks; the first load is the effect above.
+  const trustKey = projectTrustReloadKey(trust);
+  const loadedTrustKeyRef = useRef(trustKey);
+  useEffect(() => {
+    if (loadedTrustKeyRef.current === trustKey) return;
+    loadedTrustKeyRef.current = trustKey;
+    void loadSkills();
+  }, [trustKey, loadSkills]);
+
   useEffect(() => {
     if (selected) setLastSettingsSelection("skills", selected, cwd);
   }, [cwd, selected]);
@@ -614,16 +636,16 @@ export function SkillsConfig({
     setCheckingUpdates((current) => new Set([...current, ...keys]));
     if (!skill) setCheckingAll(true);
     try {
-      const result = await window.pi.skillsCheck({
+      const res = await window.pi.skillsCheck({
         cwd,
         package: skill?.install?.package,
         scope: skill?.install?.scope,
       });
-      const data = (result.body ?? {}) as unknown as {
+      const data = (res.body ?? {}) as {
         updates?: SkillUpdateResult[];
         error?: string;
       };
-      if (result.status !== 200 || data.error) throw new Error(data.error ?? "Update check failed");
+      if (res.status !== 200 || data.error) throw new Error(data.error ?? `HTTP ${res.status}`);
       setUpdateStatuses((current) => {
         const next = { ...current };
         for (const update of data.updates ?? []) {
@@ -649,18 +671,18 @@ export function SkillsConfig({
     setUpdatingSkill(key);
     setUpdateError(null);
     try {
-      const result = await window.pi.skillsUpdate({
+      const res = await window.pi.skillsUpdate({
         cwd,
         package: skill.install.package,
         scope: skill.install.scope,
       });
-      const data = (result.body ?? {}) as unknown as {
+      const data = (res.body ?? {}) as {
         success?: boolean;
         skill?: Skill;
         error?: string;
       };
-      if (result.status !== 200 || data.error || !data.success) {
-        throw new Error(data.error ?? "Update failed");
+      if (res.status !== 200 || data.error || !data.success) {
+        throw new Error(data.error ?? `HTTP ${res.status}`);
       }
       await loadSkills();
       const versionHash = data.skill?.install?.versionHash;
@@ -685,11 +707,12 @@ export function SkillsConfig({
     const next = !skill.disableModelInvocation;
     setToggling((s) => new Set(s).add(skill.filePath));
     setSaveError(null);
+    setGroupStatus(null);
     try {
-      const result = await window.pi.skillsToggle(skill.filePath, next);
-      const d = (result.body ?? {}) as { success?: boolean; error?: string };
-      if (result.status !== 200 || d.error) {
-        setSaveError(d.error ?? "Save failed");
+      const res = await window.pi.skillsToggle(skill.filePath, next);
+      const d = (res.body ?? {}) as { success?: boolean; error?: string };
+      if (res.status !== 200 || d.error) {
+        setSaveError(d.error ?? `HTTP ${res.status}`);
         return;
       }
       setSkills((prev) =>
@@ -710,16 +733,54 @@ export function SkillsConfig({
     }
   }, []);
 
+  // One PATCH for the whole group: each file is edited on its own and
+  // reported separately, so the skills the route refuses keep their state and
+  // are named under the group heading while the rest switch.
+  const setGroupSkills = useCallback(async (group: string, groupSkills: Skill[], enabled: boolean) => {
+    const targets = skillsToSwitch(groupSkills, enabled);
+    if (targets.length === 0) return;
+    const filePaths = targets.map((skill) => skill.filePath);
+    const disableModelInvocation = !enabled;
+    setToggling((current) => new Set([...current, ...filePaths]));
+    setBulkGroup(group);
+    setSaveError(null);
+    setGroupStatus(null);
+    try {
+      const res = await window.pi.skillsBulkToggle(filePaths, disableModelInvocation);
+      const d = (res.body ?? {}) as { results?: SkillToggleResult[]; error?: string };
+      if (res.status !== 200 || d.error || !d.results) throw new Error(d.error ?? `HTTP ${res.status}`);
+      const results = d.results;
+      setSkills((prev) => applySkillToggleResults(prev, results, disableModelInvocation));
+      const failures = results.filter((result) => result.error);
+      if (failures.length > 0) {
+        const names = new Map(targets.map((skill) => [skill.filePath, skill.name]));
+        setGroupStatus({
+          group,
+          error: [
+            t("skills.bulkFailed", { count: failures.length, total: results.length }),
+            ...failures.map((failure) => `${names.get(failure.filePath) ?? failure.filePath}: ${failure.error}`),
+          ].join("\n"),
+        });
+      }
+    } catch (e) {
+      setGroupStatus({ group, error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBulkGroup(null);
+      setToggling((current) => {
+        const next = new Set(current);
+        for (const filePath of filePaths) next.delete(filePath);
+        return next;
+      });
+    }
+  }, [t]);
+
   const selectedSkill = skills.find((s) => s.filePath === selected) ?? null;
+  const bulkBusy = loading || toggling.size > 0 || updatingSkill !== null;
 
   return (
     <ConfigPanelShell embedded={embedded} title={t("common.skills")} subtitle={shortenPath(cwd)} closeLabel={t("i18n.close")} onClose={onClose}>
 
-        {!projectResourcesLoaded && (
-          <div role="status" className="config-trust-notice">
-            {t("trust.skillsNotLoaded")}
-          </div>
-        )}
+        {!projectResourcesLoaded && <ConfigTrustNotice message={t("trust.skillsNotLoaded")} />}
 
         {/* Body */}
         <ConfigSplitView>
@@ -813,11 +874,25 @@ export function SkillsConfig({
                   };
                   return groups.map(
                     ({ label: grpLabel, skills: grpSkills }) => {
+                      const visible = grpSkills.filter((skill) => !skill.disableModelInvocation).length;
+                      const allVisible = visible === grpSkills.length;
                       return (
                         <div key={grpLabel} className="config-sidebar-group">
-                          <ConfigSidebarGroupLabel>
+                          <ConfigSidebarGroupLabel
+                            aside={
+                              <ConfigSidebarGroupSwitch
+                                enabled={visible}
+                                total={grpSkills.length}
+                                disabled={bulkBusy}
+                                loading={bulkGroup === grpLabel}
+                                label={t(allVisible ? "skills.groupSwitchOn" : "skills.groupSwitchOff", { group: grpLabel })}
+                                onChange={(enabled) => void setGroupSkills(grpLabel, grpSkills, enabled)}
+                              />
+                            }
+                          >
                             {grpLabel}
                           </ConfigSidebarGroupLabel>
+                          {groupStatus?.group === grpLabel && <ConfigSidebarGroupStatus error={groupStatus.error} />}
                           {orderSkillsByDormancy(grpSkills).map(renderSkillRow)}
                         </div>
                       );

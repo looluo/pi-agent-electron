@@ -2,6 +2,7 @@ import { ipcMain, shell } from "electron";
 import {
   skillsCheck,
   skillsInstall,
+  skillsBulkToggle,
   skillsList,
   skillsSearch,
   skillsToggle,
@@ -14,6 +15,8 @@ export function registerSkillsPluginsHandlers(): void {
   // skills
   ipcMain.handle("pi:skills:list", (_e, cwd: string | null) => skillsList(cwd));
   ipcMain.handle("pi:skills:toggle", (_e, filePath: string, disable: boolean) => skillsToggle(filePath, disable));
+  ipcMain.handle("pi:skills:bulk-toggle", (_e, filePaths: string[], disable: boolean) =>
+    skillsBulkToggle(filePaths ?? [], disable));
   ipcMain.handle("pi:skills:check", (_e, body: Record<string, unknown>) => skillsCheck(body ?? {}));
   ipcMain.handle("pi:skills:install", (_e, body: Record<string, unknown>) => skillsInstall(body ?? {}));
   ipcMain.handle("pi:skills:search", (_e, query: string, limit: unknown) => skillsSearch(query, limit));
