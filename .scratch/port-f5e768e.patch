@@ -1,0 +1,407 @@
+commit f5e768e5e6786c2de84b2784fdd7fcab32ad6ca9
+Author: Alex Yang <agegcn@gmail.com>
+Date:   Wed Sep 30 22:25:46 2026 +0800
+
+    fix(bash): let Stop end a command whose output a survivor holds open (#1016)
+    
+    * fix(bash): let Stop end a command whose output a survivor holds open (#647)
+    
+    On Stop, pi's local shell backend kills the command's process tree
+    (process-group SIGKILL on POSIX, `taskkill /T` on Windows) and then waits
+    for every inherited stdout/stderr handle to fall idle, re-arming a 100ms
+    grace timer on each chunk (waitForChildProcess, earendil-works/pi#5303).
+    A descendant the kill cannot reach keeps that wait alive for as long as
+    it writes: a process in its own session on POSIX, or an orphan whose
+    parent already exited on Windows, which `taskkill /T` cannot follow
+    (earendil-works/pi#9129). The bash tool call then never returns, so the
+    Stop request, the Stop button and any queued steering all wait until
+    the script finishes on its own.
+    
+    Pi Web already routes agent and `!` shell commands through its own
+    BashOperations wrapper, so it now bounds that wait there: once the
+    signal aborts, pi's normal path gets one second to settle (it takes
+    well under that when the tree is gone) before the wrapper rejects with
+    pi's own "aborted" error, which the bash tool reports as
+    "Command aborted" and the `!` executor as a cancelled run. Output that
+    arrives after the release is dropped instead of being appended to a
+    result that has already been finalized. The unreachable process itself
+    keeps running; killing it needs an upstream change.
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    
+    * fix(chat): say when a steering message is delivered (#647)
+    
+    The Steer button's tooltip promised to "interrupt the current run and
+    inject this message now". Steering does not interrupt anything: pi
+    queues the message and delivers it after the current assistant response
+    and its tool calls finish, before the next model call (pi docs
+    rpc-commands.md, sdk.md). A message steered during a long Python run
+    therefore waits for the script, which the tooltip gave no reason to
+    expect. Describe the real timing and point to Stop, which is what
+    interrupts the running tool calls.
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    
+    * fix(bash): release a timed-out command the same way as a stopped one (#647)
+    
+    pi's `timeout` kills the process tree and then waits on the inherited
+    output handles exactly like Stop does, so a descendant the kill cannot
+    reach kept the tool call pending past its timeout with no "Command timed
+    out" result. The wrapper now also releases the command one grace period
+    after the timeout, with pi's own `timeout:<seconds>` error.
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    
+    ---------
+    
+    Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+diff --git a/lib/i18n/messages/en.ts b/lib/i18n/messages/en.ts
+index ac3a897..52eeb1b 100644
+--- a/lib/i18n/messages/en.ts
++++ b/lib/i18n/messages/en.ts
+@@ -377,7 +377,7 @@ export const enLocale: LocalePlugin = {
+     "chat.messagePlaceholder": "Message… Type / for commands, @ for files",
+     "chat.steer": "Steer",
+     "chat.followUp": "Follow-up",
+-    "chat.steerHint": "Interrupt the current run and inject this message now",
++    "chat.steerHint": "Deliver after the current response and its tool calls finish (Stop interrupts them)",
+     "chat.followUpHint": "Queue this message after the agent finishes",
+     "chat.inputHistory": "Input history",
+     "chat.modelError": "Model error",
+diff --git a/lib/i18n/messages/zh-CN.ts b/lib/i18n/messages/zh-CN.ts
+index d07f61c..c4717ab 100644
+--- a/lib/i18n/messages/zh-CN.ts
++++ b/lib/i18n/messages/zh-CN.ts
+@@ -377,7 +377,7 @@ export const zhCNLocale: LocalePlugin = {
+     "chat.messagePlaceholder": "消息…输入 / 使用命令，输入 @ 查找文件",
+     "chat.steer": "引导",
+     "chat.followUp": "后续消息",
+-    "chat.steerHint": "中断当前运行并立即注入此消息",
++    "chat.steerHint": "在当前回复及其工具调用完成后送达（点“停止”可中断）",
+     "chat.followUpHint": "在 Agent 完成后排队此消息",
+     "chat.inputHistory": "输入历史",
+     "chat.modelError": "模型错误",
+diff --git a/lib/i18n/messages/zh-TW.ts b/lib/i18n/messages/zh-TW.ts
+index 6b7c336..aef9100 100644
+--- a/lib/i18n/messages/zh-TW.ts
++++ b/lib/i18n/messages/zh-TW.ts
+@@ -377,7 +377,7 @@ export const zhTWLocale: LocalePlugin = {
+     "chat.messagePlaceholder": "訊息…輸入 / 使用命令，輸入 @ 搜尋檔案",
+     "chat.steer": "引導",
+     "chat.followUp": "後續訊息",
+-    "chat.steerHint": "中斷目前的執行並立即注入此訊息",
++    "chat.steerHint": "在目前的回覆及其工具呼叫完成後送達（按「停止」可中斷）",
+     "chat.followUpHint": "在 Agent 完成後排入此訊息",
+     "chat.inputHistory": "輸入紀錄",
+     "chat.modelError": "模型錯誤",
+diff --git a/lib/project-command-env.test.mjs b/lib/project-command-env.test.mjs
+index bab6987..e106d82 100644
+--- a/lib/project-command-env.test.mjs
++++ b/lib/project-command-env.test.mjs
+@@ -1,8 +1,11 @@
+ import assert from "node:assert/strict";
++import { mkdtemp, readFile, rm } from "node:fs/promises";
++import { tmpdir } from "node:os";
+ import { delimiter, join } from "node:path";
+ import test from "node:test";
+ import {
+   DefaultResourceLoader,
++  createBashToolDefinition,
+   createLocalBashOperations,
+   getAgentDir,
+ } from "@earendil-works/pi-coding-agent";
+@@ -223,6 +226,196 @@ test("direct bash preserves execution controls and streaming callbacks", async (
+   assert.equal(streamed, "streamed");
+ });
+ 
++test("Stop releases a command whose output a surviving process keeps open", async () => {
++  let forward;
++  let settleLocal;
++  const operations = createProjectCommandBashOperations({
++    abortSettleGraceMs: 20,
++    baseEnvironment: HOST_ENVIRONMENT,
++    localOperations: {
++      exec(_command, _cwd, options) {
++        forward = options.onData;
++        // Pi's backend keeps waiting while an inherited pipe is still written to.
++        return new Promise((_resolve, reject) => {
++          settleLocal = () => reject(new Error("aborted"));
++        });
++      },
++    },
++  });
++  const controller = new AbortController();
++  let streamed = "";
++  const execution = operations.exec("python a.py & python b.py & wait", "/project", {
++    onData: (chunk) => { streamed += chunk.toString(); },
++    signal: controller.signal,
++  });
++
++  forward(Buffer.from("before "));
++  controller.abort();
++  forward(Buffer.from("during "));
++  await assert.rejects(execution, { message: "aborted" });
++  forward(Buffer.from("after"));
++  // The survivor finally exits; its late settlement must go nowhere.
++  settleLocal();
++  await new Promise((resolve) => setImmediate(resolve));
++
++  assert.equal(streamed, "before during ");
++});
++
++test("Stop keeps pi's own abort result when the process tree dies in time", async () => {
++  const piAbortError = new Error("aborted");
++  const operations = createProjectCommandBashOperations({
++    abortSettleGraceMs: 5_000,
++    baseEnvironment: HOST_ENVIRONMENT,
++    localOperations: {
++      exec(_command, _cwd, options) {
++        return new Promise((_resolve, reject) => {
++          options.signal.addEventListener("abort", () => setTimeout(() => reject(piAbortError), 10));
++        });
++      },
++    },
++  });
++  const controller = new AbortController();
++  const startedAt = Date.now();
++  const execution = operations.exec("python a.py", "/project", {
++    onData() {},
++    signal: controller.signal,
++  });
++
++  controller.abort();
++  await assert.rejects(execution, (error) => error === piAbortError);
++  assert.ok(Date.now() - startedAt < 1_000);
++});
++
++test(
++  "Stop ends the bash tool while an escaped descendant keeps writing",
++  { skip: process.platform === "win32", timeout: 10_000 },
++  async (t) => {
++    const directory = await mkdtemp(join(tmpdir(), "pi-web-bash-abort-"));
++    const pidFile = join(directory, "survivor.pid");
++    t.after(async () => {
++      try {
++        process.kill(Number(await readFile(pidFile, "utf8")), "SIGKILL");
++      } catch {}
++      await rm(directory, { recursive: true, force: true });
++    });
++    // `detached` puts the writer in its own session, out of reach of the
++    // process-group kill, while it still holds the tool's stdout.
++    const survivor = [
++      "const { spawn } = require('node:child_process');",
++      "const writer = spawn(process.execPath, ['-e', 'setInterval(() => console.log(Date.now()), 20)'],",
++      "  { detached: true, stdio: ['ignore', 'inherit', 'inherit'] });",
++      `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(writer.pid));`,
++      "setInterval(() => {}, 1000);",
++    ].join(" ");
++    const tool = createBashToolDefinition(directory, {
++      operations: createProjectCommandBashOperations({ abortSettleGraceMs: 200 }),
++    });
++    const controller = new AbortController();
++    let outputSeen;
++    const outputStarted = new Promise((resolve) => { outputSeen = resolve; });
++    const execution = tool.execute(
++      "issue-647",
++      { command: `node -e ${JSON.stringify(survivor)}` },
++      controller.signal,
++      (update) => {
++        if (update.content[0]?.text) outputSeen();
++      },
++      undefined,
++    );
++
++    await outputStarted;
++    const abortedAt = Date.now();
++    controller.abort();
++    await assert.rejects(execution, /Command aborted$/);
++
++    assert.ok(Date.now() - abortedAt < 3_000);
++    // The release came from Pi Web, not from the writer going away.
++    const survivorPid = Number(await readFile(pidFile, "utf8"));
++    assert.doesNotThrow(() => process.kill(survivorPid, 0));
++  },
++);
++
++test("a timeout releases a command whose output a surviving process keeps open", async () => {
++  let settleLocal;
++  const operations = createProjectCommandBashOperations({
++    abortSettleGraceMs: 20,
++    baseEnvironment: HOST_ENVIRONMENT,
++    localOperations: {
++      exec() {
++        // Pi's timeout killed the tree but an inherited pipe is still written to.
++        return new Promise((_resolve, reject) => {
++          settleLocal = () => reject(new Error("timeout:0.01"));
++        });
++      },
++    },
++  });
++
++  await assert.rejects(
++    operations.exec("python a.py", "/project", { onData() {}, timeout: 0.01 }),
++    { message: "timeout:0.01" },
++  );
++  settleLocal();
++  await new Promise((resolve) => setImmediate(resolve));
++});
++
++test("a command that finishes before its timeout keeps its result", async () => {
++  const operations = createProjectCommandBashOperations({
++    abortSettleGraceMs: 20,
++    baseEnvironment: HOST_ENVIRONMENT,
++    localOperations: {
++      exec: async () => ({ exitCode: 0 }),
++    },
++  });
++
++  assert.deepEqual(
++    await operations.exec("true", "/project", { onData() {}, timeout: 0.01 }),
++    { exitCode: 0 },
++  );
++  // Nothing may fire after the result: the timer is cleared with the release.
++  await new Promise((resolve) => setTimeout(resolve, 60));
++});
++
++test(
++  "a timeout ends the bash tool while an escaped descendant keeps writing",
++  { skip: process.platform === "win32", timeout: 10_000 },
++  async (t) => {
++    const directory = await mkdtemp(join(tmpdir(), "pi-web-bash-timeout-"));
++    const pidFile = join(directory, "survivor.pid");
++    t.after(async () => {
++      try {
++        process.kill(Number(await readFile(pidFile, "utf8")), "SIGKILL");
++      } catch {}
++      await rm(directory, { recursive: true, force: true });
++    });
++    const survivor = [
++      "const { spawn } = require('node:child_process');",
++      "const writer = spawn(process.execPath, ['-e', 'setInterval(() => console.log(Date.now()), 20)'],",
++      "  { detached: true, stdio: ['ignore', 'inherit', 'inherit'] });",
++      `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(writer.pid));`,
++      "setInterval(() => {}, 1000);",
++    ].join(" ");
++    const tool = createBashToolDefinition(directory, {
++      operations: createProjectCommandBashOperations({ abortSettleGraceMs: 200 }),
++    });
++    const startedAt = Date.now();
++
++    await assert.rejects(
++      tool.execute(
++        "issue-647-timeout",
++        { command: `node -e ${JSON.stringify(survivor)}`, timeout: 1 },
++        undefined,
++        undefined,
++        undefined,
++      ),
++      /Command timed out after 1 seconds$/,
++    );
++
++    assert.ok(Date.now() - startedAt < 4_000);
++    const survivorPid = Number(await readFile(pidFile, "utf8"));
++    assert.doesNotThrow(() => process.kill(survivorPid, 0));
++  },
++);
++
+ async function captureOperationEnvironment(options) {
+   let environment;
+   const operations = createProjectCommandBashOperations({
+diff --git a/lib/project-command-env.ts b/lib/project-command-env.ts
+index b5309b9..50af469 100644
+--- a/lib/project-command-env.ts
++++ b/lib/project-command-env.ts
+@@ -10,6 +10,9 @@ import { join } from "node:path";
+ 
+ const HOST_EXTENSION_NAME = "pi-web-project-command-environment";
+ const HOST_EXTENSION_PATH = `<inline:${HOST_EXTENSION_NAME}>`;
++// Pi's own abort path settles well within this once the process tree is gone.
++const ABORT_SETTLE_GRACE_MS = 1000;
++const MAX_TIMER_DELAY_MS = 2_147_483_647;
+ 
+ type ProjectShellSettings = {
+   getShellCommandPrefix(): string | undefined;
+@@ -17,6 +20,7 @@ type ProjectShellSettings = {
+ };
+ 
+ type ProjectCommandBashOperationsOptions = {
++  abortSettleGraceMs?: number;
+   agentBinDir?: string;
+   baseEnvironment?: NodeJS.ProcessEnv;
+   localOperations?: BashOperations;
+@@ -24,6 +28,8 @@ type ProjectCommandBashOperationsOptions = {
+   shellPath?: string;
+ };
+ 
++type BashExecResult = Awaited<ReturnType<BashOperations["exec"]>>;
++
+ function isHostRuntimeVariable(name: string, platform: NodeJS.Platform): boolean {
+   const comparableName = platform === "win32" ? name.toUpperCase() : name;
+   return comparableName === "PORT"
+@@ -66,6 +72,7 @@ export function createProjectCommandBashOperations(
+   options: ProjectCommandBashOperationsOptions = {},
+ ): BashOperations {
+   const {
++    abortSettleGraceMs = ABORT_SETTLE_GRACE_MS,
+     agentBinDir = join(getAgentDir(), "bin"),
+     baseEnvironment = process.env,
+     localOperations = createLocalBashOperations({ shellPath: options.shellPath }),
+@@ -79,9 +86,56 @@ export function createProjectCommandBashOperations(
+         agentBinDir,
+         platform,
+       );
+-      return localOperations.exec(command, cwd, {
++      const { onData, signal, timeout } = executionOptions;
++      let released = false;
++      const execution = localOperations.exec(command, cwd, {
+         ...executionOptions,
+         env: environment,
++        // Callers finalize their output once the command is released; a
++        // survivor must not append to it afterwards.
++        onData: (data) => {
++          if (!released) onData(data);
++        },
++      });
++      // Pi rejects any other timeout before it starts the command.
++      const timeoutMs = typeof timeout === "number" && Number.isFinite(timeout) && timeout > 0
++        ? timeout * 1000
++        : undefined;
++      if (!signal && timeoutMs === undefined) return execution;
++
++      // On Stop or a timeout, pi kills the shell's process tree but then keeps
++      // reading until every inherited stdout/stderr handle falls idle. A
++      // descendant the kill cannot reach (its own session on POSIX, an orphan
++      // `taskkill /T` misses on Windows) can keep writing and hold the tool
++      // call, and with it Stop and any steering, until the script ends on its
++      // own (#647). The errors are pi's own, so the bash tool reports them as
++      // "Command aborted" and "Command timed out".
++      return new Promise<BashExecResult>((resolve, reject) => {
++        const timers: ReturnType<typeof setTimeout>[] = [];
++        const release = () => {
++          released = true;
++          for (const timer of timers) clearTimeout(timer);
++          signal?.removeEventListener("abort", onAbort);
++        };
++        const releaseAfter = (delayMs: number, error: Error) => {
++          timers.push(setTimeout(() => {
++            release();
++            reject(error);
++          }, Math.min(delayMs, MAX_TIMER_DELAY_MS)));
++        };
++        const onAbort = () => releaseAfter(abortSettleGraceMs, new Error("aborted"));
++        if (timeoutMs !== undefined) {
++          releaseAfter(timeoutMs + abortSettleGraceMs, new Error(`timeout:${timeout}`));
++        }
++        execution.then((result) => {
++          release();
++          resolve(result);
++        }, (error: unknown) => {
++          release();
++          reject(error);
++        });
++        if (signal?.aborted) onAbort();
++        else signal?.addEventListener("abort", onAbort, { once: true });
+       });
+     },
+   };

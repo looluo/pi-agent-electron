@@ -18,10 +18,10 @@ Execution order (risk first):
   real-path `82d1f54` (—) — **resolved**
 - 03 chat-fixes — renderer fixes incl. reconciliation points:
   `d0bf6be` streaming reasoning-level change (#851, supersedes the
-  disabled-control behavior we ported in 3f07a5f), `0bae9b6` collapse
+  disabled-control behavior we ported in 3f07a5), `0bae9b6` collapse
   once answered (#1011, coexists with local 26be91e), fork-while-running
   (#1023), history-edit drafts (#1009/#94c1f5c), extension dialog queue
-  (#70470ca), composer text fixes (—)
+  (#70470ca), composer text fixes (—) — **resolved**
 - 04 settings-ux — shared blocks + i18n (197a3e5), enable/disable-all
   (#1020), heading switches (#1021), send key (#1001), group switches
   (#4de9f77) (—)

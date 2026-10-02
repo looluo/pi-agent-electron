@@ -1,0 +1,60 @@
+commit 46b52356f21af90c54003bc85e32cc3d0bb52ad5
+Author: Mango <mango5887@gmail.com>
+Date:   Wed Sep 30 19:30:13 2026 +0800
+
+    fix(chat): let a long extension dialog title shrink instead of hiding the options (#961)
+    
+    The extension dialog sets only max-height on its own box, so its height is
+    content-driven and the header's `maxHeight: "50%"` never resolves against a
+    definite height. Together with `flexShrink: 0` a long title — multi-line text,
+    a plugin's folded option previews, a formatted SQL block — grows the header to
+    its full content height. Flexbox then shrinks the scrollable option body to
+    zero and pushes the footer past the dialog's `overflow: hidden` edge, so the
+    options and the Cancel button are outside the visible box and the dialog looks
+    frozen (#890).
+    
+    Cap the header in viewport units (which resolve) and let it shrink and scroll:
+    
+        flexShrink: 0, maxHeight: "50%"
+        -> flexShrink: 1, minHeight: 0, maxHeight: "50vh"
+    
+    Measured in Chromium with the dialog's real DOM/CSS and a 40-line ASCII title:
+    before, header 1766px inside a 762px dialog, first option at y=1850 and Cancel
+    at y=1875 (both clipped); after, header 475px, option list 196px, options and
+    footer inside the dialog.
+    
+    Refs #890
+    
+    Co-authored-by: Mangome <7655737+Mangome@users.noreply.github.com>
+
+diff --git a/components/ChatWindow.extension-request.test.mjs b/components/ChatWindow.extension-request.test.mjs
+index 2e38300..6de9f42 100644
+--- a/components/ChatWindow.extension-request.test.mjs
++++ b/components/ChatWindow.extension-request.test.mjs
+@@ -38,7 +38,12 @@ test("renders extension confirmation and options as markdown", () => {
+ test("preserves title newlines like pi's TUI and keeps long titles from hiding the body", () => {
+   const header = dialogSource.slice(dialogSource.indexOf('role="dialog"'), dialogSource.indexOf("{request.method === \"confirm\""));
+   assert.match(header, /whiteSpace: "pre-wrap", overflowWrap: "anywhere" \}\}>\{request\.title\}/);
+-  assert.match(header, /maxHeight: "50%", overflowY: "auto" \}\}>[\s\S]*?\{request\.title\}/);
++  // The dialog's own height is content-driven (only max-height is set), so a percentage
++  // cap on the header never resolves and a non-shrinkable header grows to its full text
++  // height, pushing the option list and the footer past the dialog's overflow edge (#890).
++  // The cap has to be viewport-based and the header has to be allowed to shrink and scroll.
++  assert.match(header, /flexShrink: 1, minHeight: 0,[\s\S]*?maxHeight: "50vh", overflowY: "auto" \}\}>[\s\S]*?\{request\.title\}/);
++  assert.doesNotMatch(header, /maxHeight: "50%"/);
+ });
+ 
+ test("resets collapse state when a new extension request arrives", () => {
+diff --git a/components/ChatWindow.tsx b/components/ChatWindow.tsx
+index c158af2..198a995 100644
+--- a/components/ChatWindow.tsx
++++ b/components/ChatWindow.tsx
+@@ -1609,7 +1609,7 @@ function ExtensionDialog({
+           overflow: "hidden",
+         }}
+       >
+-        <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border)", maxHeight: "50%", overflowY: "auto" }}>
++        <div style={{ flexShrink: 1, minHeight: 0, display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border)", maxHeight: "50vh", overflowY: "auto" }}>
+           <div style={{ flex: 1, minWidth: 0 }}>
+             {/* Pi's TUI shows the title verbatim, newlines included; select/input have no
+                 separate message field, so extensions put multi-line text here. */}

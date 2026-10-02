@@ -28,9 +28,9 @@ function writeSet(sessionId: string, ids: Set<string>): void {
   }
 }
 
-export function isProcessGroupExpanded(sessionId: string, anchorId: string): boolean {
-  if (typeof window === "undefined") return false;
-  return readSet(sessionId).has(anchorId);
+export function isProcessGroupExpanded(sessionId: string, anchorId: string, fallback = false): boolean {
+  if (typeof window === "undefined") return fallback;
+  return readSet(sessionId).has(anchorId) ? true : fallback;
 }
 
 export function setProcessGroupExpanded(sessionId: string, anchorId: string, expanded: boolean): void {

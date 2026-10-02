@@ -1,0 +1,272 @@
+commit 342fc9a25ab39533bb48889d04359a3cf297c2ba
+Author: Wayne <uvforce@gmail.com>
+Date:   Wed Sep 30 19:31:43 2026 +0800
+
+    fix(chat): tell unanswered output truncation to compact instead of retrying (#968)
+    
+    * fix(chat): tell unanswered output truncation to compact instead of retrying
+    
+    A length stop with no text or tool call has no room for another message.
+    Say so in English, Simplified Chinese, and Traditional Chinese, and offer
+    compaction on the latest unanswered reply.
+    
+    * fix(demo): keep the demo icon path while adding truncation recovery
+    
+    ---------
+    
+    Co-authored-by: wayne.luo <wayne.luo@bybit.com>
+
+diff --git a/components/ChatWindow.tsx b/components/ChatWindow.tsx
+index 198a995..eb758b8 100644
+--- a/components/ChatWindow.tsx
++++ b/components/ChatWindow.tsx
+@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
+ import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, BlockingExtensionUiRequest, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolResultMessage, UserMessage } from "@/lib/types";
+ import { normalizeCustomPanelLines } from "@/lib/ansi";
+ import { asBracketedPaste, toTerminalKeyData } from "@/lib/terminal-input";
+-import { countToolCallBlocks, getAssistantErrorMessage, getDisplayableAssistantBlocks, isAssistantTruncated, isMessageGroupAnchor, splitFinalAssistantBlocks } from "@/lib/message-display";
++import { countToolCallBlocks, getAssistantErrorMessage, getDisplayableAssistantBlocks, hasAssistantAnswer, isAssistantTruncated, isMessageGroupAnchor, splitFinalAssistantBlocks } from "@/lib/message-display";
+ import { extractTurnWrittenFiles, type WrittenFile } from "@/lib/turn-written-files";
+ import { buildQuotedSelection } from "@/lib/quoted-selection";
+ import { MessageView } from "./MessageView";
+@@ -1031,7 +1031,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
+                 if (idx === lastUserIdx) { (lastUserMsgRef as { current: HTMLDivElement | null }).current = el; }
+               };
+ 
+-              const renderMessage = (idx: number, options: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean; writtenFiles?: WrittenFile[] } = {}): ReactNode => {
++              const renderMessage = (idx: number, options: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean; writtenFiles?: WrittenFile[]; recoverTruncation?: boolean } = {}): ReactNode => {
+                 const msg = options.messageOverride ?? messages[idx];
+                 const isVisible = isMessageGroupAnchor(msg) || msg.role === "assistant";
+                 const currentRefIdx = visibleRefIndexByMessage.get(idx);
+@@ -1070,6 +1070,9 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
+                     prevTimestamp={idx > 0 ? (messages[idx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined}
+                     sessionId={session?.id ?? sessionIdRef.current ?? undefined}
+                     writtenFiles={options.writtenFiles}
++                    onCompact={options.recoverTruncation ? handleCompact : undefined}
++                    isCompacting={options.recoverTruncation ? isCompacting : undefined}
++                    compactError={options.recoverTruncation ? compactError : undefined}
+                   />
+                 );
+                 if (!isVisible || currentRefIdx === undefined) return view;
+@@ -1187,6 +1190,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
+                   rendered.push(renderMessage(finalAssistantIdx, {
+                     messageOverride: finalAnswerMessage,
+                     writtenFiles,
++                    recoverTruncation: endIdx === messages.length && !streamState.isStreaming && !hasAssistantAnswer(finalAnswerMessage),
+                   }));
+                 }
+                 for (let renderIdx = finalAssistantIdx + 1; renderIdx < endIdx; renderIdx++) {
+diff --git a/components/MessageView.test.mjs b/components/MessageView.test.mjs
+index 6303944..37d8983 100644
+--- a/components/MessageView.test.mjs
++++ b/components/MessageView.test.mjs
+@@ -215,21 +215,40 @@ test("renders a truncation notice for stopReason length", () => {
+   });
+ 
+   assert.match(html, /role="alert"/);
+-  assert.match(html, /output limit/i);
++  assert.match(html, /used up by thinking/i);
++  assert.doesNotMatch(html, /follow-up/i);
++});
++
++test("keeps the follow-up hint when a truncated response already has text", () => {
++  const html = renderMessage({
++    role: "assistant",
++    provider: "anthropic",
++    model: "claude-test",
++    content: [{ type: "text", text: "Partial answer" }],
++    stopReason: "length",
++  });
++
++  assert.match(html, /Partial answer/);
+   assert.match(html, /follow-up/i);
++  assert.doesNotMatch(html, /Compact context/);
+ });
+ 
+-test("renders a truncation notice for thinking-only messages with stopReason length", () => {
++test("offers compaction on an unanswered truncation and keeps its error with the reply", () => {
++  let compacted = 0;
+   const html = renderMessage({
+     role: "assistant",
+     provider: "anthropic",
+     model: "claude-test",
+     content: [],
+     stopReason: "length",
++  }, {
++    onCompact: () => { compacted += 1; },
++    compactError: "Summarization failed: generation hit the token cap",
+   });
+ 
+-  assert.match(html, /role="alert"/);
+-  assert.match(html, /output limit/i);
++  assert.match(html, /Compact context/);
++  assert.match(html, /generation hit the token cap/);
++  assert.equal(compacted, 0);
+ });
+ 
+ test("renders partial assistant content before the provider error", () => {
+diff --git a/components/MessageView.tsx b/components/MessageView.tsx
+index 3b18041..3bd8abb 100644
+--- a/components/MessageView.tsx
++++ b/components/MessageView.tsx
+@@ -8,7 +8,7 @@ import { ThinkingIcon } from "./ThinkingIcon";
+ import { copyText } from "@/lib/clipboard";
+ import { useI18n } from "@/hooks/useI18n";
+ import { parseCompactionSummary } from "@/lib/compaction-summary";
+-import { getAssistantErrorMessage, getThinkingPreview, isAssistantTruncated, isEmptyThinkingBlock } from "@/lib/message-display";
++import { getAssistantErrorMessage, getThinkingPreview, hasAssistantAnswer, isAssistantTruncated, isEmptyThinkingBlock } from "@/lib/message-display";
+ import { parseUnifiedPatch, type SplitDiffCell, type SplitDiffFile } from "@/lib/patch";
+ import { applyPatchPreviewToFiles, applyPatchResultHasFailures, extractApplyPatchPaths, getApplyPatchInputText, parseApplyPatchInput } from "@/lib/apply-patch";
+ import { isApplyPatchToolName, isEditToolName } from "@/lib/tool-names";
+@@ -205,6 +205,9 @@ interface Props {
+    * final answer text-only.
+    */
+   writtenFiles?: WrittenFile[];
++  onCompact?: () => void;
++  isCompacting?: boolean;
++  compactError?: string | null;
+ }
+ 
+ export function getModelDisplayName(
+@@ -272,12 +275,12 @@ function haveSameRelevantToolResults(
+   return true;
+ }
+ 
+-export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, onOpenSession, entryId, searchBlock, onFork, forking, onNavigate, onEditContent, showTimestamp, prevTimestamp, sessionId, writtenFiles }: Props) {
++export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, onOpenSession, entryId, searchBlock, onFork, forking, onNavigate, onEditContent, showTimestamp, prevTimestamp, sessionId, writtenFiles, onCompact, isCompacting, compactError }: Props) {
+   if (message.role === "user") {
+     return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} onNavigate={onNavigate} onEditContent={onEditContent} />;
+   }
+   if (message.role === "assistant") {
+-    return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} onOpenSession={onOpenSession} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} searchBlock={searchBlock} writtenFiles={writtenFiles} />;
++    return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} onOpenSession={onOpenSession} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} searchBlock={searchBlock} writtenFiles={writtenFiles} onCompact={onCompact} isCompacting={isCompacting} compactError={compactError} />;
+   }
+   if (message.role === "toolResult") {
+     // Rendered inline under its toolCall — skip standalone rendering if paired
+@@ -310,7 +313,10 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
+     && prev.showTimestamp === next.showTimestamp
+     && prev.prevTimestamp === next.prevTimestamp
+     && prev.writtenFiles === next.writtenFiles
+-    && prev.sessionId === next.sessionId;
++    && prev.sessionId === next.sessionId
++    && prev.onCompact === next.onCompact
++    && prev.isCompacting === next.isCompacting
++    && prev.compactError === next.compactError;
+ });
+ 
+ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, onNavigate, onEditContent }: {
+@@ -609,6 +615,9 @@ function AssistantMessageView({
+   entryId,
+   searchBlock,
+   writtenFiles,
++  onCompact,
++  isCompacting,
++  compactError,
+ }: {
+   message: AssistantMessage;
+   isStreaming?: boolean;
+@@ -623,6 +632,9 @@ function AssistantMessageView({
+   entryId?: string;
+   searchBlock?: AssistantContentBlock;
+   writtenFiles?: WrittenFile[];
++  onCompact?: () => void;
++  isCompacting?: boolean;
++  compactError?: string | null;
+ }) {
+   const { t } = useI18n();
+   const time = showTimestamp ? formatTime(message.timestamp) : null;
+@@ -632,6 +644,7 @@ function AssistantMessageView({
+   const blocks = useMemo(() => blockItems.map(({ block }) => block), [blockItems]);
+   const providerError = getAssistantErrorMessage(message, { isStreaming });
+   const truncated = isAssistantTruncated(message, { isStreaming });
++  const unansweredTruncation = truncated && !hasAssistantAnswer(message);
+   const [hovered, setHovered] = useState(false);
+   const [copied, setCopied] = useState(false);
+   const streamStartRef = useRef<number | null>(null);
+@@ -845,7 +858,30 @@ function AssistantMessageView({
+             overflowWrap: "anywhere",
+           }}
+         >
+-          {t("chat.truncatedByOutputLimit")}
++          {t(unansweredTruncation ? "chat.truncatedWithoutAnswer" : "chat.truncatedByOutputLimit")}
++          {unansweredTruncation && onCompact && (
++            <button
++              type="button"
++              onClick={onCompact}
++              disabled={isCompacting}
++              style={{
++                display: "block",
++                marginTop: 8,
++                padding: "3px 8px",
++                border: "1px solid currentColor",
++                borderRadius: 5,
++                background: "transparent",
++                color: "inherit",
++                cursor: isCompacting ? "default" : "pointer",
++                font: "inherit",
++              }}
++            >
++              {t(isCompacting ? "chat.compacting" : "chat.compactContext")}
++            </button>
++          )}
++          {unansweredTruncation && compactError && (
++            <div style={{ marginTop: 8, color: "#ef4444", whiteSpace: "pre-wrap" }}>{compactError}</div>
++          )}
+         </div>
+       )}
+ 
+diff --git a/lib/i18n/messages/en.ts b/lib/i18n/messages/en.ts
+index ff40a9b..1c9b50a 100644
+--- a/lib/i18n/messages/en.ts
++++ b/lib/i18n/messages/en.ts
+@@ -311,6 +311,7 @@ export const enLocale: LocalePlugin = {
+     "chat.runningTool": "Running tool...",
+     "chat.generatingToolInput": "Generating parameters...",
+     "chat.truncatedByOutputLimit": "This response was cut off after reaching the model’s output limit. Send a follow-up to continue.",
++    "chat.truncatedWithoutAnswer": "The output budget was used up by thinking, so no answer was produced. Sending another message will be cut off again. Compact the context first, or lower the thinking level to medium or below.",
+     "chat.runningNamedTool": "Running {name}...",
+     "chat.runningTools": "Running {names}...",
+     "chat.runningToolsMore": "Running {names} (+{count})...",
+diff --git a/lib/i18n/messages/zh-CN.ts b/lib/i18n/messages/zh-CN.ts
+index f4f228f..95f2a42 100644
+--- a/lib/i18n/messages/zh-CN.ts
++++ b/lib/i18n/messages/zh-CN.ts
+@@ -311,6 +311,7 @@ export const zhCNLocale: LocalePlugin = {
+     "chat.runningTool": "正在运行工具...",
+     "chat.generatingToolInput": "正在生成参数...",
+     "chat.truncatedByOutputLimit": "回复因达到模型输出长度上限而被截断。发送一条后续消息以继续。",
++    "chat.truncatedWithoutAnswer": "输出额度被思考耗尽，没有生成正文。再发消息会再次截断。先压缩上下文，或把思考档降到 medium 以下。",
+     "chat.runningNamedTool": "正在运行 {name}...",
+     "chat.runningTools": "正在运行 {names}...",
+     "chat.runningToolsMore": "正在运行 {names}（另有 {count} 个）...",
+diff --git a/lib/i18n/messages/zh-TW.ts b/lib/i18n/messages/zh-TW.ts
+index 76e309a..5329800 100644
+--- a/lib/i18n/messages/zh-TW.ts
++++ b/lib/i18n/messages/zh-TW.ts
+@@ -311,6 +311,7 @@ export const zhTWLocale: LocalePlugin = {
+     "chat.runningTool": "正在執行工具...",
+     "chat.generatingToolInput": "正在產生參數...",
+     "chat.truncatedByOutputLimit": "回覆因達到模型輸出長度上限而被截斷。傳送一則後續訊息以繼續。",
++    "chat.truncatedWithoutAnswer": "輸出額度被思考耗盡，沒有產生正文。再傳訊息會再次截斷。先壓縮上下文，或把思考檔降到 medium 以下。",
+     "chat.runningNamedTool": "正在執行 {name}...",
+     "chat.runningTools": "正在執行 {names}...",
+     "chat.runningToolsMore": "正在執行 {names}（另有 {count} 個）...",
+diff --git a/lib/message-display.ts b/lib/message-display.ts
+index 988369e..2746716 100644
+--- a/lib/message-display.ts
++++ b/lib/message-display.ts
+@@ -49,6 +49,14 @@ export function isAssistantTruncated(
+   return !options.isStreaming && message.stopReason === "length";
+ }
+ 
++/** Text, an image, or a tool call is an answer. Thinking alone is not. */
++export function hasAssistantAnswer(message: AssistantMessage): boolean {
++  return (message.content ?? []).some((block) => {
++    if (block.type === "text") return block.text.trim().length > 0;
++    return block.type === "image" || block.type === "toolCall";
++  });
++}
++
+ function isFinalAnswerBlock(block: AssistantContentBlock): boolean {
+   return block.type === "text" || block.type === "image";
+ }

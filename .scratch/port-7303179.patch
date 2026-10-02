@@ -1,0 +1,401 @@
+commit 7303179c36ccdd99c13d3913775ff8cc2b71769a
+Author: Alex Yang <agegcn@gmail.com>
+Date:   Wed Sep 30 19:40:57 2026 +0800
+
+    fix(chat): branch a history edit only when it is sent (#1009)
+    
+    * fix(chat): branch a history edit only when it is sent
+    
+    "Edit from here" called navigate_tree on click, which persisted a leaf
+    move before the user committed to the edit. There was no way back, and
+    a reload showed the conversation cut off at the edited message (#958).
+    
+    Clicking now only prefills the composer and records the target entry in
+    useAgentSession. The composer shows an edit banner with Cancel, which
+    clears the prefill without touching the session. Sending navigates first
+    and then takes the normal prompt path; a failed navigation restores the
+    draft and the edit state. The pending edit follows the session's
+    in-memory draft across session switches, and a pending edit is never
+    sent as steer or follow-up.
+    
+    Navigation and prompt remain two RPCs, so a prompt rejected after the
+    navigation keeps the new leaf.
+    
+    * fix(chat): expose history edit actions on touch screens
+    
+    * revert(chat): keep user-message actions on hover for touch screens
+    
+    Always showing Copy / Edit from here / New session at 44px under every
+    user message on phones is a separate design change from deferring the
+    history-edit branch, and it costs a lot of vertical space per turn. A tap
+    on the message already reveals the actions (mobile browsers emulate
+    mouseenter on tap), so leave that layout as it is here.
+    
+    This reverts commit 8931c5a99dc33fec4295ea43f52f925a08e028f6.
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01Q8e4GL1QSNFveKtnFfP3FZ
+    
+    ---------
+    
+    Co-authored-by: wayne.luo <wayne.luo@bybit.com>
+    Co-authored-by: Claude <noreply@anthropic.com>
+
+diff --git a/components/ChatInput.tsx b/components/ChatInput.tsx
+index ad4a69d..02a144f 100644
+--- a/components/ChatInput.tsx
++++ b/components/ChatInput.tsx
+@@ -43,6 +43,8 @@ export interface AttachedImage {
+ interface Props {
+   onSend: (message: string, images?: AttachedImage[]) => void;
+   onAbort: () => void;
++  /** Present while a history edit is pending; shows the edit banner. */
++  onCancelEdit?: () => void;
+   onSteer?: (message: string, images?: AttachedImage[]) => void;
+   onFollowUp?: (message: string, images?: AttachedImage[]) => void;
+   onPromptWithStreamingBehavior?: (message: string, behavior: "steer" | "followUp", images?: AttachedImage[]) => void;
+@@ -98,7 +100,7 @@ interface Props {
+ export interface ChatInputHandle {
+   insertText: (text: string) => void;
+   insertIfEmpty: (text: string) => void;
+-  replaceMessage: (message: UserMessage) => void;
++  replaceMessage: (message: UserMessage) => boolean;
+   prependText: (text: string) => void;
+   addImages: (files: File[]) => void;
+   rekeyDraft: (previousKey: string, nextKey: string) => void;
+@@ -559,7 +561,7 @@ export function ModelScopeWarningBanner({ warnings }: { warnings?: string[] }) {
+ }
+ 
+ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
+-  onSend, onAbort, onSteer, onFollowUp, isStreaming, model, isAutoModelSelection, modelNames, modelList, modelError, modelScopeWarnings, onModelChange, modelSwitching,
++  onSend, onAbort, onCancelEdit, onSteer, onFollowUp, isStreaming, model, isAutoModelSelection, modelNames, modelList, modelError, modelScopeWarnings, onModelChange, modelSwitching,
+   defaultModel, onSetDefaultModel,
+   onCompact, onAbortCompaction, isCompacting, compactError, compactResult, toolPreset, onToolPresetChange,
+   thinkingLevel, isAutoThinkingSelection = false, onThinkingLevelChange, availableThinkingLevels, thinkingLevelMap,
+@@ -650,7 +652,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
+     replaceMessage(message: UserMessage) {
+       const ta = textareaRef.current;
+       const current = ta ? ta.value : value;
+-      if (!canRestoreUserMessage(current, attachedImagesRef.current.length, pendingImageCountRef.current)) return;
++      if (!canRestoreUserMessage(current, attachedImagesRef.current.length, pendingImageCountRef.current)) return false;
+ 
+       const restoredText = getUserMessageText(message);
+       const restoredImages = draftImagesToAttachedImages(getUserMessageDraftImages(message));
+@@ -669,6 +671,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
+         ta.style.height = "auto";
+         ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
+       });
++      return true;
+     },
+     prependText(text: string) {
+       if (!text.trim()) return;
+@@ -1762,6 +1765,18 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
+             {compactError}
+           </div>
+         )}
++        {onCancelEdit && (
++          <div role="status" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, fontSize: 12, color: "var(--text-muted)" }}>
++            <span>{t("i18n.editFromHere")}</span>
++            <button
++              type="button"
++              onClick={() => { clearInput(); onCancelEdit(); }}
++              style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", padding: "2px 6px" }}
++            >
++              {t("i18n.cancel")}
++            </button>
++          </div>
++        )}
+         {/* Image previews */}
+         {attachedImages.length > 0 && (
+           <div style={{ display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+diff --git a/components/ChatWindow.tsx b/components/ChatWindow.tsx
+index 6d71e4b..054cb15 100644
+--- a/components/ChatWindow.tsx
++++ b/components/ChatWindow.tsx
+@@ -3,7 +3,7 @@ import { registerAbortHandler } from "@/hooks/useKeyboardShortcuts";
+ import Image from "next/image";
+ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+ import { createPortal } from "react-dom";
+-import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, BlockingExtensionUiRequest, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolResultMessage, UserMessage } from "@/lib/types";
++import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, BlockingExtensionUiRequest, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolResultMessage } from "@/lib/types";
+ import { normalizeCustomPanelLines } from "@/lib/ansi";
+ import { asBracketedPaste, toTerminalKeyData } from "@/lib/terminal-input";
+ import { countToolCallBlocks, getAssistantErrorMessage, getDisplayableAssistantBlocks, hasAssistantAnswer, isAssistantTruncated, isMessageGroupAnchor, splitFinalAssistantBlocks } from "@/lib/message-display";
+@@ -245,11 +245,6 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
+     onAgentEnd?.();
+   }, [completionNotificationsEnabled, onAgentEnd]);
+ 
+-  // 稳定化 onEditContent 引用，配合 React.memo 防止历史消息重渲染
+-  const handleEditContent = useCallback((message: UserMessage) => {
+-    chatInputRef?.current?.replaceMessage(message);
+-  }, [chatInputRef]);
+-
+   const initialScrollPositionRef = useRef(searchTarget ? null : initialScrollPosition ?? null);
+   const [pendingScrollRestore, setPendingScrollRestore] = useState<Extract<ChatScrollPosition, { atBottom: false }> | null>(() => {
+     const position = initialScrollPositionRef.current;
+@@ -273,7 +268,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
+     showScrollToBottom,
+     sessionIdRef, scrollContainerRef,
+     lastUserMsgRef, promptAnchorActive,
+-    handleSend, handleAbort, handleFork, handleNavigate, handleModelChange,
++    handleSend, handleAbort, handleFork, handleEditContent, cancelEdit, handleModelChange,
+     handleCompact, handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction,
+     handleRecallQueue,
+     handleBuiltinSlashCommand,
+@@ -851,6 +846,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
+       ref={chatInputRef}
+       onSend={handleSend}
+       onAbort={handleAbort}
++      onCancelEdit={cancelEdit}
+       onSteer={agentRunning ? handleSteer : undefined}
+       onFollowUp={agentRunning ? handleFollowUp : undefined}
+       onPromptWithStreamingBehavior={agentRunning ? handlePromptWithStreamingBehavior : undefined}
+@@ -1047,8 +1043,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
+                     searchBlock={entryIds[idx] === pendingSearchScroll?.entryId ? searchBlock : undefined}
+                     onFork={sessionBusy || isNew ? undefined : handleFork}
+                     forking={forkingEntryId === entryIds[idx]}
+-                    onNavigate={sessionBusy ? undefined : handleNavigate}
+-                    onEditContent={handleEditContent}
++                    onEditContent={sessionBusy ? undefined : handleEditContent}
+                     showTimestamp={showTimestamp}
+                     prevTimestamp={idx > 0 ? (messages[idx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined}
+                     sessionId={session?.id ?? sessionIdRef.current ?? undefined}
+diff --git a/components/MessageView.tsx b/components/MessageView.tsx
+index 3bd8abb..2982f0a 100644
+--- a/components/MessageView.tsx
++++ b/components/MessageView.tsx
+@@ -193,8 +193,7 @@ interface Props {
+   searchBlock?: AssistantContentBlock;
+   onFork?: (entryId: string) => void;
+   forking?: boolean;
+-  onNavigate?: (entryId: string) => Promise<boolean>;
+-  onEditContent?: (message: UserMessage) => void;
++  onEditContent?: (message: UserMessage, entryId: string) => void;
+   showTimestamp?: boolean;
+   prevTimestamp?: number;
+   sessionId?: string;
+@@ -275,9 +274,9 @@ function haveSameRelevantToolResults(
+   return true;
+ }
+ 
+-export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, onOpenSession, entryId, searchBlock, onFork, forking, onNavigate, onEditContent, showTimestamp, prevTimestamp, sessionId, writtenFiles, onCompact, isCompacting, compactError }: Props) {
++export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, onOpenSession, entryId, searchBlock, onFork, forking, onEditContent, showTimestamp, prevTimestamp, sessionId, writtenFiles, onCompact, isCompacting, compactError }: Props) {
+   if (message.role === "user") {
+-    return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} onNavigate={onNavigate} onEditContent={onEditContent} />;
++    return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} onEditContent={onEditContent} />;
+   }
+   if (message.role === "assistant") {
+     return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} onOpenSession={onOpenSession} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} searchBlock={searchBlock} writtenFiles={writtenFiles} onCompact={onCompact} isCompacting={isCompacting} compactError={compactError} />;
+@@ -308,7 +307,6 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
+     && prev.searchBlock === next.searchBlock
+     && prev.onFork === next.onFork
+     && prev.forking === next.forking
+-    && prev.onNavigate === next.onNavigate
+     && prev.onEditContent === next.onEditContent
+     && prev.showTimestamp === next.showTimestamp
+     && prev.prevTimestamp === next.prevTimestamp
+@@ -319,15 +317,14 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
+     && prev.compactError === next.compactError;
+ });
+ 
+-function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, onNavigate, onEditContent }: {
++function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, onEditContent }: {
+   message: UserMessage;
+   cwd?: string;
+   onOpenFile?: (filePath: string, page?: number) => void;
+   entryId?: string;
+   onFork?: (entryId: string) => void;
+   forking?: boolean;
+-  onNavigate?: (entryId: string) => Promise<boolean>;
+-  onEditContent?: (message: UserMessage) => void;
++  onEditContent?: (message: UserMessage, entryId: string) => void;
+ }) {
+   const { t } = useI18n();
+   const [hovered, setHovered] = useState(false);
+@@ -387,7 +384,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
+       })}
+     </div>
+   );
+-  const canNavigate = !!entryId && !!onNavigate;
++  const canEdit = !!entryId && !!onEditContent;
+ 
+   const copyContent = () => {
+     copyText(copyTarget).then(() => {
+@@ -489,7 +486,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
+       </div>
+ 
+       {/* Bottom row: action buttons + timestamp */}
+-      {(time || canFork || canNavigate || true) && (
++      {(time || canFork || canEdit || true) && (
+         <div style={{
+           display: "flex", alignItems: "center", justifyContent: "flex-end",
+           gap: 6, marginTop: 3,
+@@ -530,18 +527,16 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
+                {copied ? t("i18n.copied") : t("i18n.copy")}
+             </button>
+           </div>
+-          {(canFork || canNavigate) && (
++          {(canFork || canEdit) && (
+             <div style={{
+               display: "flex", gap: 3,
+               opacity: (hovered || forking) ? 1 : 0,
+               pointerEvents: (hovered || forking) ? "auto" : "none",
+               transition: "opacity 0.12s",
+             }}>
+-              {canNavigate && (
++              {canEdit && (
+                 <button
+-                  onClick={() => void onNavigate!(entryId!).then((navigated) => {
+-                    if (navigated) onEditContent?.(editTarget);
+-                  })}
++                  onClick={() => onEditContent!(editTarget, entryId!)}
+                    title={t("i18n.editFromHereTitle")}
+                   style={{
+                     display: "flex", alignItems: "center", gap: 4,
+diff --git a/hooks/useAgentSession.test.mjs b/hooks/useAgentSession.test.mjs
+index aeaff2f..9c7f676 100644
+--- a/hooks/useAgentSession.test.mjs
++++ b/hooks/useAgentSession.test.mjs
+@@ -199,6 +199,19 @@ test("first user messages expose both branch actions and edit before their own e
+   assert.match(navigateSource, /await loadSession\(sid\)/);
+ });
+ 
++test("history edits move the branch only when sent, so cancel or reload keeps it", () => {
++  const sendSource = source.slice(
++    source.indexOf("  const handleSend = useCallback"),
++    source.indexOf("  const executeBash = useCallback"),
++  );
++
++  assert.doesNotMatch(chatWindowSource, /onNavigate=/);
++  assert.match(source, /if \(session\?\.id && opts\.chatInputRef\?\.current\?\.replaceMessage\(message\)\) setEdit\(entryId\)/);
++  assert.match(chatInputSource, /onClick=\{\(\) => \{ clearInput\(\); onCancelEdit\(\); \}\}/);
++  assert.match(source, /const cancelEdit = useCallback\(\(\) => setEdit\(null\)/);
++  assert.match(sendSource, /setEdit\(null\);\s*if \(!\(await handleNavigateRef\.current\?\.\(entryId\)\)\) \{\s*setEdit\(entryId\);\s*restoreSubmission\(/);
++});
++
+ test("an empty persisted session displays the model it will use on first send", () => {
+   assert.match(
+     source,
+diff --git a/hooks/useAgentSession.ts b/hooks/useAgentSession.ts
+index 8d6630a..9f2d4d1 100644
+--- a/hooks/useAgentSession.ts
++++ b/hooks/useAgentSession.ts
+@@ -20,7 +20,7 @@ import {
+   getSessionViewSnapshot,
+   setSessionViewSnapshot,
+ } from "@/lib/session-view-cache";
+-import { clearDraft, rekeyDraft, restoreDraftSubmission } from "@/lib/draft-store";
++import { clearDraft, getDraft, rekeyDraft, restoreDraftSubmission } from "@/lib/draft-store";
+ import { getPreferredToolPreset, setPreferredToolPreset } from "@/lib/tool-preset-preference";
+ import { CONFIGURED_TOOL_PRESET, getPresetFromToolNames, getToolNamesForPreset, type ToolEntry, type ToolPreset } from "@/lib/tool-presets";
+ import type { SessionStatsInfo } from "@/lib/pi-types";
+@@ -184,6 +184,10 @@ function asConcreteThinkingLevel(value?: string | null): ConcreteThinkingLevel |
+   return value as ConcreteThinkingLevel;
+ }
+ 
++// Session id -> user entry being edited. ChatWindow remounts per session, so a
++// pending edit lives here as long as that session's in-memory draft does.
++const pendingHistoryEdits = new Map<string, string>();
++
+ const PROMPT_SETTLE_INITIAL_DELAY_MS = 800;
+ const PROMPT_SETTLE_POLL_MS = 600;
+ const PROMPT_SETTLE_MAX_MS = 20_000;
+@@ -381,6 +385,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
+   const previousScrollTopRef = useRef(0);
+   const liveFollowFrameRef = useRef<number | null>(null);
+   const executeBashRef = useRef<(command: string, excludeFromContext: boolean) => Promise<void> | undefined>(undefined);
++  const handleNavigateRef = useRef<((entryId: string) => Promise<boolean>) | undefined>(undefined);
+   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+   const ensuringNewSessionRef = useRef<Promise<string | null> | null>(null);
+   const newSessionPromotedRef = useRef(false);
+@@ -509,6 +514,24 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
+     }
+   }, [newSessionDraftKey, opts.chatInputRef, resolveComposerDraftKey]);
+ 
++  // Editing a past message only prefills the composer; the branch moves when it is sent,
++  // so cancelling or reloading never hides the rest of the conversation.
++  const [editEntryId, setEditEntryId] = useState(() => {
++    const sid = session?.id;
++    if (sid && !getDraft(sid)) pendingHistoryEdits.delete(sid);
++    return (sid && pendingHistoryEdits.get(sid)) || null;
++  });
++  const setEdit = useCallback((entryId: string | null) => {
++    if (!session?.id) return;
++    if (entryId) pendingHistoryEdits.set(session.id, entryId);
++    else pendingHistoryEdits.delete(session.id);
++    setEditEntryId(entryId);
++  }, [session?.id]);
++  const handleEditContent = useCallback((message: UserMessage, entryId: string) => {
++    if (session?.id && opts.chatInputRef?.current?.replaceMessage(message)) setEdit(entryId);
++  }, [opts.chatInputRef, session?.id, setEdit]);
++  const cancelEdit = useCallback(() => setEdit(null), [setEdit]);
++
+   const sessionStats = useMemo(() => {
+     if (sessionStatsOverride) {
+       return {
+@@ -1529,6 +1552,17 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
+       restoreSubmission(message, images, composerDraftKey);
+       return;
+     }
++    if (editEntryId) {
++      // Navigate and prompt are two RPCs: a prompt rejected after navigating
++      // keeps the new leaf until the server can apply both atomically.
++      const entryId = editEntryId;
++      setEdit(null);
++      if (!(await handleNavigateRef.current?.(entryId))) {
++        setEdit(entryId);
++        restoreSubmission(message, images, composerDraftKey);
++        return;
++      }
++    }
+     const isSlashCommandPrompt = !images?.length && trimmedMessage.startsWith("/");
+ 
+     const isBashCommand = !images?.length && trimmedMessage.startsWith("!");
+@@ -1639,7 +1673,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
+       setAgentPhase(null);
+       dispatch({ type: "end" });
+     }
+-  }, [isNew, newSessionCwd, newSessionModel, session, ensureNewSession, ensureEventsConnected, promoteNewSession, waitForPromptSettlement, addNotice, cancelEventStreamGrace, closeEvents, composerDraftKey, reconcileAgentState, restoreSubmission]);
++  }, [isNew, newSessionCwd, newSessionModel, session, ensureNewSession, ensureEventsConnected, promoteNewSession, waitForPromptSettlement, addNotice, cancelEventStreamGrace, closeEvents, composerDraftKey, reconcileAgentState, restoreSubmission, editEntryId, setEdit]);
+ 
+   const executeBash = useCallback(async (command: string, excludeFromContext: boolean) => {
+     if (agentRunningRef.current || bashRunningRef.current) return;
+@@ -1725,6 +1759,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
+       return false;
+     }
+   }, [loadSession]);
++  handleNavigateRef.current = handleNavigate;
+ 
+   const handleLeafChange = useCallback(async (leafId: string | null) => {
+     if (bashRunningRef.current) return;
+@@ -2035,6 +2070,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
+   ) => {
+     const sid = sessionIdRef.current;
+     const restore = () => restoreSubmission(message, images, composerDraftKey);
++    // A pending history edit must branch when sent, never join the current run.
++    if (editEntryId) {
++      restore();
++      return;
++    }
+     if (!sid) {
+       restore();
+       addNotice({ type: "error", message: "No active session for the queued message" });
+@@ -2059,7 +2099,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
+         message: e instanceof Error ? e.message : String(e),
+       });
+     }
+-  }, [addNotice, composerDraftKey, restoreSubmission]);
++  }, [addNotice, composerDraftKey, editEntryId, restoreSubmission]);
+ 
+   const handleSteer = useCallback(async (message: string, images?: AttachedImage[]) => {
+     await sendStreamingPrompt(message, "steer", images);
+@@ -2513,6 +2553,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
+     handleCompact, handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction,
+     handleRecallQueue,
+     handleBuiltinSlashCommand,
++    handleEditContent,
++    // Present only while a history edit is pending.
++    cancelEdit: editEntryId ? cancelEdit : undefined,
+     setNoticePaused: setPausedNoticeId,
+     handleToolPresetChange, handleThinkingLevelChange, handleSetDefaultModel, handleSetDefaultThinkingLevel, loadTools, loadSlashCommands, setActiveLeafId, setData, setMessages, loadContext,
+     scrollToBottom, scrollUserMsgToTop, scrollToMessage,

@@ -1,0 +1,220 @@
+commit 2e66e400c1210123e76891f7e39db2e32bc36907
+Author: Alex Yang <agegcn@gmail.com>
+Date:   Wed Sep 30 19:34:47 2026 +0800
+
+    fix(chat): report compaction instead of "waiting for model" during auto-compaction (#1008)
+    
+    * fix(chat): report compaction instead of "waiting for model" during auto-compaction
+    
+    Auto-compaction can hold a turn for a while before the next token arrives.
+    While it runs, the chat UI reported "Waiting for model..." and offered only a
+    generic Stop button, which reads as a hang and gives the user the wrong control.
+    
+    ## What was wrong
+    
+    `agentPhase` is set once when the prompt is sent (handleSend sets
+    `waiting_model`) and nobody updated it when compaction began. `phaseLabel()`
+    only looked at the phase, so it kept reporting the stale `waiting_model`.
+    
+    The compaction control was worse. It is guarded by:
+    
+        {!isStreaming && onCompact && ( ... )}
+    
+    Manual compaction starts from an idle session, so the button is already
+    rendered and simply flips to "Stop compaction" when `isCompacting` turns true.
+    Auto-compaction starts *mid-turn*, where `sessionBusy` is already true, so the
+    button never rendered at all and only the generic Stop remained. That guard
+    also contradicted the button's own `disabled={isStreaming && !isCompacting}`,
+    which only makes sense if the button is meant to be reachable while streaming.
+    
+    Manual compaction therefore looked correct and auto-compaction did not, which
+    is why this went unnoticed.
+    
+    ## What changed
+    
+    `phaseLabel()` takes `isCompacting` and returns the compaction label ahead of
+    the phase, so the status names the activity that is actually blocking the turn.
+    The render condition accepts a missing phase while compacting.
+    
+    The compaction control guard becomes `(!isStreaming || isCompacting)`, so the
+    control is reachable mid-turn. Both actions stay available: "Stop compaction"
+    sends `abort_compaction` and skips the compaction so the turn continues, while
+    Stop sends `abort` and drops the whole turn. The now-unreachable
+    "streaming but not compacting" branches (disabled, dimmed opacity, not-allowed
+    cursor, the hover early-return) are removed rather than left as dead code.
+    
+    `phaseLabel()` moved to lib/chat-phase-label.ts so it can be unit tested;
+    importing ChatWindow.tsx in a test pulls in next/image and the whole component
+    tree, so it cannot be loaded in node.
+    
+    ## Result
+    
+    | | before | after |
+    |---|---|---|
+    | auto-compaction status | Waiting for model... | Compacting… |
+    | auto-compaction control | Stop | Stop compaction (+ Stop) |
+    | idle / manual | unchanged | unchanged |
+    
+    ## Verification
+    
+    - tsc: 0 errors from this change (the 2 remaining are pre-existing SDK drift)
+    - lint: clean
+    - tests: 1308 pass / 4 fail — the same 4 fail on upstream main
+    - 5 new tests: phase label per phase, compaction precedence, and the control
+      guard reaching mid-turn
+    
+    * fix(demo): leave the demo copies of ChatInput/ChatWindow untouched
+    
+    The demo resolves @/lib against demo/lib, which has no chat-phase-label
+    module, so importing it there breaks the Pages build. The demo keeps its
+    own copies and is synced separately (demo/README.md).
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01Q8e4GL1QSNFveKtnFfP3FZ
+    
+    ---------
+    
+    Co-authored-by: jokin <6171202@qq.com>
+    Co-authored-by: Claude <noreply@anthropic.com>
+
+diff --git a/components/ChatInput.tsx b/components/ChatInput.tsx
+index 36b614f..ad4a69d 100644
+--- a/components/ChatInput.tsx
++++ b/components/ChatInput.tsx
+@@ -2609,11 +2609,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
+               </div>
+             )}
+ 
+-            {!isStreaming && onCompact && (
++            {(!isStreaming || isCompacting) && onCompact && (
+               <div>
+                 <button
+                   onClick={isCompacting ? onAbortCompaction : onCompact}
+-                  disabled={isStreaming && !isCompacting}
+                   style={{
+                     display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+                     padding: isMobile ? "0 6px" : "8px 12px",
+@@ -2623,12 +2622,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
+                     border: "none",
+                     borderRadius: 9,
+                     color: isCompacting ? "#ef4444" : "var(--text-muted)",
+-                    cursor: (isStreaming && !isCompacting) ? "not-allowed" : "pointer",
+-                    fontSize: 12, opacity: (isStreaming && !isCompacting) ? 0.5 : 1,
++                    cursor: "pointer",
++                    fontSize: 12,
+                     transition: "background 0.12s, color 0.12s",
+                   }}
+                   onMouseEnter={(e) => {
+-                    if (isStreaming && !isCompacting) return;
+                     e.currentTarget.style.background = isCompacting ? "rgba(239,68,68,0.16)" : "var(--bg-hover)";
+                     e.currentTarget.style.color = isCompacting ? "#ef4444" : "var(--text)";
+                   }}
+diff --git a/components/ChatWindow.tsx b/components/ChatWindow.tsx
+index eb758b8..6d71e4b 100644
+--- a/components/ChatWindow.tsx
++++ b/components/ChatWindow.tsx
+@@ -16,7 +16,8 @@ import { ChatMinimap, useMessageRefs } from "./ChatMinimap";
+ import { ExtensionStatusBar } from "./ExtensionStatusBar";
+ import { AnsiText } from "./AnsiText";
+ import { useI18n } from "@/hooks/useI18n";
+-import { useAgentSession, type AgentPhase, type NoticeItem } from "@/hooks/useAgentSession";
++import { phaseLabel } from "@/lib/chat-phase-label";
++import { useAgentSession, type NoticeItem } from "@/hooks/useAgentSession";
+ import { useDragDrop } from "@/hooks/useDragDrop";
+ import { useIsMobile } from "@/hooks/useIsMobile";
+ import { useScrollbarVisibility } from "@/hooks/useScrollbarVisibility";
+@@ -68,24 +69,6 @@ interface Props {
+   playDoneSound?: () => void;
+   unlockAudio?: () => void;
+ }
+-
+-function phaseLabel(phase: AgentPhase, t: (key: string, params?: Record<string, string | number>) => string): string | null {
+-  if (phase?.kind === "running_tools") {
+-    const latest = phase.tools[phase.tools.length - 1];
+-    if (latest?.progress) {
+-      return `${t("chat.runningNamedTool", { name: latest.name })} ${latest.progress}`;
+-    }
+-    const names = phase.tools.map((t) => t.name);
+-    if (names.length === 0) return t("chat.runningTool");
+-    if (names.length === 1) return t("chat.runningNamedTool", { name: names[0] });
+-    if (names.length <= 3) return t("chat.runningTools", { names: names.join(", ") });
+-    return t("chat.runningToolsMore", { names: names.slice(0, 2).join(", "), count: names.length - 2 });
+-  }
+-  if (phase?.kind === "waiting_model") return t("chat.waitingModel");
+-  if (phase?.kind === "running_command") return t("chat.runningCommand");
+-  return null;
+-}
+-
+ const CHAT_MINIMAP_WIDTH = 36;
+ const CHAT_COLUMN_PADDING = 16;
+ 
+@@ -1215,9 +1198,9 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
+               <MessageView message={streamState.streamingMessage as AgentMessage} toolResults={toolResultsMap} isStreaming modelNames={modelNames} cwd={messageCwd} onOpenFile={onOpenFile} onOpenSession={onOpenSession} />
+             )}
+ 
+-            {agentRunning && !hasStreamingContent && agentPhase && (
++            {agentRunning && !hasStreamingContent && (agentPhase || isCompacting) && (
+               <div className="break-words py-2 text-[13px] text-text-muted">
+-                <span className="animate-[pulse_1.5s_infinite]">{phaseLabel(agentPhase, t)}</span>
++                <span className="animate-[pulse_1.5s_infinite]">{phaseLabel(agentPhase, t, isCompacting)}</span>
+               </div>
+             )}
+ 
+diff --git a/hooks/useAgentSession.test.mjs b/hooks/useAgentSession.test.mjs
+index 7aa7a06..aeaff2f 100644
+--- a/hooks/useAgentSession.test.mjs
++++ b/hooks/useAgentSession.test.mjs
+@@ -5,6 +5,7 @@ import test from "node:test";
+ const jitiSource = async (url) => (await readFile(url, "utf8")).replace(/\r\n/g, "\n");
+ const source = await jitiSource(new URL("./useAgentSession.ts", import.meta.url));
+ const chatWindowSource = await jitiSource(new URL("../components/ChatWindow.tsx", import.meta.url));
++const phaseLabelSource = await jitiSource(new URL("../lib/chat-phase-label.ts", import.meta.url));
+ const chatInputSource = await jitiSource(new URL("../components/ChatInput.tsx", import.meta.url));
+ const appShellSource = await jitiSource(new URL("../components/AppShell.tsx", import.meta.url));
+ 
+@@ -336,8 +337,11 @@ test("delegates event stream readiness and hides an empty agent phase", () => {
+   assert.match(ensureSource, /eventConnectionRef\.current!\.maintain\(sid\)/);
+   assert.match(chatWindowSource, /const hasStreamingContent = Boolean\(streamState\.streamingMessage\?\.content\.length\)/);
+   assert.match(chatWindowSource, /streamState\.isStreaming && hasStreamingContent && streamState\.streamingMessage/);
+-  assert.match(chatWindowSource, /agentRunning && !hasStreamingContent && agentPhase/);
+-  assert.match(chatWindowSource, /return null;/);
++  assert.match(chatWindowSource, /agentRunning && !hasStreamingContent && \(agentPhase \|\| isCompacting\)/);
++  // Compaction is what the user needs to know while a turn is being compacted, so it is
++  // forwarded to the label instead of letting the stream phase read as a hang.
++  assert.match(chatWindowSource, /phaseLabel\(agentPhase, t, isCompacting\)/);
++  assert.match(phaseLabelSource, /return null;/);
+ });
+ 
+ test("uses one absolute agent-readiness deadline instead of a five-second transport deadline", () => {
+@@ -456,8 +460,8 @@ test("shows the latest streamed tool execution progress in the running phase", (
+ 
+   assert.match(updateSource, /getToolExecutionProgress\(event\.partialResult\)/);
+   assert.match(updateSource, /tools: \[\.\.\.tools\.filter\([\s\S]*?, updated\]/);
+-  assert.match(chatWindowSource, /if \(latest\?\.progress\)/);
+-  assert.match(chatWindowSource, /chat\.runningNamedTool[\s\S]*latest\.progress/);
++  assert.match(phaseLabelSource, /if \(latest\?\.progress\)/);
++  assert.match(phaseLabelSource, /chat\.runningNamedTool[\s\S]*latest\.progress/);
+ });
+ 
+ test("reconnects active shell output to its streaming tool call", () => {
+@@ -674,3 +678,20 @@ test("auto-compact slash command toggles session auto-compaction", () => {
+   assert.match(source, /setAutoCompactionEnabled\(state\?\.autoCompactionEnabled \?\? true\)/);
+   assert.match(source, /setAutoCompactionEnabled\(liveState\.autoCompactionEnabled \?\? true\)/);
+ });
++
++test("keeps the compaction control reachable while a turn is auto-compacting", () => {
++  // Auto-compaction starts mid-turn, so `isStreaming` (sessionBusy) is already true. Hiding
++  // the control behind `!isStreaming` left only the generic stop button, which aborts the
++  // whole prompt instead of the compaction.
++  const controlBlock = chatInputSource.slice(
++    chatInputSource.indexOf("onClick={isCompacting ? onAbortCompaction : onCompact}") - 200,
++    chatInputSource.indexOf('aria-label={isCompacting ? t("chat.stopCompaction")'),
++  );
++
++  assert.match(controlBlock, /\{\(!isStreaming \|\| isCompacting\) && onCompact && \(/);
++  assert.doesNotMatch(controlBlock, /\{!isStreaming && onCompact && \(/);
++  // The "streaming but not compacting" state is now unreachable, so its disabled styling
++  // must be gone rather than left as dead branches.
++  assert.doesNotMatch(controlBlock, /isStreaming && !isCompacting/);
++  assert.match(controlBlock, /cursor: "pointer"/);
++});
