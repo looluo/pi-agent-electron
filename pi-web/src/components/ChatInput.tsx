@@ -1564,7 +1564,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   // disabled mid-turn, so an open menu would only show dead options.
   useEffect(() => {
     if (!isStreaming) return;
-    setThinkingDropdownOpen(false);
     setToolDropdownOpen(false);
   }, [isStreaming]);
 
@@ -2399,8 +2398,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             {onThinkingLevelChange && (
               <div ref={thinkingDropdownRef} style={{ position: "relative" }}>
                 <button
-                  onClick={() => !isStreaming && setThinkingDropdownOpen((v) => !v)}
-                  disabled={isStreaming}
+                  onClick={() => setThinkingDropdownOpen((v) => !v)}
                   title={isStreaming
                     ? t("chat.currentReasoning", { level: thinkingDisplayLabel })
                     : t("chat.changeReasoning", { level: thinkingDisplayLabel })}
@@ -2414,13 +2412,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                     border: "none",
                     borderRadius: 9,
                     color: "var(--text-muted)",
-                    cursor: isStreaming ? "not-allowed" : "pointer",
+                    cursor: "pointer",
                     fontSize: 12,
-                    opacity: isStreaming ? 0.5 : 1,
                     transition: "background 0.12s, color 0.12s",
                   }}
                   onMouseEnter={(e) => {
-                    if (isStreaming) return;
                     e.currentTarget.style.background = "var(--bg-hover)";
                     e.currentTarget.style.color = "var(--text)";
                   }}
