@@ -556,7 +556,9 @@ button.extension-widget-trigger:focus-visible {
 }
 
 :root {
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', ui-monospace, 'PingFang SC', 'Microsoft YaHei', monospace;
+  /* Keep proportional CJK fonts out of this stack: they can also supply Latin
+     glyphs and prevent the final monospace fallback from ever being used. */
+  --font-mono: 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
 
 pre, code {
