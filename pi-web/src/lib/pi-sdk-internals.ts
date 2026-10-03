@@ -324,11 +324,21 @@ function resolveMcpClientEntry(packageDir: string): string {
   return join(manifestPath, "..", entry);
 }
 
-function resolvedSdkPackageDir(cwd: string): string {
-  // Next.js runs the server with the project as cwd, and resolves externals
-  // from its build output inside the project, so both find the same package.
+function resolvedSdkPackageDir(importerUrl: string, cwd: string): string {
+  // The SDK this module's own `import "@earendil-works/pi-coding-agent"` binds
+  // to is resolved from this module's location, not from the process cwd: the
+  // Electron main process runs with cwd "/" (Finder/Dock launches), while the
+  // Next.js pi-web server runs with the project as cwd and resolves externals
+  // from its build output inside the project. Resolve the way the import does,
+  // falling back to the cwd a Next.js server would resolve from.
+  try {
+    const manifestPath = findPackageJSON(SDK_PACKAGE, importerUrl);
+    if (manifestPath) return realpathSync(join(manifestPath, ".."));
+  } catch {
+    /* fall through to the cwd resolution */
+  }
   const manifestPath = findPackageJSON(SDK_PACKAGE, pathToFileURL(join(cwd, "package.json")).href);
-  if (!manifestPath) throw new Error(`cannot resolve ${SDK_PACKAGE} from ${cwd}`);
+  if (!manifestPath) throw new Error(`cannot resolve ${SDK_PACKAGE} from ${importerUrl} or ${cwd}`);
   return realpathSync(join(manifestPath, ".."));
 }
 
@@ -397,7 +407,7 @@ export async function importPiSdkInternals(options: {
   let packageDir: string;
   try {
     packageDir = realpathSync(getPackageDir());
-    const resolvedDir = resolvedSdkPackageDir(cwd);
+    const resolvedDir = resolvedSdkPackageDir(import.meta.url, cwd);
     if (!sameRealPath(packageDir, resolvedDir)) {
       return { ok: false, reason: `${SDK_PACKAGE} at ${packageDir} is not the package Pi Web resolves (${resolvedDir})` };
     }
