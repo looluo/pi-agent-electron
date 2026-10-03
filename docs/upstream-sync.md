@@ -424,3 +424,35 @@ form; `pi:models` body gained `defaultThinkingLevel`/`savedDefaultThinkingLevel`
 imported by a component must not pull node-only SDK modules (projectTrustReloadKey
 belongs in settings-ui-helpers, not lib/project-trust; the vite build catches
 it, the test runner does not).
+
+## v0.9.3 → v0.10.0 (`5d4c0b5..6fcd7d4`) — synced 2026-10
+
+Scope note: the v0.9.3 wave had already landed everything through upstream
+`5d4c0b5`, so this sync is the last 21 commits. Census:
+`.scratch/upstream-sync-v0.10.0/commit-census.md`.
+
+| Upstream | Subject | Status | Notes |
+|---|---|---|---|
+| de91212→c8fc3c0 | Add pane value boxes + paste-format examples | ported | i18n 3-locale manual merge (our locales are a curated subset) |
+| 3eb8a9d | scope chooser in every add pane | ported | pulled ahead of b183176 (its real parent); ConfigSaveTarget shared block |
+| b183176 | name asked right after the paste | ported | McpAddServer state machine |
+| cfcf2a1 / 82e5539 | light-theme code border / codemode script in any tool box | ported | `.tool-codemode-script` css block did not exist here (n/a hunk) |
+| 8800b5a | models switch refusal text | ported | our ModelsConfig keeps local editingName (fork divergence); semantics only; its docs/adr/0004 hunk n/a |
+| 6c599e9 | codemode tool list budget | ported | `pi:tools:settings:put` payload + `codemodeInlineBudget`; test's SDK-relative URL re-based to our node_modules root |
+| 834b6b8 | tool descriptions the model is sent | ported | pi-types + rpc-manager |
+| d702bc6 | per-server exposure in Settings | ported | `set-exposure` action re-homed onto `pi:mcp:action` |
+| dba11f4 / e851b03 / 4e1edd8 | add-pane catalogs + registry label | ported | catalogHref structure |
+| 0b2d4fa | codemode takes over built-in tools | ported | `codemodeMode` on tools-settings IPC |
+| 9d5b077 / 7b3df71 | shorten codemode pane / tools panel under `only` | ported | |
+| e77a4e5 | pi 1.0.0 | ported | deps 0.99.1→1.0.0; OAuth key `mcp__<name>|<url>`; `codemode-deferred` alias; provider-auth entries; importer description/oauth rules; route auth/name refusals ride the same libs |
+| dda61b2 | Node 22 test fixes | ported | only the 2 test files this repo carries |
+| 9f8447a / 279e228 | docs(agents) | n/a | comment-only code hunks not taken |
+| 4857da3 / 96966e5 / f52fd84 | demo / Safari compat | n/a | (listed in the v0.9.3 range but restated here) |
+| 6fcd7d4 | Release v0.10.0 | n/a | version aligned locally: app 0.10.0 |
+
+Local divergence kept: `resolvedSdkPackageDir` resolves from the module
+location first (packaged Electron runs with cwd "/", commit a72c538); e77a4e5
+does not touch that path.
+
+Verification: `npm run typecheck` clean; `npm test` 1759/1765 (same 6 known
+skips); packaged mac build smoke-tested (Settings › MCP renders on SDK 1.0.0).

@@ -138,7 +138,7 @@ export interface PiBridge {
   mcpSignInPaste(flowId: string, redirectUrl: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   mcpSignInCancel(flowId: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   toolsSettingsGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
-  toolsSettingsPut(changes: { enabled?: boolean; codemode?: "automatic" | "always" }): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  toolsSettingsPut(changes: { enabled?: boolean; codemode?: "automatic" | "always"; codemodeInlineBudget?: number | null }): Promise<{ status: number; body: Record<string, unknown> | null }>;
   sessionExport(id: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
 }
 
