@@ -13,9 +13,15 @@ test("provider icons reference the sprite with a relative path", async () => {
   assert.doesNotMatch(source, /["'`]\/provider-icons\.svg/);
 });
 
-test("catppuccin file icons use a document-relative icons root", async () => {
+test("catppuccin file icons resolve the icons root against document.baseURI", async () => {
   const source = await readFile(new URL("./FileIcons.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /const CATPPUCCIN_ICONS_ROOT = "icons\/catppuccin"/);
-  assert.doesNotMatch(source, /"\/icons\/catppuccin/);
+  // Chromium resolves a url() substituted from a custom property against the
+  // stylesheet that consumes the var() — the built CSS under assets/ — so a
+  // bare relative "icons/catppuccin" 404s there, and a literal absolute
+  // "/icons/catppuccin" hits the filesystem root under file://. The icons
+  // root must be pre-resolved against the document at runtime.
+  assert.match(source, /typeof document === "undefined"\n\s*\? "icons\/catppuccin"\n\s*: new URL\("icons\/catppuccin", document\.baseURI\)\.href/);
+  assert.doesNotMatch(source, /const CATPPUCCIN_ICONS_ROOT = "(?:\/?icons\/catppuccin)"/);
+  assert.match(source, /`url\("\$\{CATPPUCCIN_ICONS_ROOT\}\/latte\/\$\{name\}\.svg"\)`/);
 });

@@ -6,6 +6,9 @@
 // release/mac-arm64 on macOS (electron-builder --dir output per platform).
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import WebSocket from "ws";
 
 const EXE = process.platform === "win32"
@@ -62,7 +65,11 @@ const imgLoads = `(src) => new Promise((res) => {
   i.src = src;
 })`;
 
-const child = spawn(EXE, [`--remote-debugging-port=${DEBUG_PORT}`], { stdio: "ignore", detached: false });
+const child = spawn(EXE, [
+  `--remote-debugging-port=${DEBUG_PORT}`,
+  // Throwaway profile: never touch a concurrently running instance's profile.
+  `--user-data-dir=${mkdtempSync(join(tmpdir(), "pi-probe-"))}`,
+], { stdio: "ignore", detached: false });
 try {
   const page = await waitForCdp();
   const { ws, call } = await connect(page.webSocketDebuggerUrl);
@@ -72,6 +79,16 @@ try {
   await evalJs(`(async () => {
     for (let i = 0; i < 40; i += 1) {
       if (document.querySelector('button[aria-label]')) return true;
+      await new Promise((res) => setTimeout(res, 250));
+    }
+    return false;
+  })()`);
+
+  // Wait for file-explorer rows too (async workspace listing) — the icon
+  // check below needs them mounted.
+  await evalJs(`(async () => {
+    for (let i = 0; i < 60; i += 1) {
+      if (document.querySelector('.catppuccin-file-icon')) return true;
       await new Promise((res) => setTimeout(res, 250));
     }
     return false;
@@ -108,13 +125,22 @@ try {
   const sprite = await evalJs(`(${imgLoads})("provider-icons.svg")`);
   check("provider-icons.svg loads (relative)", sprite.result.value === true);
 
-  // 8. catppuccin file icon var resolves + loads (relative path in inline style)
+  // 8. catppuccin file icon mask actually loads. The url() rides inside a
+  //    custom property, so Chromium resolves it against the consuming
+  //    stylesheet (assets/index-*.css) — check the COMPUTED mask url, not the
+  //    raw inline var resolved against the document (that false-positived
+  //    the earlier relative-path "fix").
   const cat = await evalJs(`(async () => {
     const el = document.querySelector('.catppuccin-file-icon');
     if (!el) return { mounted: 0 };
-    const raw = el.style.getPropertyValue('--catppuccin-icon-light').trim();
-    const src = raw.slice(4, -1);
-    const loads = await (${imgLoads})(src);
+    const cs = getComputedStyle(el);
+    const mask = (cs.maskImage && cs.maskImage !== 'none' ? cs.maskImage : cs.webkitMaskImage) || '';
+    const stripUrl = (v) => {
+      if (!v.startsWith('url(')) return v;
+      return v.slice(4, -1).replace(/^["']|["']$/g, '');
+    };
+    const src = stripUrl(mask);
+    const loads = src ? await (${imgLoads})(src) : false;
     return { mounted: document.querySelectorAll('.catppuccin-file-icon').length, src, loads };
   })()`);
   check("catppuccin file icons load", cat.result.value.mounted > 0 && cat.result.value.loads === true,

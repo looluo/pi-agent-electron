@@ -104,6 +104,19 @@ http://localhost). Same latent bug existed for `/icons/catppuccin/...` in FileIc
 original fork (file-explorer icons were broken in every packaged build). Both now document-relative;
 regression-guarded by `components/asset-paths.test.mjs` + two probe checks.
 
+Hotfix 3 (manual test catch, supersedes the FileIcons half of the hotfix above): file-explorer
+icons were STILL blank in every packaged build. Chromium resolves a `url()` token substituted
+from a custom property against the stylesheet that CONSUMES the `var()` — the built CSS under
+`assets/` — not the inline style that defines it, so the "document-relative" `icons/catppuccin/...`
+computed to the 404-ing `assets/icons/...` and the empty mask made every icon fully transparent.
+Upstream never sees this (HTTP origin + Next.js CSS paths line up); dev never sees it (Vite injects
+CSS via `<style>`, base = document). The 964635c probe check was a false positive: it Image()-
+loaded the raw inline var re-resolved against the document — which loads — instead of the
+computed mask URL — which 404s. Fixed by pre-resolving the icons root with `document.baseURI` in
+`FileIcons.tsx` (SSR/node-test guarded); `asset-paths.test.mjs` and `packaged-probe.mjs` check 8
+now assert the runtime pre-resolution and load the COMPUTED `mask-image` URL; verified 10/10 on
+the repackaged mac app with a clip-screenshot pixel check (`scripts-dev/icon-probe.mjs`).
+
 Hotfix 2 (manual inspection catch): code rendered in a proportional font everywhere — file panel
 source view, chat code blocks, `pre`/`code`, ChatInput, minimap. `--font-mono`'s first stack entry
 `var(--font-noto-mono)` references a variable only upstream defines (`next/font` in

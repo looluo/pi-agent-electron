@@ -39,18 +39,28 @@ type CatppuccinIconName =
   | "yaml"
   | "go";
 
-// Relative path: these url() tokens live in INLINE styles, so they resolve
-// against the document (index.html) — where publicDir copies the icons.
-// An absolute "/icons/..." would resolve to the filesystem root under the
-// file://-loaded production renderer and silently drop every file icon.
-const CATPPUCCIN_ICONS_ROOT = "icons/catppuccin";
+// Absolute URL resolved at runtime against the document (index.html) — where
+// publicDir copies the icons. It must NOT stay a bare relative "icons/...":
+// Chromium resolves a url() token substituted from a custom property
+// against the stylesheet that CONSUMES the var() — the built CSS under
+// assets/ — so a relative token becomes the 404-ing assets/icons/... and the
+// mask silently blanks every file icon (dev was unaffected because Vite
+// injects CSS via <style>, whose base is the document). And a literal
+// absolute "/icons/..." would hit the filesystem root under the file://-
+// loaded production renderer. Pre-resolving with document.baseURI sidesteps
+// both resolution bases. Non-DOM contexts (unit tests render to static
+// markup) get the bare relative fallback — nothing paints there.
+const CATPPUCCIN_ICONS_ROOT =
+  typeof document === "undefined"
+    ? "icons/catppuccin"
+    : new URL("icons/catppuccin", document.baseURI).href;
 
 function CatppuccinIcon({ name, size = 14 }: IconProps & { name: CatppuccinIconName }) {
   const style = {
     width: size,
     height: size,
-    "--catppuccin-icon-light": `url(${CATPPUCCIN_ICONS_ROOT}/latte/${name}.svg)`,
-    "--catppuccin-icon-dark": `url(${CATPPUCCIN_ICONS_ROOT}/mocha/${name}.svg)`,
+    "--catppuccin-icon-light": `url("${CATPPUCCIN_ICONS_ROOT}/latte/${name}.svg")`,
+    "--catppuccin-icon-dark": `url("${CATPPUCCIN_ICONS_ROOT}/mocha/${name}.svg")`,
   } as CSSProperties;
 
   return (
