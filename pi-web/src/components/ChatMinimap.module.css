@@ -8,8 +8,6 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
   background: var(--bg);
   border-left: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   box-shadow: -10px 0 26px rgba(0, 0, 0, 0.07);

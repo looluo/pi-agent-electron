@@ -291,13 +291,12 @@ body {
  * Chromium-only scrollbars. Firefox renders its native ones, which the standard
  * `scrollbar-width` / `scrollbar-color` properties would only make thinner and
  * flatter, so this block stays webkit-prefixed on purpose.
- * The 10px box is the grab target; the thumb paints 6px of it through a
- * transparent border, so a scrollbar that is easy to catch does not also read
- * as a heavy rule down the side of every panel.
+ * All visible scrollbars use a 5px box; a 1px transparent border keeps the
+ * painted thumb light without making it disappear at this narrower size.
  */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -305,11 +304,11 @@ body {
 ::-webkit-scrollbar-thumb {
   background-color: color-mix(in srgb, var(--text-dim) 45%, transparent);
   background-clip: padding-box;
-  border: 2px solid transparent;
-  border-radius: 5px;
+  border: 1px solid transparent;
+  border-radius: 3px;
 }
 /* Only ever set background-color here: the `background` shorthand resets
-   background-clip and would snap the thumb to the full 10px on hover. */
+   background-clip and would snap the thumb to the full 5px on hover. */
 ::-webkit-scrollbar-thumb:hover {
   background-color: color-mix(in srgb, var(--text-dim) 72%, transparent);
 }
@@ -320,17 +319,23 @@ body {
   background: transparent;
 }
 
-/* A touch screen scrolls by dragging the content, so the extra width buys
-   nothing there and a phone has none to spare. */
-@media (pointer: coarse) {
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-thumb {
-    border-width: 1px;
-    border-radius: 3px;
-  }
+/* Keep the 36px tab row separate from its scrollbar lane, even before overflow.
+   Top alignment prevents a native horizontal scrollbar from pushing tabs upward. */
+.file-panel-tab-header {
+  --file-tab-height: 36px;
+  --file-tab-scrollbar-height: 5px;
+}
+.file-panel-tab-list {
+  display: flex;
+  align-items: flex-start;
+  background: var(--bg-panel);
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-shrink: 0;
+  height: calc(var(--file-tab-height, 36px) + var(--file-tab-scrollbar-height, 5px));
+}
+.file-panel-tab-list::-webkit-scrollbar {
+  height: var(--file-tab-scrollbar-height, 5px);
 }
 
 /* The terminal keeps its dark surface in every theme, so --text-dim (a dark
@@ -538,7 +543,6 @@ button.extension-widget-trigger:focus-visible {
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  scrollbar-width: thin;
 }
 
 .extension-status-text {

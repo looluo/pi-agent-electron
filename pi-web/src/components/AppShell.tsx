@@ -2471,11 +2471,11 @@ export function AppShell() {
         } as React.CSSProperties}
       >
         {/* Right panel tab bar */}
-        <div style={{
+        <div className="file-panel-tab-header" style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           flexShrink: 0,
-          height: "calc(36px + env(safe-area-inset-top))",
+          height: "calc(var(--file-tab-height) + var(--file-tab-scrollbar-height) + env(safe-area-inset-top))",
           paddingTop: "env(safe-area-inset-top)",
           background: "var(--bg-panel)",
           borderBottom: "1px solid var(--border)",

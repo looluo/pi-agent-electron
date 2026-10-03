@@ -50,6 +50,8 @@ export function TerminalPanel({ tab, active, onRestart, onClosed, onCloseError }
       fontSize: 13,
       lineHeight: 1.25,
       scrollback: 8000,
+      // xterm uses a custom scrollbar rather than the global CSS scrollbar.
+      overviewRuler: { width: 5 },
       screenReaderMode: true,
       disableStdin: true,
       theme: {

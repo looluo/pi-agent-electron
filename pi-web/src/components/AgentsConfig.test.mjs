@@ -129,11 +129,11 @@ test("shows disabled controls with a gray background", () => {
   assert.match(modelSelectorSource, /background: locked \? "var\(--bg-panel\)" : "var\(--bg\)"/);
 });
 
-test("keeps a larger resize corner when system instructions need a scrollbar", () => {
+test("system instructions use the application's 5px scrollbar", () => {
   assert.match(source, /<textarea className="agents-system-prompt" aria-label=\{t\("agents\.prompt"\)\}/);
   assert.match(cssSource, /.agents-system-prompt \{[\s\S]*?scrollbar-width: auto;/);
-  assert.match(cssSource, /\.agents-system-prompt::-webkit-scrollbar \{[\s\S]*?width: 14px;[\s\S]*?height: 14px;/);
-  assert.match(cssSource, /\.agents-system-prompt::-webkit-scrollbar-thumb \{[\s\S]*?border: 5px solid transparent;/);
+  assert.match(cssSource, /\.agents-system-prompt::-webkit-scrollbar \{[\s\S]*?width: 5px;[\s\S]*?height: 5px;/);
+  assert.match(cssSource, /\.agents-system-prompt::-webkit-scrollbar-thumb \{[\s\S]*?border: 1px solid transparent;/);
 });
 
 test("duplicates any selected profile through the existing create flow", () => {

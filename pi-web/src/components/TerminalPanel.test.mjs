@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
+
+test("terminal's custom scrollbar matches the global 5px size", async () => {
+  const source = await readFile(new URL("./TerminalPanel.tsx", import.meta.url), "utf8");
+  assert.match(source, /overviewRuler: \{ width: 5 \}/);
+});
 import { setImmediate } from "node:timers/promises";
 import { createRequire } from "node:module";
 

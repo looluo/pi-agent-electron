@@ -33,14 +33,7 @@ export function TabBar({ tabs, activeTabId, onSelectTab, onCloseTab }: Props) {
   return (
     <div
       role="tablist"
-      style={{
-        display: "flex",
-        alignItems: "flex-end",
-        background: "var(--bg-panel)",
-        overflowX: "auto",
-        flexShrink: 0,
-        height: 36,
-      }}
+      className="file-panel-tab-list"
     >
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId;
@@ -79,7 +72,7 @@ export function TabBar({ tabs, activeTabId, onSelectTab, onCloseTab }: Props) {
               display: "flex",
               alignItems: "center",
               gap: 6,
-              height: 36,
+              height: "var(--file-tab-height, 36px)",
               paddingLeft: 12,
               paddingRight: 6,
               borderRight: "1px solid var(--border)",

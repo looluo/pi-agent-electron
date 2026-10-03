@@ -644,14 +644,14 @@
   min-width: 0;
 }
 
-/* Keep the native resize corner usable when the global scrollbar is present. */
+/* Use the same narrow scrollbar as the rest of the application. */
 .agents-system-prompt {
   scrollbar-width: auto;
 }
 
 .agents-system-prompt::-webkit-scrollbar {
-  width: 14px;
-  height: 14px;
+  width: 5px;
+  height: 5px;
 }
 
 .agents-system-prompt::-webkit-scrollbar-track {
@@ -660,9 +660,9 @@
 
 .agents-system-prompt::-webkit-scrollbar-thumb {
   background: var(--border);
-  border: 5px solid transparent;
+  border: 1px solid transparent;
   background-clip: padding-box;
-  border-radius: 7px;
+  border-radius: 3px;
 }
 
 .config-field-label {
