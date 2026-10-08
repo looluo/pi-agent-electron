@@ -24,7 +24,7 @@ npm run typecheck  # renderer + electron tsconfigs
 npm test           # node:test suites under pi-web/src
 ```
 
-Architecture notes live in [`electron/AGENTS.md`](electron/AGENTS.md); decisions in [`docs/adr/`](docs/adr/); vocabulary in [`CONTEXT.md`](CONTEXT.md).
+Architecture notes live in [`electron/AGENTS.md`](electron/AGENTS.md); decisions in [`docs/adr/`](docs/adr/); vocabulary in [`GLOSSARY.md`](GLOSSARY.md).
 
 ## Layout
 
