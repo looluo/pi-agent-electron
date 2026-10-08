@@ -766,7 +766,7 @@ test("a connection the host closes when it idles out is marked closed, and the n
   t.after(clearMcpStatuses);
   const docs = { command: "docs-srv" };
   const lint = { command: "lint-srv" };
-  const { host, connect, transports } = setup({ servers: [entry("docs", docs), entry("lint", lint)], idleMs: 20 });
+  const { host, connect, transports, emit } = setup({ servers: [entry("docs", docs), entry("lint", lint)], idleMs: 20 });
   const preparing = host.prepareForPrompt(new AbortController().signal);
   await delay(5);
   connect("docs");
@@ -776,12 +776,18 @@ test("a connection the host closes when it idles out is marked closed, and the n
   failure.stderr = "lint: no config\n";
   failure.drop();
   await preparing;
+  // The run the prepared prompt starts holds the connection open: servers the
+  // prompt does not wait for record "ready" a macrotask after they answer, and
+  // a loaded test run can starve that longer than the 20ms idle window.
+  emit("agent_start");
   // Other servers than `direct` ones are not waited for: their tools are ready a macrotask after they answer.
   await nextMacrotask();
   assert.equal(sessionStatus("docs", docs).closedAt, undefined);
   const failed = sessionStatus("lint", lint);
   assert.equal(failed.state, "failed");
 
+  // The run ends: the idle close this test is about is armed again.
+  emit("agent_end");
   await delay(50);
   const closed = sessionStatus("docs", docs);
   assert.equal(closed.state, "connected");
@@ -797,6 +803,8 @@ test("a connection the host closes when it idles out is marked closed, and the n
   await transports.get("docs").handshake({});
   await transports.get("lint").handshake({});
   await again;
+  // Again the run holds it open, past the macrotask the ready updates need.
+  emit("agent_start");
   // Other servers than `direct` ones are not waited for: their tools are ready a macrotask after they answer.
   await nextMacrotask();
   assert.equal(sessionStatus("docs", docs).state, "connected");

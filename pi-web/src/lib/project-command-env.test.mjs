@@ -433,7 +433,8 @@ test("direct bash updates the platform PATH key", async () => {
   const cases = [
     {
       options: { agentBinDir, baseEnvironment: { Path: "project-metadata", PATH: "/usr/bin" }, platform: "linux" },
-      expected: { Path: "project-metadata", PATH: `${agentBinDir}${delimiter}/usr/bin` },
+      // The delimiter of the platform the environment is built for (linux: ":"), not the host's.
+      expected: { Path: "project-metadata", PATH: `${agentBinDir}:/usr/bin` },
     },
     {
       options: { agentBinDir: "C:\\pi-agent\\bin", baseEnvironment: { Path: "C:\\Windows" }, platform: "win32" },

@@ -21,6 +21,24 @@ const {
   trustFreshFolderAndWrite,
   trustProject,
 } = await jiti.import("./project-trust.ts");
+const { samePath } = await jiti.import("./paths.ts");
+
+/**
+ * Whether the ancestor walk above the fixture meets a .agents/skills that is
+ * not the passed home's own. Windows keeps its temp folder under the user
+ * profile, so the walk reaches the real ~/.agents/skills there — the function
+ * counts it, for only the home passed in is excluded — and the tests follow
+ * the machine they run on (macOS keeps temp outside the profile, where the
+ * walk above meets nothing).
+ */
+function foreignSkillsFrom(folder, home) {
+  const own = join(realpathSync(home), ".agents", "skills");
+  for (let current = realpathSync(folder); ; current = dirname(current)) {
+    const skills = join(current, ".agents", "skills");
+    if (!samePath(skills, own) && existsSync(skills)) return true;
+    if (dirname(current) === current) return false;
+  }
+}
 
 async function createProjectFixture(t) {
   // Real paths: trust.json keys folders by them, and the temp folder is a link on macOS.
@@ -335,7 +353,7 @@ test("the fresh check also counts links to nothing, which existsSync skips", asy
   // .agents/skills in an ancestor makes the SDK require trust too; the home folder's own does not.
   await mkdir(join(root, ".agents", "skills"), { recursive: true });
   assert.equal(hasTrustRelevantEntries(cwd), true);
-  assert.equal(hasTrustRelevantEntries(cwd, root), false, "the user's own ~/.agents/skills");
+  assert.equal(hasTrustRelevantEntries(cwd, root), foreignSkillsFrom(cwd, root), "the user's own ~/.agents/skills");
 });
 
 test("a fresh folder is trusted first, then written, as one step", async (t) => {
@@ -469,7 +487,7 @@ test("a fresh folder that holds a project with no decision is never trusted by t
   await mkdir(join(repo, ".pi", "extensions"), { recursive: true });
   await writeFile(join(repo, ".pi", "extensions", "evil.ts"), "export default () => {};\n");
   const breadth = (folder) => freshFolderTrustBreadth(folder, { agentDir, knownFolders: [folder], home });
-  assert.equal(hasTrustRelevantEntries(work, home), false, "the folder itself needs no trust");
+  assert.equal(hasTrustRelevantEntries(work, home), foreignSkillsFrom(work, home), "the folder itself needs no trust");
   assert.deepEqual(getProjectTrustStatus(repo, agentDir), { requiresTrust: true, trusted: false, decision: null, inherited: false });
   assert.deepEqual(breadth(work), { kind: "contains-project", path: repo });
   assert.deepEqual(findInheritingTrustProject(work, agentDir), { kind: "contains-project", path: repo });

@@ -315,7 +315,7 @@ function writeAtomically(realPath: string, text: string, mode: number): void {
   try {
     writeFileSync(temp, text, { encoding: "utf8", flag: "wx", mode: 0o600, flush: true });
     chmodSync(temp, mode);
-    renameSync(temp, realPath);
+    renameReplacing(temp, realPath);
   } catch (error) {
     try {
       unlinkSync(temp);
@@ -323,6 +323,26 @@ function writeAtomically(realPath: string, text: string, mode: number): void {
       // Never created, or already renamed.
     }
     throw error;
+  }
+}
+
+/**
+ * Renames over the target, waiting out Windows antivirus and indexers, which
+ * briefly hold a just-written file, and readers that hold the target open:
+ * the rename fails with EPERM/EBUSY/EACCES until they let go. Retried with a
+ * backoff (25ms×2ⁿ, ~0.8s in total), the way installers do, after which the
+ * error is the caller's as before.
+ */
+function renameReplacing(from: string, to: string): void {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      renameSync(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (attempt >= 5 || (code !== "EPERM" && code !== "EBUSY" && code !== "EACCES")) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25 * 2 ** attempt);
+    }
   }
 }
 

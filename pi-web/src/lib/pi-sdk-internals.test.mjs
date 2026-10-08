@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { sep } from "node:path";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { moduleCache: false });
@@ -12,7 +13,8 @@ test("the internals load with the cwd a packaged Electron app has", async () => 
   assert.equal(result.ok, true, result.ok ? "" : result.reason);
   assert.equal(typeof result.McpServerConnection, "function");
   assert.equal(
-    result.packageDir.endsWith("node_modules/@earendil-works/pi-coding-agent"),
+    // Windows resolves with backslashes; the suffix is spoken in forward slashes.
+    result.packageDir.split(sep).join("/").endsWith("node_modules/@earendil-works/pi-coding-agent"),
     true,
     result.packageDir,
   );

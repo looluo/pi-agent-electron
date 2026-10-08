@@ -28,6 +28,12 @@ const {
   writeCodemodePreference,
 } = await jiti.import("./codemode-settings.ts");
 const readCodemodeInlineBudget = async (settingsPath) => (await readCodemodeSettings(settingsPath)).inlineBudget;
+
+/** POSIX-only: Windows chmod cannot make a file 0o600, so the mode is asserted only where it holds. */
+async function assertOnlyReadableByOwner(settingsPath) {
+  if (process.platform === "win32") return;
+  assert.equal((await stat(settingsPath)).mode & 0o777, 0o600);
+}
 const readCodemodeMode = async (settingsPath) => (await readCodemodeSettings(settingsPath)).mode;
 const { writePowerShellToolEnabled } = await jiti.import("./powershell-settings.ts");
 
@@ -65,12 +71,12 @@ test("writing Code mode keeps other settings and leaves an unchanged file alone"
   await assert.rejects(stat(settingsPath), { code: "ENOENT" }, "reading does not create the file");
 
   await writeFile(settingsPath, JSON.stringify({ defaultModel: "m", defaultTools: ["+grep"] }));
-  assert.equal(await writeCodemodePreference("always", settingsPath), "always");
+  assert.deepEqual(await writeCodemodePreference("always", settingsPath), "always");
   assert.deepEqual(JSON.parse(await readFile(settingsPath, "utf8")), {
     defaultModel: "m",
     defaultTools: ["+grep", "+codemode"],
   });
-  assert.equal((await stat(settingsPath)).mode & 0o777, 0o600);
+  await assertOnlyReadableByOwner(settingsPath);
 
   const before = await readFile(settingsPath, "utf8");
   await writeFile(settingsPath, before.replace(/\n\s*/g, ""));
@@ -197,7 +203,7 @@ test("writing the inline budget keeps codemode.mode and other settings, and empt
 
   assert.deepEqual(await writeCodemodeInlineBudget(1000, settingsPath), { value: 1000 });
   assert.deepEqual(JSON.parse(await readFile(settingsPath, "utf8")), { codemode: { inlineBudget: 1000 } });
-  assert.equal((await stat(settingsPath)).mode & 0o777, 0o600);
+  await assertOnlyReadableByOwner(settingsPath);
 
   await writeFile(settingsPath, JSON.stringify({ defaultModel: "m", codemode: { mode: "only", inlineBudget: 1000 } }));
   const compact = await readFile(settingsPath, "utf8");
@@ -310,7 +316,7 @@ test("writing the mode keeps codemode.inlineBudget and other settings, and \"on\
 
   assert.deepEqual(await writeCodemodeMode("only", settingsPath), { value: "only" });
   assert.deepEqual(JSON.parse(await readFile(settingsPath, "utf8")), { codemode: { mode: "only" } });
-  assert.equal((await stat(settingsPath)).mode & 0o777, 0o600);
+  await assertOnlyReadableByOwner(settingsPath);
 
   await writeFile(settingsPath, JSON.stringify({ defaultModel: "m", codemode: { mode: "only", inlineBudget: 1000 } }));
   const compact = await readFile(settingsPath, "utf8");
