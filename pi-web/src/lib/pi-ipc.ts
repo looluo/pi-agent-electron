@@ -58,7 +58,7 @@ export interface PiBridge {
   sessionsDelete(id: string): Promise<unknown>;
   sessionsFork(id: string): Promise<{ status: number; body: Record<string, unknown> }>;
   sessionUiStateGet(): Promise<{ state?: unknown }>;
-  sessionUiStatePost(request: unknown): Promise<{ state?: unknown }>;
+  sessionUiStatePost(request: unknown): Promise<{ state?: unknown; error?: string; reason?: string }>;
   sessionsAutoName(id: string, options?: { skipIfNamed?: boolean }): Promise<unknown>;
   sessionsThinking(id: string, entryId: string, blockIndex: number): Promise<unknown>;
 
