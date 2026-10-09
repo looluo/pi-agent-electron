@@ -193,6 +193,26 @@ test("a branch chip needs a linked worktree", () => {
   assert.doesNotMatch(html, /⑂/);
 });
 
+test("a fork's row keeps its name's suffix in view; other titles stay one span", () => {
+  const fork = { kind: "fork", originSessionId: "src" };
+  const named = rowMarkup(render({ rows: [sessionRow(session("copy", { name: "PR#1030 状态栏命令按钮 · 3f9a", relation: fork }))] }), "session:group:copy");
+  assert.match(named, /<span class="session-tree-title has-fork-suffix"><span class="session-tree-title-base">PR#1030 状态栏命令按钮<\/span><span class="session-tree-title-suffix"> · 3f9a<\/span><\/span><span class="session-tree-meta">/);
+  assert.match(named, /title="PR#1030 状态栏命令按钮 · 3f9a\n/, "the tooltip has the whole name");
+  // Not a fork, no suffix, or no name: the title is cut as a whole.
+  for (const extra of [
+    { name: "Weekly sync · 2024" },
+    { name: "Plan · beta", relation: fork },
+    { firstMessage: "ask · 3f9a", relation: fork },
+  ]) {
+    const html = render({ rows: [sessionRow(session("other", extra))] });
+    assert.doesNotMatch(html, /has-fork-suffix|session-tree-title-(base|suffix)/);
+    assert.match(html, /<span class="session-tree-title">[^<]+<\/span>/);
+  }
+  assert.match(cssRule(".session-tree-title.has-fork-suffix"), /^\s*display: flex;\s*$/);
+  assert.match(cssRule(".session-tree-title-base"), /min-width: 0;\s*overflow: hidden;\s*text-overflow: ellipsis;/);
+  assert.match(cssRule(".session-tree-title-suffix"), /flex: none;\s*white-space: pre;/, "never shrinks; keeps its leading space");
+});
+
 test("a running row shows the labelled spinner and cannot be archived from the row", () => {
   const html = rowMarkup(render({ rows: [sessionRow(session("run"), { status: { running: true, unread: true } })] }), "session:group:run");
   // The spinner takes the time's place at the right, and the row says it is running.
@@ -547,7 +567,22 @@ test("drag styles stay flat and themed; headers never select text or open the iO
   assert.match(cssRule(".session-tree-group.is-drag-armed"), /background: var\(--bg-selected\);/);
   assert.match(cssRule(".session-tree-drag-source"), /background: color-mix\(in srgb, var\(--bg-panel\) 55%, transparent\);[\s\S]*pointer-events: none;/);
   assert.match(cssRule(".session-tree-drop-line"), /height: 2px;\s*margin-top: -1px;[\s\S]*background: var\(--accent\);\s*pointer-events: none;/);
-  assert.match(cssRule(".session-tree-drag-ghost"), /position: absolute;[\s\S]*background: var\(--bg-panel\);[\s\S]*pointer-events: none;/);
+  // The line reads as an insertion marker: a 6px accent dot centred on its left end.
+  assert.match(cssRule(".session-tree-drop-line::before"), /content: "";\s*position: absolute;\s*top: -2px;\s*left: 0;\s*width: 6px;\s*height: 6px;\s*border-radius: 50%;\s*background: var\(--accent\);/);
+  // The ghost is a one-line pill shorter than a header (useGroupDrag reads
+  // its height to keep it clear of the pointer and the line).
+  const ghost = cssRule(".session-tree-drag-ghost");
+  assert.match(ghost, /position: absolute;[\s\S]*background: var\(--bg-panel\);[\s\S]*pointer-events: none;/);
+  assert.match(ghost, /max-width: 70%;\s*height: 22px;\s*padding: 0 10px;/);
+  assert.ok(22 < SIDEBAR_ROW_HEIGHTS.desktop.group, "shorter than a header");
+  assert.match(ghost, /font-size: 12px;[\s\S]*white-space: nowrap;\s*opacity: 0\.92;/);
+  assert.doesNotMatch(ghost, /\n\s*width: /, "as wide as the name, up to max-width");
+  assert.match(source, /<div ref=\{ghostRef\} className="session-tree-drag-ghost" aria-hidden="true">\s*<span className="session-tree-group-name">\{ghostProject\.name\}<\/span>\s*<\/div>/);
+  assert.match(cssRule(".session-tree-group-name"), /overflow: hidden;\s*text-overflow: ellipsis;/);
+  // Placed by the hook: clear of the pointer and the line, at the rows' left inset, never under the finger.
+  assert.match(dragSource, /const top = ghostTopFor\(\{/);
+  assert.match(dragSource, /pointerGap: drag\.pointerType === "mouse" \? GHOST_GAP_PX\.mouse : GHOST_GAP_PX\.touch,\s*lineGap: GHOST_LINE_GAP_PX,/);
+  assert.doesNotMatch(dragSource, /ghost\.style\.(width|height)/);
   assert.match(cssRule(".session-tree.is-group-dragging"), /cursor: grabbing;/);
   assert.match(cssRule(".session-tree.is-group-dragging *"), /cursor: grabbing;/);
   assert.match(cssRule(".sidebar-icon-up"), /transform: rotate\(-90deg\);/);

@@ -56,9 +56,15 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** The IPC answer carries the same { state } body the route responded with. */
+/** The IPC answer carries the same { state } body the route responded with;
+ * a refusal carries { error } instead, which surfaces as-is. */
 function readState(data: unknown): SessionUiState {
-  const state = data && typeof data === "object" ? normalizeSessionUiState((data as { state?: unknown }).state) : null;
+  const body = (data && typeof data === "object" ? data : {}) as { state?: unknown; error?: unknown };
+  if (body.state === undefined) {
+    if (typeof body.error === "string" && body.error) throw new Error(body.error);
+    throw new Error("Invalid session UI state response");
+  }
+  const state = normalizeSessionUiState(body.state);
   if (!state) throw new Error("Invalid session UI state response");
   return state;
 }

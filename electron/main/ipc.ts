@@ -31,6 +31,7 @@ import {
 } from "./services/workspace";
 import { openInExplorer, openInExplorerAvailable } from "./services/open-in-explorer";
 import { sessionUiStateGet, sessionUiStatePost } from "./services/session-ui-state";
+import { sessionsFork } from "./services/session-fork";
 import {
   subagentsAction,
   subagentsGetRun,
@@ -100,6 +101,7 @@ export function registerIpcHandlers(): void {
     guard(() => sessionsContext(id, options ?? {})));
   ipcMain.handle("pi:sessions:rename", (_e, id: string, name: string) => guard(() => sessionsRename(id, name)));
   ipcMain.handle("pi:sessions:delete", (_e, id: string) => guard(() => sessionsDelete(id)));
+  ipcMain.handle("pi:sessions:fork", (_e, id: string) => guard(() => sessionsFork(id)));
   ipcMain.handle("pi:sessions:ui-state:get", () => sessionUiStateGet());
   ipcMain.handle("pi:sessions:ui-state:post", (_e, request: unknown) => sessionUiStatePost(request));
   ipcMain.handle("pi:sessions:auto-name", (_e, id: string, options?: { skipIfNamed?: boolean }) => guard(() => sessionsAutoName(id, options)));

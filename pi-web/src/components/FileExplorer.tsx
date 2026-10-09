@@ -2,6 +2,7 @@
 
 import { forwardRef, useState, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { getFileIcon, FolderIcon } from "./FileIcons";
+import { DismissButton } from "./DismissButton";
 import {
   encodeFilePathForApi,
   getFileDirectory,
@@ -14,8 +15,12 @@ import type { GitFileStatus, GitFileStatusKind, GitStatusResponse } from "@/lib/
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
 import { uploadFiles, type UploadConflictStrategy, type UploadError, type UploadResponse } from "@/lib/file-upload-client";
 import { buildSearchTree, type SearchTreeNode } from "@/lib/search-tree";
+import type { FileTreeHiddenReason } from "@/lib/file-tree-visibility";
 import { useI18n } from "@/hooks/useI18n";
 type Translate = ReturnType<typeof useI18n>["t"];
+
+/** Why a listed entry is normally left out; only listings with `hidden=1` report it. */
+type HiddenReason = Exclude<FileTreeHiddenReason, "always">;
 
 interface FileEntry {
   name: string;
@@ -26,6 +31,7 @@ interface FileEntry {
   outsideLinkTarget?: string;
   /** That target contains the project or the home folder. */
   outsideLinkEncloses?: boolean;
+  hidden?: HiddenReason;
 }
 
 interface FileNode {
@@ -33,10 +39,11 @@ interface FileNode {
   fullPath: string;
   isDir: boolean;
   size: number;
-  outsideLinkTarget?: string;
-  outsideLinkEncloses?: boolean;
   children?: FileNode[];
   loaded?: boolean;
+  outsideLinkTarget?: string;
+  outsideLinkEncloses?: boolean;
+  hidden?: HiddenReason;
 }
 
 interface Props {
@@ -50,6 +57,8 @@ interface Props {
   onChangesCountChange?: (count: number) => void;
   fileSearchOpen?: boolean;
   onFileSearchOpenChange?: (open: boolean) => void;
+  /** Also list what Git ignores, dimmed (the explorer bar's switch). */
+  showHidden?: boolean;
 }
 
 export interface FileExplorerHandle {
@@ -81,9 +90,9 @@ async function responseError(res: Response, fallback: string): Promise<Error> {
   return new Error(message);
 }
 
-async function fetchEntries(dirPath: string): Promise<FileNode[]> {
+async function fetchEntries(dirPath: string, showHidden = false): Promise<FileNode[]> {
   const encoded = encodeFilePathForApi(dirPath);
-  const res = await fetch(`pifile://local/${encoded}?type=list`);
+  const res = await fetch(`pifile://local/${encoded}?type=list${showHidden ? "&hidden=1" : ""}`);
   if (!res.ok) throw await responseError(res, "Failed to load files");
   const data = await res.json() as { entries?: FileEntry[] };
   return (data.entries ?? []).map((e) => ({
@@ -91,17 +100,16 @@ async function fetchEntries(dirPath: string): Promise<FileNode[]> {
     fullPath: joinFilePath(dirPath, e.name),
     isDir: e.isDir,
     size: e.size,
-    outsideLinkTarget: e.outsideLinkTarget,
-    outsideLinkEncloses: e.outsideLinkEncloses,
     children: e.isDir ? [] : undefined,
     loaded: !e.isDir,
+    outsideLinkTarget: e.outsideLinkTarget,
+    outsideLinkEncloses: e.outsideLinkEncloses,
+    hidden: e.hidden,
   }));
 }
 
 // Sends the target the operator was shown, so a link pointed elsewhere since
 // the listing is refused instead of granting a directory nobody looked at.
-// Upstream posts to /api/files/<path>?type=allow-link; our file surface is the
-// pifile:// protocol, whose fetch support carries methods and bodies alike.
 async function allowOutsideLink(linkPath: string, target: string): Promise<void> {
   const res = await fetch(`pifile://local/${encodeFilePathForApi(linkPath)}?type=allow-link`, {
     method: "POST",
@@ -112,8 +120,9 @@ async function allowOutsideLink(linkPath: string, target: string): Promise<void>
 }
 
 async function fetchGitStatus(cwd: string): Promise<GitStatusResponse> {
+  const params = new URLSearchParams({ cwd });
   const result = await window.pi.gitStatus(cwd);
-  if (result.status !== 200 || !result.body) throw new Error(String((result.body as { error?: string } | null)?.error ?? "Failed to load Git status"));
+  if (result.status !== 200 || !result.body) throw new Error(`Failed to load Git status (HTTP ${result.status})`);
   return result.body as unknown as GitStatusResponse;
 }
 
@@ -167,25 +176,6 @@ function MentionIcon({ size = 11 }: { size?: number }) {
   );
 }
 
-function DismissButton({ onClick, title }: { onClick: () => void; title: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      style={{ width: 24, height: 24, padding: 0, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: "none", borderRadius: 4, background: "none", color: "var(--text-dim)", cursor: "pointer" }}
-      onMouseEnter={(event) => { event.currentTarget.style.color = "var(--text-muted)"; event.currentTarget.style.background = "var(--bg-hover)"; }}
-      onMouseLeave={(event) => { event.currentTarget.style.color = "var(--text-dim)"; event.currentTarget.style.background = "none"; }}
-    >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-        <path d="m6 6 12 12" />
-        <path d="m18 6-12 12" />
-      </svg>
-    </button>
-  );
-}
-
 function OutsideLinkIcon({ size = 11 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -195,6 +185,14 @@ function OutsideLinkIcon({ size = 11 }: { size?: number }) {
     </svg>
   );
 }
+
+// Listed only while the explorer shows ignored files: dimmed like VS Code's
+// ignored entries, the reason in the name's tooltip.
+const HIDDEN_ENTRY_OPACITY = 0.55;
+const HIDDEN_REASON_KEYS = {
+  ignored: "files.hiddenIgnored",
+  excluded: "files.hiddenExcluded",
+} as const satisfies Record<HiddenReason, string>;
 
 export function TreeNode({
   node,
@@ -208,6 +206,8 @@ export function TreeNode({
   highlightedPaths,
   gitStatusByPath,
   changedDirectoryPaths,
+  showHidden = false,
+  parentHidden,
   t,
 }: {
   node: FileNode;
@@ -221,9 +221,13 @@ export function TreeNode({
   highlightedPaths: Set<string>;
   gitStatusByPath: Map<string, GitFileStatus>;
   changedDirectoryPaths: Set<string>;
+  showHidden?: boolean;
+  /** Set inside a hidden directory: Git has no answer there, so its entries inherit the reason. */
+  parentHidden?: HiddenReason;
   t: Translate;
 }) {
   const open = expandedPaths.has(node.fullPath);
+  const hidden = node.hidden ?? parentHidden;
   const highlighted = highlightedPaths.has(node.fullPath);
   const normalizedPath = normalizeFilePathSlashes(node.fullPath);
   const gitStatus = gitStatusByPath.get(normalizedPath);
@@ -233,8 +237,8 @@ export function TreeNode({
   const [children, setChildren] = useState<FileNode[]>(node.children ?? []);
   const [loaded, setLoaded] = useState(node.loaded ?? false);
   const [loading, setLoading] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [hovered, setHovered] = useState(false);
   const [allowedLinkTarget, setAllowedLinkTarget] = useState<string | null>(null);
   const [allowingLink, setAllowingLink] = useState(false);
   const [allowLinkError, setAllowLinkError] = useState<string | null>(null);
@@ -256,7 +260,7 @@ export function TreeNode({
     setLoading(true);
     setLoadError(null);
     try {
-      const entries = await fetchEntries(node.fullPath);
+      const entries = await fetchEntries(node.fullPath, showHidden);
       setChildren(entries);
       setLoaded(true);
     } catch (error) {
@@ -264,7 +268,26 @@ export function TreeNode({
     } finally {
       setLoading(false);
     }
-  }, [loaded, node.fullPath]);
+  }, [loaded, node.fullPath, showHidden]);
+
+  // The switch changes what every listing holds: reload an open directory now
+  // and a collapsed one when it next opens.
+  const listedShowHiddenRef = useRef(showHidden);
+  useEffect(() => {
+    if (listedShowHiddenRef.current === showHidden) return;
+    listedShowHiddenRef.current = showHidden;
+    if (!loaded) return;
+    if (open && !pendingLinkTarget) loadChildren(true);
+    else setLoaded(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showHidden]);
+
+  // A hidden directory left expanded mounts open again when the switch comes
+  // back on, before anything listed it.
+  useEffect(() => {
+    if (node.isDir && open && !loaded && !pendingLinkTarget) loadChildren();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Re-fetch children when the tree refreshes and the directory is open.
   useEffect(() => {
@@ -335,22 +358,33 @@ export function TreeNode({
           </svg>
         )}
         {!node.isDir && <span style={{ width: 10, flexShrink: 0 }} />}
-        <span style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
+        <span style={{ flexShrink: 0, display: "flex", alignItems: "center", opacity: hidden ? HIDDEN_ENTRY_OPACITY : 1 }}>
           {node.isDir ? <FolderIcon size={14} open={open} /> : getFileIcon(node.name, 14)}
         </span>
         <span
+          data-hidden-reason={hidden}
           style={{
             fontSize: 12,
-            color: "var(--text)",
+            color: hidden ? "var(--text-muted)" : "var(--text)",
+            opacity: hidden ? HIDDEN_ENTRY_OPACITY : 1,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
             flex: 1,
           }}
-          title={node.fullPath}
+          title={hidden ? `${node.fullPath}\n${t(HIDDEN_REASON_KEYS[hidden])}` : node.fullPath}
         >
           {node.name}
         </span>
+        {!hovered && pendingLinkTarget && (
+          <span
+            title={t("files.outsideLink", { target: pendingLinkTarget })}
+            aria-label={t("files.outsideLink", { target: pendingLinkTarget })}
+            style={{ width: 14, height: 14, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)" }}
+          >
+            <OutsideLinkIcon />
+          </span>
+        )}
         {highlighted && (
           <span
             title={t("files.newlyUploaded")}
@@ -377,15 +411,6 @@ export function TreeNode({
             }}
           >
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d6a84b" }} />
-          </span>
-        )}
-        {!hovered && pendingLinkTarget && (
-          <span
-            title={t("files.outsideLink", { target: pendingLinkTarget })}
-            aria-label={t("files.outsideLink", { target: pendingLinkTarget })}
-            style={{ width: 14, height: 14, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)" }}
-          >
-            <OutsideLinkIcon />
           </span>
         )}
         {loading && (
@@ -427,23 +452,9 @@ export function TreeNode({
         )}
         {hovered && !node.isDir && (
           <a
-            href="#"
+            href={`pifile://local/${encodeFilePathForApi(node.fullPath)}?type=download`}
             download
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              void fetch(`pifile://local/${encodeFilePathForApi(node.fullPath)}?type=download`)
-                .then((res) => res.blob())
-                .then((blob) => {
-                  const objectUrl = URL.createObjectURL(blob);
-                  const anchor = document.createElement("a");
-                  anchor.href = objectUrl;
-                  anchor.download = node.name;
-                  anchor.click();
-                  URL.revokeObjectURL(objectUrl);
-                })
-                .catch(() => undefined);
-            }}
+            onClick={(e) => e.stopPropagation()}
             title={t("files.download")}
             style={{
               position: "absolute",
@@ -536,6 +547,8 @@ export function TreeNode({
               highlightedPaths={highlightedPaths}
               gitStatusByPath={gitStatusByPath}
               changedDirectoryPaths={changedDirectoryPaths}
+              showHidden={showHidden}
+              parentHidden={hidden}
               t={t}
             />
           ))}
@@ -545,7 +558,7 @@ export function TreeNode({
             </div>
           )}
           {loadError && (
-            <div role="alert" style={{ paddingLeft: 8 + (depth + 1) * 14, paddingRight: 8, fontSize: 11, color: "#f87171", wordBreak: "break-word" }}>
+            <div role="alert" style={{ paddingLeft: 8 + (depth + 1) * 14, paddingRight: 8, paddingTop: 3, paddingBottom: 3, fontSize: 11, color: "#f87171", wordBreak: "break-word" }}>
               {loadError}
             </div>
           )}
@@ -687,6 +700,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
   onChangesCountChange,
   fileSearchOpen = false,
   onFileSearchOpenChange,
+  showHidden = false,
 }, ref) {
   const { t } = useI18n();
   const [roots, setRoots] = useState<FileNode[]>([]);
@@ -728,12 +742,12 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
     setSearchLoading(true);
     setSearchError(false);
     const timer = setTimeout(() => {
-      // Electron port: typed IPC facade replaces the HTTP route.
       window.pi.fileIndex(cwd, query)
-        .then((response) => response.status === 200 && response.body
-          ? response.body as { matches?: FileIndexEntry[] }
-          : Promise.reject(new Error("Search failed")))
-        .then((data) => setSearchPaths((data.matches ?? []).filter((entry) => !entry.isDir).map((entry) => entry.path)))
+        .then((response): { matches?: FileIndexEntry[] } | null => (response.status === 200 ? response.body as unknown as { matches?: FileIndexEntry[] } : null))
+        .then((data) => {
+          if (!data) throw new Error("Search failed");
+          setSearchPaths((data.matches ?? []).filter((entry) => !entry.isDir).map((entry) => entry.path));
+        })
         .catch(() => {
           if (!controller.signal.aborted) {
             setSearchPaths([]);
@@ -868,7 +882,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
     try {
       const result = await window.pi.filesUploadCheck(cwd, files.map((file) => file.name));
       const data = (result.body ?? {}) as UploadResponse;
-      if (result.status !== 200) throw new Error(data.error ?? `Upload check failed`);
+      if (result.status !== 200) throw new Error(data.error ?? `Upload check failed (HTTP ${result.status})`);
 
       if (data.conflicts?.length) {
         setPendingConflict({
@@ -921,12 +935,12 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
     setLoading(cwdChanged);
     setError(null);
     let cancelled = false;
-    fetchEntries(cwd)
+    fetchEntries(cwd, showHidden)
       .then((entries) => { if (!cancelled) setRoots(entries); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [cwd, refreshKey, treeRefreshKey]);
+  }, [cwd, refreshKey, treeRefreshKey, showHidden]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1083,19 +1097,20 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
       )}
 
       {fileSearchOpen && (
-      <div style={{ padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>
+      <div style={{ padding: "2px 8px 6px" }}>
         <div style={{ position: "relative" }}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }}>
             <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" />
           </svg>
           <input
             ref={searchInputRef}
+            id="file-search-input"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => { if (event.key === "Escape") onFileSearchOpenChange?.(false); }}
             placeholder={t("sidebar.searchFilesPlaceholder")}
             aria-label={t("sidebar.searchFiles")}
-            style={{ width: "100%", boxSizing: "border-box", padding: "6px 24px", border: "1px solid var(--border)", borderRadius: 5, outline: "none", background: "var(--bg)", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 11 }}
+            style={{ width: "100%", boxSizing: "border-box", padding: "6px 24px", border: "1px solid var(--border)", borderRadius: 8, outline: "none", background: "var(--bg)", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 11 }}
           />
           {searchQuery && (
             <button
@@ -1199,6 +1214,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
                 highlightedPaths={highlightedPaths}
                 gitStatusByPath={gitStatusByPath}
                 changedDirectoryPaths={changedDirectoryPaths}
+                showHidden={showHidden}
                 t={t}
               />
             ))

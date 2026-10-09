@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useLayoutEffect, useState, useCallback, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type Ref, type UIEvent as ReactUIEvent } from "react";
+import { useEffect, useImperativeHandle, useLayoutEffect, useState, useCallback, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type Ref, type RefObject, type UIEvent as ReactUIEvent } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { listSessionFamilies, type SessionFamily } from "@/lib/session-family";
 import { dispatchSessionRowContextMenu } from "@/lib/session-row-context-menu";
@@ -25,13 +25,16 @@ import {
   forgetRetiredSidebarKeys,
   loadGroupExpansion,
   loadPinnedCollapsed,
+  loadShowIgnoredFiles,
   loadSidebarTab,
   saveGroupExpansion,
   savePinnedCollapsed,
+  saveShowIgnoredFiles,
   saveSidebarTab,
   type SidebarTab,
 } from "@/lib/sidebar-prefs";
 import { forkFailureMessage, sessionMenuEntries, type SessionMenuActionId } from "@/lib/sidebar-actions";
+import { splitBeforeForkSuffix } from "@/lib/session-fork-name";
 import {
   mergeProjectChoices,
   newSessionContextKey,
@@ -68,9 +71,10 @@ import {
   ChevronIcon,
   DotIcon,
   DotOutlineIcon,
+  EyeIcon,
   FolderIcon,
+  MessageIcon,
   ForkIcon,
-  MoreIcon,
   PencilIcon,
   PinIcon,
   PinOffIcon,
@@ -103,13 +107,14 @@ declare global {
   }
 }
 
-/** A 26px icon button of the files tab's explorer toolbar. */
+/** An icon button of the files tab's action row, under the project and worktree. */
 function ToolbarIconButton({
   onClick,
   title,
   disabled,
   pressed,
   done,
+  className,
   children,
 }: {
   onClick: () => void;
@@ -119,6 +124,7 @@ function ToolbarIconButton({
   pressed?: boolean;
   /** Brief confirmation after an action (refresh). */
   done?: boolean;
+  className?: string;
   children: ReactNode;
 }) {
   return (
@@ -129,11 +135,17 @@ function ToolbarIconButton({
       title={title}
       aria-label={title}
       aria-pressed={pressed}
-      className={`sidebar-tool-button${pressed ? " is-active" : ""}${done ? " is-done" : ""}`}
+      className={`sidebar-tool-button${pressed ? " is-active" : ""}${done ? " is-done" : ""}${className ? ` ${className}` : ""}`}
     >
       {children}
     </button>
   );
+}
+
+function sessionListUrl(summary: boolean, force: boolean): string {
+  if (summary) return "/api/sessions?summary=1";
+  if (force) return "/api/sessions?force=1";
+  return "/api/sessions";
 }
 
 /** How a pick in the sidebar opens a session. */
@@ -230,8 +242,7 @@ type SessionRow = Extract<SidebarRow, { kind: "session" }>;
 /** The one popup menu of the sidebar; kept here, above the virtualized rows. */
 type SidebarMenuState =
   | { kind: "row"; row: SessionRow; anchor: SidebarMenuAnchor; opener: HTMLElement | null }
-  | { kind: "group"; project: SidebarProject; olderCount: number; anchor: SidebarMenuAnchor; opener: HTMLElement }
-  | { kind: "view"; anchor: SidebarMenuAnchor; opener: HTMLElement };
+  | { kind: "group"; project: SidebarProject; olderCount: number; anchor: SidebarMenuAnchor; opener: HTMLElement };
 
 const UNREAD_SESSIONS_STORAGE_KEY = "pi-web:unread-session-ids";
 const LAST_CUSTOM_CWD_STORAGE_KEY = "pi-web:last-custom-cwd";
@@ -349,97 +360,32 @@ function focusIfHidden(target: HTMLElement | null): void {
 }
 
 /** A menu placed below (or above) a button, lined up with one of its edges. */
+/**
+ * How much of the toolbar row's labels fit (`data-fit`, app/sidebar.css):
+ * all (0), New's + alone (1), the tabs' icons too (2). Measured, not a fixed
+ * width, since the labels' widths change with the language; on the row
+ * itself, before paint, again whenever it resizes or `labels` change.
+ */
+function useHeaderFit(ref: RefObject<HTMLElement | null>, labels: string): void {
+  useLayoutEffect(() => {
+    const header = ref.current;
+    if (!header) return;
+    const fit = () => {
+      for (const level of ["0", "1", "2"]) {
+        header.dataset.fit = level;
+        if (header.scrollWidth <= header.clientWidth) return;
+      }
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, [ref, labels]);
+}
+
 function buttonAnchor(element: HTMLElement, align: "start" | "end"): SidebarMenuAnchor {
   const rect = element.getBoundingClientRect();
   return { kind: "rect", rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }, align };
-}
-
-const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-
-function useScramble(target: string, running: boolean): string {
-  const [display, setDisplay] = useState(target);
-  const frameRef = useRef<number | null>(null);
-  const iterRef = useRef(0);
-
-  useEffect(() => {
-    if (!running) {
-      setDisplay(target);
-      return;
-    }
-    iterRef.current = 0;
-    const totalFrames = target.length * 4;
-
-    const step = () => {
-      iterRef.current += 1;
-      const progress = iterRef.current / totalFrames;
-      const resolved = Math.floor(progress * target.length);
-
-      setDisplay(
-        target
-          .split("")
-          .map((char, i) => {
-            if (char === " ") return " ";
-            if (i < resolved) return char;
-            return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
-          })
-          .join("")
-      );
-
-      if (iterRef.current < totalFrames) {
-        frameRef.current = requestAnimationFrame(step);
-      } else {
-        setDisplay(target);
-      }
-    };
-
-    frameRef.current = requestAnimationFrame(step);
-    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
-  }, [target, running]);
-
-  return display;
-}
-
-function PiWebTitle() {
-  const [showVersion, setShowVersion] = useState(false);
-  const [scrambling, setScrambling] = useState(false);
-  const revertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const target = showVersion ? `${process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0"}p${process.env.NEXT_PUBLIC_PI_VERSION ?? "0.0.0"}` : "Pi Web";
-  const display = useScramble(target, scrambling);
-
-  const triggerScramble = useCallback((toVersion: boolean) => {
-    setShowVersion(toVersion);
-    setScrambling(true);
-    setTimeout(() => setScrambling(false), (toVersion ? 6 : 8) * 4 * (1000 / 60) + 100);
-  }, []);
-
-  const handleClick = useCallback(() => {
-    if (revertTimerRef.current) clearTimeout(revertTimerRef.current);
-
-    const next = !showVersion;
-    triggerScramble(next);
-
-    if (next) {
-      revertTimerRef.current = setTimeout(() => triggerScramble(false), 3000);
-    }
-  }, [showVersion, triggerScramble]);
-
-  useEffect(() => () => { if (revertTimerRef.current) clearTimeout(revertTimerRef.current); }, []);
-
-  return (
-    <button
-      onClick={handleClick}
-      style={{
-        background: "none", border: "none", padding: 0, cursor: "default",
-        fontWeight: 700, fontSize: 15, letterSpacing: "-0.01em",
-        color: showVersion ? "var(--accent)" : "var(--text)",
-        fontFamily: "var(--font-mono)",
-        minWidth: "6ch",
-      }}
-    >
-      {display}
-    </button>
-  );
 }
 
 export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSession, controlRef, onNewSessionContextChange, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onOpenFile, onOpenTerminal, explorerRefreshKey, onExplorerRefresh, onAtMention, onAtMentions, onBackgroundTaskDone, onRunningSessionIdsChange, onSessionsChange }: Props) {
@@ -474,6 +420,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const [sessionSearchQuery, setSessionSearchQuery] = useState("");
   const [changesCount, setChangesCount] = useState(0);
   const [changesCollapsed, setChangesCollapsed] = useState(true);
+  const [showIgnoredFiles, setShowIgnoredFiles] = useState(false);
   const [explorerRefreshDone, setExplorerRefreshDone] = useState(false);
   const [fileManager, setFileManager] = useState<FileManagerAvailability | null>(null);
   const [fileManagerError, setFileManagerError] = useState<string | null>(null);
@@ -560,6 +507,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
 
   // The explorer's scroll container is always mounted (empty without a cwd),
   // so the scrollbar hook stays bound to the element that is on the page.
+  const headerRef = useRef<HTMLDivElement>(null);
   const explorerScrollRef = useRef<HTMLDivElement>(null);
   useScrollbarVisibility(explorerScrollRef);
 
@@ -573,6 +521,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     const groups = loadGroupExpansion();
     if (Object.keys(groups).length > 0) setGroupExpansion(groups);
     if (loadPinnedCollapsed()) setPinnedCollapsed(true);
+    if (loadShowIgnoredFiles()) setShowIgnoredFiles(true);
     forgetRetiredSidebarKeys();
   }, []);
 
@@ -1297,9 +1246,9 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     saveGroupExpansion(next);
   }, [currentProjectKey, groupExpansion, projectByKey]);
 
-  const showToast = useCallback((message: string, actions: SidebarToastAction[] = []) => {
+  const showToast = useCallback((message: string, actions: SidebarToastAction[] = [], tail?: string) => {
     toastIdRef.current += 1;
-    setToast({ id: toastIdRef.current, message, actions });
+    setToast({ id: toastIdRef.current, message, ...(tail ? { tail } : {}), actions });
   }, []);
 
   /** The selected tab: focus has somewhere to go when the control it was on is gone. */
@@ -1615,13 +1564,9 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     forkingIdsRef.current.add(source.id);
     const selectedAtClick = selectedSessionIdRef.current;
     try {
-      const res = await fetch(`/api/sessions/${encodeURIComponent(source.id)}/fork`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      const data = await res.json().catch(() => ({})) as { session?: SessionInfo; code?: string; error?: string };
-      if (!res.ok || !data.session) {
+      const res = await window.pi.sessionsFork(source.id);
+      const data = (res.body ?? {}) as { session?: SessionInfo; code?: string; error?: string };
+      if (res.status !== 200 || !data.session) {
         const { key, params } = forkFailureMessage(data.code, data.error ?? `HTTP ${res.status}`);
         showToast(t(key, params));
         // Deleted elsewhere (the pi CLI, another window): its row goes.
@@ -1629,7 +1574,12 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         return;
       }
       const forked = data.session;
-      const message = t("sidebar.forkedToast", { title: shortTitle(sessionRowTitle(forked), TOAST_TITLE_MAX) });
+      // The copy's name ends in the suffix that tells it from its source: the
+      // toast's ellipsis cuts the name before it, never the suffix. A copy
+      // left unnamed (its source had no title) is cut as other toasts are.
+      const title = sessionRowTitle(forked);
+      const { head: message, tail } = splitBeforeForkSuffix(t("sidebar.forkedToast", { title }), title)
+        ?? { head: t("sidebar.forkedToast", { title: shortTitle(title, TOAST_TITLE_MAX) }), tail: undefined };
       if (selectedSessionIdRef.current !== selectedAtClick) {
         // Another session was opened meanwhile: the user stays there. The
         // copy waits in its group, unread (so it shows beyond the group's
@@ -1637,11 +1587,11 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         setAllSessions((current) => (current.some((session) => session.id === forked.id) ? current : [forked, ...current]));
         setUnreadSessionIds((prev) => new Set(prev).add(forked.id));
         void loadSessions();
-        showToast(message, [{ id: "open", label: t("sidebar.open"), onClick: () => openForkedRef.current(forked, null) }]);
+        showToast(message, [{ id: "open", label: t("sidebar.open"), onClick: () => openForkedRef.current(forked, null) }], tail);
         return;
       }
       openForkedRef.current(forked, row.key);
-      showToast(message);
+      showToast(message, [], tail);
     } catch (error) {
       showToast(t("sidebar.forkFailed", { error: error instanceof Error ? error.message : String(error) }));
     } finally {
@@ -1740,7 +1690,6 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     });
   }, [selectedCwd, startNewSessionIn]);
 
-
   const closeMenu = useCallback(() => setMenu(null), []);
 
   // After a right-click menu, focus returns to where it was unless the chosen
@@ -1771,28 +1720,36 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     handleSelectSessionFromList(family.root);
   }, [handleSelectSessionFromList]);
 
-  // Expanding or collapsing a group only changes the view: it never moves the
-  // cwd (picking a project does that, in the files tab).
-  const handleToggleGroup = useCallback((projectKey: string) => {
-    const project = projectByKey.get(projectKey);
-    if (!project) return;
-    const next = { ...groupExpansion };
-    // Re-inserted, so the choice counts as the newest one kept.
-    delete next[projectKey];
-    next[projectKey] = !isGroupExpanded(project, groupExpansion);
-    setGroupExpansion(next);
-    saveGroupExpansion(next);
-  }, [groupExpansion, projectByKey]);
-
-  const setAllGroupsExpanded = (expanded: boolean) => {
+  // Every group at once: a group's menu, or Alt+click on its header.
+  // Re-inserted, so the choices count as the newest ones kept.
+  const setAllGroupsExpanded = useCallback((expanded: (project: SidebarProject) => boolean) => {
     const next = { ...groupExpansion };
     for (const project of model.projects) {
       delete next[project.key];
-      next[project.key] = expanded;
+      next[project.key] = expanded(project);
     }
     setGroupExpansion(next);
     saveGroupExpansion(next);
-  };
+  }, [groupExpansion, model.projects]);
+
+  // Expanding or collapsing a group only changes the view: it never moves the
+  // cwd (picking a project does that, in the files tab). With Alt, every
+  // group follows the one clicked, as in a Finder outline.
+  const handleToggleGroup = useCallback((projectKey: string, all: boolean) => {
+    const project = projectByKey.get(projectKey);
+    if (!project) return;
+    const expanded = !isGroupExpanded(project, groupExpansion);
+    if (all) {
+      setAllGroupsExpanded(() => expanded);
+      return;
+    }
+    const next = { ...groupExpansion };
+    // Re-inserted, so the choice counts as the newest one kept.
+    delete next[projectKey];
+    next[projectKey] = expanded;
+    setGroupExpansion(next);
+    saveGroupExpansion(next);
+  }, [groupExpansion, projectByKey, setAllGroupsExpanded]);
 
   const handleShowMore = useCallback((key: string) => {
     setMoreShown((prev) => showMoreFamilies(prev, key));
@@ -1889,6 +1846,24 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         icon: <FolderIcon />,
         onSelect: () => openProjectInFiles(project),
       },
+      { type: "separator", id: "separator-groups" },
+      {
+        // This project open, every other one closed.
+        type: "item",
+        id: "collapse-others",
+        label: t("sidebar.collapseOtherGroups"),
+        icon: <ChevronIcon />,
+        disabled: model.projects.every((other) => isGroupExpanded(other, groupExpansion) === (other.key === project.key)),
+        onSelect: () => setAllGroupsExpanded((other) => other.key === project.key),
+      },
+      {
+        type: "item",
+        id: "expand-all",
+        label: t("sidebar.expandAllGroups"),
+        icon: <ChevronIcon className="sidebar-icon-down" />,
+        disabled: model.projects.every((other) => isGroupExpanded(other, groupExpansion)),
+        onSelect: () => setAllGroupsExpanded(() => true),
+      },
       { type: "separator", id: "separator" },
       {
         type: "item",
@@ -1900,20 +1875,6 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
       },
     ];
   };
-
-  const viewMenuItems = (): SidebarMenuItem[] => [
-    { type: "item", id: "collapse-all", label: t("sidebar.collapseAllGroups"), icon: <ChevronIcon />, onSelect: () => setAllGroupsExpanded(false) },
-    { type: "item", id: "expand-all", label: t("sidebar.expandAllGroups"), icon: <ChevronIcon className="sidebar-icon-down" />, onSelect: () => setAllGroupsExpanded(true) },
-    { type: "separator", id: "separator" },
-    {
-      type: "item",
-      id: "view-archived",
-      label: t("sidebar.viewArchived", { count: model.archivedCount }),
-      icon: <ArchiveIcon />,
-      disabled: model.archivedCount === 0,
-      onSelect: openArchiveView,
-    },
-  ];
 
   let menuTitle: string | undefined;
   let menuLabel = "";
@@ -1930,10 +1891,6 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     // The project as the tree has it now: pinned, unpinned or moved in another window while the menu is open.
     menuItems = groupMenuItems(projectByKey.get(menu.project.key) ?? menu.project, menu.olderCount);
     menuWidth = 264;
-  } else if (menu?.kind === "view") {
-    menuTitle = t("sidebar.viewOptions");
-    menuLabel = menuTitle;
-    menuItems = viewMenuItems();
   }
 
   // The tree row (and the button in it) that the open menu belongs to.
@@ -1978,6 +1935,11 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   } as const;
 
   const explorerCwd = selectedCwd ?? selectedCwdProp ?? null;
+  // The toolbar row's search button searches the files on the files tab:
+  // the head has no search of its own.
+  const searchesFiles = sidebarTab === "files" && explorerCwd !== null;
+  // What the toolbar row's widths depend on (the chosen tab's label is bolder).
+  useHeaderFit(headerRef, [t("sidebar.tabSessions"), t("sidebar.tabFiles"), t("sidebar.new"), explorerCwd && changesCount > 0 ? changesCount : "", sidebarTab].join("\n"));
   const archivedCount = model.archivedCount;
 
   return (
@@ -2000,45 +1962,10 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
           onSelect={(path) => void commitCustomPath(path)}
         />
       )}
-      {/* Header */}
-      <div className="sidebar-header">
-        <PiWebTitle />
-        <div className="sidebar-header-actions">
-          <button
-            type="button"
-            className="sidebar-new-button"
-            onClick={handleNewSession}
-            disabled={!selectedCwd}
-            title={selectedCwd ? t("sidebar.newSessionTitle", { path: selectedCwd }) : t("sidebar.selectProject")}
-          >
-            <PlusIcon size={12} />
-            {t("sidebar.new")}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              // Search belongs to the sessions tab: from the files tab it opens there.
-              if (sidebarTab !== "sessions") {
-                switchTab("sessions");
-                setSessionSearchOpen(true);
-                return;
-              }
-              setSessionSearchOpen((open) => !open);
-            }}
-            title={t("sidebar.toggleSessionSearch")}
-            aria-label={t("sidebar.toggleSessionSearch")}
-            aria-expanded={sessionSearchOpen}
-            aria-controls="session-search-input"
-            className={`sidebar-search-toggle${sessionSearchOpen ? " is-active" : ""}`}
-          >
-            <SearchIcon size={16} />
-          </button>
-        </div>
-      </div>
-
-      {/* Sessions | Files. Only the two tabs are the tablist; the view
-          options button beside them is not a tab. */}
-      <div className="sidebar-tabs">
+      {/* One toolbar row, in the cells of the chat's top bar beside it (its
+          line continues that bar's): Sessions | Files, then New and the
+          search of the tab in view. Only the two tabs are the tablist. */}
+      <div ref={headerRef} className="sidebar-header">
         <div className="sidebar-tabs-list" role="tablist" aria-label={t("sidebar.tabsLabel")}>
           <button
             ref={sessionsTabRef}
@@ -2052,7 +1979,8 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             onClick={() => switchTab("sessions")}
             onKeyDown={handleTabKeyDown}
           >
-            {t("sidebar.tabSessions")}
+            <MessageIcon size={13} className="sidebar-tab-icon" />
+            <span className="sidebar-tab-label">{t("sidebar.tabSessions")}</span>
           </button>
           <button
             ref={filesTabRef}
@@ -2067,24 +1995,46 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             onClick={() => switchTab("files")}
             onKeyDown={handleTabKeyDown}
           >
-            {t("sidebar.tabFiles")}
+            <FolderIcon size={13} className="sidebar-tab-icon" />
+            <span className="sidebar-tab-label">{t("sidebar.tabFiles")}</span>
             {explorerCwd && changesCount > 0 && <span className="sidebar-tab-count" aria-hidden="true">{changesCount}</span>}
           </button>
         </div>
-        <span className="sidebar-tabs-spacer" />
-        {sidebarTab === "sessions" && (
-          <button
-            type="button"
-            className={`sidebar-icon-button${menu?.kind === "view" ? " is-active" : ""}`}
-            title={t("sidebar.viewOptions")}
-            aria-label={t("sidebar.viewOptions")}
-            aria-haspopup="menu"
-            aria-expanded={menu?.kind === "view"}
-            onClick={(event) => setMenu({ kind: "view", anchor: buttonAnchor(event.currentTarget, "end"), opener: event.currentTarget })}
-          >
-            <MoreIcon size={14} />
-          </button>
-        )}
+        <span className="sidebar-header-spacer" />
+        <button
+          type="button"
+          className="sidebar-new-button"
+          onClick={handleNewSession}
+          disabled={!selectedCwd}
+          title={selectedCwd ? t("sidebar.newSessionTitle", { path: selectedCwd }) : t("sidebar.selectProject")}
+        >
+          <PlusIcon size={12} />
+          <span className="sidebar-new-label">{t("sidebar.new")}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            // The search of the tab in view: the files tab's searches its
+            // files; without a folder there, it opens the sessions tab's.
+            if (searchesFiles) {
+              setFileSearchOpen((open) => !open);
+              return;
+            }
+            if (sidebarTab !== "sessions") {
+              switchTab("sessions");
+              setSessionSearchOpen(true);
+              return;
+            }
+            setSessionSearchOpen((open) => !open);
+          }}
+          title={searchesFiles ? t("sidebar.searchFiles") : t("sidebar.toggleSessionSearch")}
+          aria-label={searchesFiles ? t("sidebar.searchFiles") : t("sidebar.toggleSessionSearch")}
+          aria-expanded={searchesFiles ? fileSearchOpen : sessionSearchOpen}
+          aria-controls={searchesFiles ? "file-search-input" : "session-search-input"}
+          className={`sidebar-search-toggle${(searchesFiles ? fileSearchOpen : sessionSearchOpen) ? " is-active" : ""}`}
+        >
+          <SearchIcon size={16} />
+        </button>
       </div>
 
       {/* Sessions tab: every project's sessions, or the archive */}
@@ -2167,92 +2117,103 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         className="sidebar-panel"
         onScrollCapture={rememberScroll}
       >
-        {/* The project and worktree in use: the same picker as the bar above a
-            fresh composer, as two rows. Its worktree row shows only at the
-            top of a git checkout (repo subdirs keep their own project
-            identity, so switching from them would jump projects); a disabled
-            row says why elsewhere. The list comes from the loaded project
-            (not just its forCwd), so switching between worktrees of one
-            project keeps the row instead of flickering while it refetches. */}
-        <ProjectWorktreePicker
-          handleRef={filesPickerRef}
-          layout="stacked"
-          context={newSessionContext ?? { project: null, worktrees: null, currentWorktreePath: null, projects: projectChoiceList }}
-          mobile={isMobile}
-          label={t("sidebar.projectAndWorktree")}
-          placeholder={initialSessionId && !restoredRef.current ? "" : t("sidebar.selectProject")}
-          homeDir={homeDir}
-          projectActivity={projectActivity}
-          worktreeHint={inactiveWorktreeSelector}
-          newWorktreeTitle={t("sidebar.createWorktreeTitle")}
-          onPick={handleFilesPick}
-          onUseDefaultDirectory={() => { void handleDefaultCwd(); }}
-          onOpenFolder={handleCustomPathClick}
-          onRefreshWorktrees={refreshWorktrees}
-          onCreateWorktree={createWorktree}
-          onRemoveWorktree={handleRemoveWorktree}
-        />
-
-        {explorerCwd && (
-          <div className="sidebar-files-toolbar">
-            <span className="sidebar-files-title">{t("files.explorer")}</span>
-            <ToolbarIconButton
-              onClick={() => { void openInFileManager(); }}
-              disabled={fileManagerUnavailable}
-              title={fileManagerUnavailable
-                ? t(fileManager?.reason === "remote" ? "sidebar.openInExplorerRemoteOnly" : "sidebar.openInExplorerUnsupported")
-                : fileManagerLabel}
-            >
-              <FolderIcon size={13} />
-            </ToolbarIconButton>
-            {onOpenTerminal && (
+        {/* One head: the folder in use, then what is done with it. The
+            buttons are the head's, not the picker's: its group names only
+            the project and worktree. */}
+        <div className="sidebar-files-head">
+          {/* The project and worktree in use: the same picker as the bar above a
+              fresh composer, as two boxes. Its worktree box shows only at the
+              top of a git checkout (repo subdirs keep their own project
+              identity, so switching from them would jump projects); a disabled
+              box says why elsewhere. The list comes from the loaded project
+              (not just its forCwd), so switching between worktrees of one
+              project keeps the box instead of flickering while it refetches. */}
+          <ProjectWorktreePicker
+            handleRef={filesPickerRef}
+            layout="stacked"
+            context={newSessionContext ?? { project: null, worktrees: null, currentWorktreePath: null, projects: projectChoiceList }}
+            mobile={isMobile}
+            label={t("sidebar.projectAndWorktree")}
+            placeholder={initialSessionId && !restoredRef.current ? "" : t("sidebar.selectProject")}
+            homeDir={homeDir}
+            projectActivity={projectActivity}
+            worktreeHint={inactiveWorktreeSelector}
+            newWorktreeTitle={t("sidebar.createWorktreeTitle")}
+            onPick={handleFilesPick}
+            onUseDefaultDirectory={() => { void handleDefaultCwd(); }}
+            onOpenFolder={handleCustomPathClick}
+            onRefreshWorktrees={refreshWorktrees}
+            onCreateWorktree={createWorktree}
+            onRemoveWorktree={handleRemoveWorktree}
+          />
+          {/* Always the same buttons in the same places: the changes view
+              stays (disabled) while there is nothing changed, so nothing
+              moves as an agent edits files and commits. The folder's
+              actions first, the tree's two views last (what it lists, then
+              its changes); its search is the header's search button. */}
+          {explorerCwd && (
+            <div className="sidebar-files-actions" role="group" aria-label={t("sidebar.fileActions")}>
+              {onOpenTerminal && (
+                <ToolbarIconButton
+                  onClick={() => onOpenTerminal(explorerCwd)}
+                  title={t("terminal.open")}
+                >
+                  <TerminalIcon size={14} />
+                </ToolbarIconButton>
+              )}
               <ToolbarIconButton
-                onClick={() => onOpenTerminal(explorerCwd)}
-                title={t("terminal.open")}
+                onClick={() => { void openInFileManager(); }}
+                disabled={fileManagerUnavailable}
+                title={fileManagerUnavailable
+                  ? t(fileManager?.reason === "remote" ? "sidebar.openInExplorerRemoteOnly" : "sidebar.openInExplorerUnsupported")
+                  : fileManagerLabel}
               >
-                <TerminalIcon size={13} />
+                <FolderIcon size={14} />
               </ToolbarIconButton>
-            )}
-            {changesCount > 0 && (
+              <ToolbarIconButton
+                onClick={() => fileExplorerRef.current?.openUploadPicker()}
+                disabled={explorerUploadBusy}
+                title={t("sidebar.uploadFilesTitle")}
+              >
+                <UploadIcon size={14} />
+              </ToolbarIconButton>
+              <ToolbarIconButton
+                onClick={() => {
+                  if (onExplorerRefresh) onExplorerRefresh();
+                  else setExplorerKey((k) => k + 1);
+                  setExplorerRefreshDone(true);
+                  if (explorerRefreshTimerRef.current) clearTimeout(explorerRefreshTimerRef.current);
+                  explorerRefreshTimerRef.current = setTimeout(() => setExplorerRefreshDone(false), 2000);
+                }}
+                title={t("sidebar.refreshExplorer")}
+                done={explorerRefreshDone}
+              >
+                {explorerRefreshDone ? <CheckIcon size={14} /> : <RefreshIcon size={14} />}
+              </ToolbarIconButton>
+              <ToolbarIconButton
+                onClick={() => {
+                  const next = !showIgnoredFiles;
+                  setShowIgnoredFiles(next);
+                  saveShowIgnoredFiles(next);
+                }}
+                title={t("sidebar.showIgnoredFiles")}
+                pressed={showIgnoredFiles}
+                className="sidebar-files-views-start"
+              >
+                <EyeIcon size={14} />
+              </ToolbarIconButton>
               <ToolbarIconButton
                 onClick={() => setChangesCollapsed((v) => !v)}
+                disabled={changesCount === 0}
                 title={t("sidebar.changedFiles", { count: changesCount })}
-                pressed={!changesCollapsed}
+                pressed={changesCount > 0 && !changesCollapsed}
               >
-                <ChangesIcon size={13} />
+                <ChangesIcon size={14} />
               </ToolbarIconButton>
-            )}
-            <ToolbarIconButton
-              onClick={() => {
-                setFileSearchOpen((open) => !open);
-              }}
-              title={t("sidebar.searchFiles")}
-              pressed={fileSearchOpen}
-            >
-              <SearchIcon size={13} />
-            </ToolbarIconButton>
-            <ToolbarIconButton
-              onClick={() => fileExplorerRef.current?.openUploadPicker()}
-              disabled={explorerUploadBusy}
-              title={t("sidebar.uploadFilesTitle")}
-            >
-              <UploadIcon size={13} />
-            </ToolbarIconButton>
-            <ToolbarIconButton
-              onClick={() => {
-                if (onExplorerRefresh) onExplorerRefresh();
-                else setExplorerKey((k) => k + 1);
-                setExplorerRefreshDone(true);
-                if (explorerRefreshTimerRef.current) clearTimeout(explorerRefreshTimerRef.current);
-                explorerRefreshTimerRef.current = setTimeout(() => setExplorerRefreshDone(false), 2000);
-              }}
-              title={t("sidebar.refreshExplorer")}
-              done={explorerRefreshDone}
-            >
-              {explorerRefreshDone ? <CheckIcon size={13} /> : <RefreshIcon size={13} />}
-            </ToolbarIconButton>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
+
         {explorerCwd && fileManagerErrorMessage && (
           <div role="alert" className="sidebar-files-error">
             <span className="sidebar-files-error-text">{fileManagerErrorMessage}</span>
@@ -2275,6 +2236,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
               onChangesCountChange={setChangesCount}
               fileSearchOpen={fileSearchOpen}
               onFileSearchOpenChange={setFileSearchOpen}
+              showHidden={showIgnoredFiles}
             />
           )}
         </div>

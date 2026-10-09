@@ -1,24 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createJiti } from "jiti";
 
 // The hook runs against the React stand-in and a scripted fetch: each request
 // takes the next answer in line.
 const shimPath = fileURLToPath(new URL("./__fixtures__/react-hook-shim.mjs", import.meta.url));
 const jiti = createJiti(import.meta.url, { tsconfigPaths: true, alias: { react: shimPath } });
-const { renderHook } = await import(shimPath);
+// Windows: a dynamic import takes a URL, never a bare drive-letter path.
+const { renderHook } = await import(pathToFileURL(shimPath).href);
 const { useSessionUiState } = await jiti.import("./useSessionUiState.ts");
 
 const answers = [];
 const requests = [];
-globalThis.fetch = async (url, init = {}) => {
-  const method = init.method ?? "GET";
-  requests.push({ url, method, body: init.body === undefined ? undefined : JSON.parse(init.body) });
+const asBody = (result) => (typeof result?.json === "function" ? result.json() : Promise.reject(result));
+// Fork: the hook rides the sessionUiState IPC; the scripted transport keeps
+// upstream's request/error semantics (JSON bodies, Response-like answers).
+globalThis.window = { pi: { sessionUiStateGet: async () => {
+  requests.push({ url: "ui-state", method: "GET" });
   const answer = answers.shift();
-  if (!answer) throw new Error(`no answer scripted for ${method} ${url}`);
-  return answer();
-};
+  if (!answer) throw new Error("no answer scripted for GET");
+  return Promise.resolve(answer()).then(asBody, (rejection) => Promise.reject(rejection));
+}, sessionUiStatePost: async (request) => {
+  requests.push({ url: "ui-state", method: "POST", body: request });
+  const answer = answers.shift();
+  if (!answer) throw new Error("no answer scripted for POST");
+  return Promise.resolve(answer()).then(asBody, (rejection) => Promise.reject(rejection));
+} } };
 
 const json = (status, body) => () => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const served = (state) => json(200, { state });

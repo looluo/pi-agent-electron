@@ -15,6 +15,7 @@ import {
   type RefObject,
 } from "react";
 import type { SessionFamily } from "@/lib/session-family";
+import { splitForkSuffix } from "@/lib/session-fork-name";
 import type { ProjectMovePosition } from "@/lib/session-ui-state-shared";
 import {
   PINNED_MORE_KEY,
@@ -99,7 +100,8 @@ export interface SessionTreeProps {
   /** Row whose menu is open: kept mounted, its ⋯ shown pressed. A group row's key works too. */
   activeMenuRowKey: string | null;
   onSelectFamily(family: SessionFamily): void;
-  onToggleGroup(projectKey: string): void;
+  /** `all` (Alt+click): every group follows this one. */
+  onToggleGroup(projectKey: string, all: boolean): void;
   /** Reveal SHOW_MORE_STEP more families; key is a projectKey or PINNED_MORE_KEY. */
   onShowMore(key: string): void;
   /** Back to the base limit; key is a projectKey or PINNED_MORE_KEY. */
@@ -372,9 +374,10 @@ export function SessionTree(props: SessionTreeProps): ReactNode {
   const hasTreeRows = rows.some((row) => row.kind === "session" || row.kind === "group");
   const showEmpty = !loading && !error && emptyLabel !== null && !hasTreeRows;
   // While dragging: the group's block is dimmed in place (groups never fold
-  // up under the pointer), a line marks the drop, and a ghost of the header
-  // follows the pointer outside the scroll box, where it cannot make room
-  // to scroll into.
+  // up under the pointer), a line marks the drop, and a pill with the
+  // project's name follows the pointer, clear of it and of the line
+  // (useGroupDrag places it), outside the scroll box, where it cannot make
+  // room to scroll into.
   const dragSource = dragView?.source ?? null;
   const dropLineY = dragView?.drop?.lineY ?? null;
   const ghostProject = dragView?.phase === "dragging"
@@ -543,6 +546,9 @@ const SessionRowView = memo(function SessionRowView({
   }
 
   const branch = root.isWorktree && root.branch ? root.branch : null;
+  // A fork named by the sidebar's Fork: the ellipsis cuts its title before
+  // the suffix that tells it from its source, never the suffix.
+  const forkTitle = root.name && root.relation?.kind === "fork" ? splitForkSuffix(root.name) : null;
   const details = root.detailsPending ? "…" : t("sidebar.messagesCount", { count: root.messageCount });
   const tooltip = `${title}\n${details} · ${formatRelativeTime(root.modified, locale, nowDate)}${branch ? ` · ⑂ ${branch}` : ""}`;
 
@@ -581,7 +587,14 @@ const SessionRowView = memo(function SessionRowView({
       onContextMenu={(event) => handlers.current.onRowContextMenu(row, event)}
     >
       <button type="button" className="session-tree-main" title={tooltip} aria-current={status.selected ? "true" : undefined}>
-        <span className="session-tree-title">{title}</span>
+        {forkTitle ? (
+          <span className="session-tree-title has-fork-suffix">
+            <span className="session-tree-title-base">{forkTitle.base}</span>
+            <span className="session-tree-title-suffix">{forkTitle.suffix}</span>
+          </span>
+        ) : (
+          <span className="session-tree-title">{title}</span>
+        )}
         {branch && <span className="session-tree-branch">⑂ {branch}</span>}
         <span className={`session-tree-meta${metaState}`} title={metaTitle}>{meta}</span>
       </button>
@@ -818,7 +831,7 @@ const GroupRowView = memo(function GroupRowView({
         className="session-tree-group-toggle"
         aria-expanded={expanded}
         title={project.root}
-        onClick={() => handlers.current.onToggleGroup(project.key)}
+        onClick={(event) => handlers.current.onToggleGroup(project.key, event.altKey)}
       >
         <span className="session-tree-group-name">{project.name}</span>
         {project.pinned && <PinIcon size={10} className="session-tree-group-pin" label={t("sidebar.pinnedProject")} />}
