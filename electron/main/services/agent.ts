@@ -4,7 +4,8 @@ import { readFile } from "fs/promises";
 import { tmpdir } from "node:os";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { allowFileRoot } from "@/lib/file-access";
-import { getRpcSession, getRunningRpcSessionIds, setRpcSessionTools, startRpcSession, type AgentSessionWrapper } from "@/lib/rpc-manager";
+import { getCompletionNotificationSuppressedRpcSessionIds, getRpcSession, getRunningRpcSessionIds, setRpcSessionTools, startRpcSession, type AgentSessionWrapper } from "@/lib/rpc-manager";
+import { getSessionUiStateRevision } from "@/lib/session-ui-state";
 import { getSessionListVersion, invalidateSessionListCache, resolveSessionPath } from "@/lib/session-reader";
 import { renewSessionLivenessLeases } from "@/lib/session-liveness";
 import {
@@ -218,10 +219,14 @@ export function agentLease(sessionId: string): { renewed: number } {
 }
 
 /** Port of app/api/agent/running (GET). */
-export function agentRunningIds(): { sessionListVersion: number; runningSessionIds: string[] } {
+export function agentRunningIds(): { sessionListVersion: number; runningSessionIds: string[]; completionNotificationSuppressedSessionIds?: string[]; sessionUiStateRevision: number | null } {
   return {
     sessionListVersion: getSessionListVersion(),
     runningSessionIds: getRunningRpcSessionIds(),
+    completionNotificationSuppressedSessionIds: getCompletionNotificationSuppressedRpcSessionIds(),
+    // sessionUiStateRevision (null when unreadable) tells the sidebar its pins and
+    // archive changed elsewhere; it costs one stat while the file is unchanged.
+    sessionUiStateRevision: getSessionUiStateRevision(),
   };
 }
 

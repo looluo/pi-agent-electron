@@ -6,6 +6,7 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { computeSessionRevision } from "@/lib/session-revision";
 import { toSummaryTree } from "@/lib/project-tree";
 import { abortSubagent, getRpcSession, getRpcSessionInfos, startRpcSession } from "@/lib/rpc-manager";
+import { forgetSessionUiState } from "@/lib/session-ui-state";
 import {
   buildSessionContext,
   getSessionEntries,
@@ -382,6 +383,12 @@ export async function sessionsDelete(id: string) {
     }
   }
   for (const deletedId of deletedSessionIds) invalidateSessionPathCache(deletedId);
+  // Drop their pins and archive times; best effort, the files are already gone.
+  try {
+    await forgetSessionUiState(deletedSessionIds);
+  } catch (error) {
+    console.warn(`[pi-web] could not clear the sidebar state of deleted session ${id}: ${error instanceof Error ? error.message : String(error)}`);
+  }
   invalidateSessionListCache();
   return { ok: true as const };
 }

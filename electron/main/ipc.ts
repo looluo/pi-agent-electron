@@ -29,6 +29,8 @@ import {
   worktreesGet,
   worktreesPost,
 } from "./services/workspace";
+import { openInExplorer, openInExplorerAvailable } from "./services/open-in-explorer";
+import { sessionUiStateGet, sessionUiStatePost } from "./services/session-ui-state";
 import {
   subagentsAction,
   subagentsGetRun,
@@ -98,6 +100,8 @@ export function registerIpcHandlers(): void {
     guard(() => sessionsContext(id, options ?? {})));
   ipcMain.handle("pi:sessions:rename", (_e, id: string, name: string) => guard(() => sessionsRename(id, name)));
   ipcMain.handle("pi:sessions:delete", (_e, id: string) => guard(() => sessionsDelete(id)));
+  ipcMain.handle("pi:sessions:ui-state:get", () => sessionUiStateGet());
+  ipcMain.handle("pi:sessions:ui-state:post", (_e, request: unknown) => sessionUiStatePost(request));
   ipcMain.handle("pi:sessions:auto-name", (_e, id: string, options?: { skipIfNamed?: boolean }) => guard(() => sessionsAutoName(id, options)));
   ipcMain.handle("pi:sessions:thinking", (_e, id: string, entryId: string, blockIndex: number) =>
     guard(() => sessionsThinking(id, entryId, blockIndex)));
@@ -185,6 +189,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("pi:cwd:browse", (_e, path: string | undefined) => cwdBrowse(path));
   ipcMain.handle("pi:default-cwd", () => defaultCwd());
   ipcMain.handle("pi:home", () => home());
+  ipcMain.handle("pi:open-in-explorer:get", () => openInExplorerAvailable());
+  ipcMain.handle("pi:open-in-explorer:post", (_e, cwd: string) => openInExplorer(cwd));
   ipcMain.handle("pi:project-trust:get", (_e, cwd: string | null) => projectTrustGet(cwd));
   ipcMain.handle("pi:project-trust:post", (_e, cwd: unknown) => projectTrustPost(cwd));
   ipcMain.handle("pi:worktrees:get", (_e, cwd: string | null) => worktreesGet(cwd));

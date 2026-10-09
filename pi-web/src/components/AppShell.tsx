@@ -807,8 +807,28 @@ export function AppShell() {
     }
   }, [activeFileTabId, invalidateWorkspaceRestore, router, isMobile, selectedSession, switchProjectFileTabs]);
 
-  const handleNewSession = useCallback((sessionId: string, cwd: string) => {
+  const handleNewSession = useCallback((sessionId: string, cwd: string, projectKey?: string | null) => {
     invalidateWorkspaceRestore();
+    // Leaving a fresh composer for another cwd parks its draft there, as a
+    // workspace switch does; New in the same cwd still starts empty.
+    const activeDraftKey = activeNewSessionDraftKeyRef.current;
+    const activeDraftCwd = newSessionCwd ?? (selectedSession === null ? activeCwd : null);
+    if (activeDraftKey && activeDraftCwd && activeDraftCwd !== cwd) {
+      rekeyDraft(activeDraftKey, parkedNewSessionDraftKey(activeDraftCwd));
+    }
+    // Adopt the target project before the sidebar reports its cwd, as an
+    // explicit session pick does: a new session in another project (a group's
+    // "+" in the sidebar) closes the previous project's file tabs. Without a
+    // key (Ctrl+Alt+N) the current cwd keeps its project.
+    const targetProject = projectKey ?? (cwd === activeCwd ? activeProjectKeyRef.current : null) ?? cwd;
+    if (activeProjectKeyRef.current !== targetProject) {
+      switchProjectFileTabs(activeProjectKeyRef.current, targetProject);
+      if (!activeFileTabId || activeFileTabId.startsWith("file:")) {
+        setActiveFileTabId(null);
+        setRightPanelOpen(false);
+      }
+    }
+    activeProjectKeyRef.current = targetProject;
     const draftKey = `new:${sessionId}:${cwd}`;
     rekeyDraft(parkedNewSessionDraftKey(cwd), draftKey);
     activeNewSessionDraftKeyRef.current = draftKey;
@@ -823,8 +843,8 @@ export function AppShell() {
     setSystemInfoLoading(false);
     setActiveTopPanel(null);
     if (isMobile) setSidebarOpen(false);
-    router.replace("/", { scroll: false });
-  }, [invalidateWorkspaceRestore, router, isMobile]);
+    router.replace(`?cwd=${encodeURIComponent(cwd)}`, { scroll: false });
+  }, [activeCwd, activeFileTabId, invalidateWorkspaceRestore, isMobile, newSessionCwd, router, selectedSession, switchProjectFileTabs]);
 
   // Global keyboard shortcuts (handles Esc, Ctrl+Alt+N etc.)
   useGlobalKeyboardShortcuts({

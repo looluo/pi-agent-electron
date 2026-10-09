@@ -46,7 +46,7 @@ export interface PiBridge {
   agentCommand(sessionId: string, command: unknown): Promise<IpcResult<unknown>>;
   agentState(sessionId: string): Promise<{ running: boolean; state?: unknown }>;
   agentLease(sessionId: string): Promise<{ renewed: number }>;
-  agentRunning(): Promise<{ runningSessionIds: string[] }>;
+  agentRunning(): Promise<{ sessionListVersion?: number; runningSessionIds: string[]; completionNotificationSuppressedSessionIds?: string[]; sessionUiStateRevision?: number | null }>;
   agentBashOutput(sessionId: string, path: string): Promise<IpcResult<{ output: string }>>;
   agentBashOutputDownload(sessionId: string, path: string): Promise<IpcResult<{ output: string }>>;
   subscribeAgentEvents(sessionId: string, onFrame: (frame: AgentEventFrame) => void): () => void;
@@ -56,6 +56,8 @@ export interface PiBridge {
   sessionsContext(id: string, options?: { leafId?: string; deferThinking?: boolean; deferMedia?: boolean; tail?: number; before?: string }): Promise<unknown>;
   sessionsRename(id: string, name: string): Promise<unknown>;
   sessionsDelete(id: string): Promise<unknown>;
+  sessionUiStateGet(): Promise<{ state?: unknown }>;
+  sessionUiStatePost(request: unknown): Promise<{ state?: unknown }>;
   sessionsAutoName(id: string, options?: { skipIfNamed?: boolean }): Promise<unknown>;
   sessionsThinking(id: string, entryId: string, blockIndex: number): Promise<unknown>;
 
@@ -83,6 +85,8 @@ export interface PiBridge {
   cwdBrowse(path?: string): Promise<unknown>;
   defaultCwd(): Promise<{ cwd?: string; error?: string }>;
   home(): Promise<{ home?: string }>;
+  openInExplorerAvailable(): Promise<{ supported: boolean; reason: string | null; platform: string }>;
+  openInExplorer(cwd: string): Promise<{ ok: boolean; status: number; error?: string }>;
   projectTrustGet(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
   projectTrustPost(cwd: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   worktreesGet(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
