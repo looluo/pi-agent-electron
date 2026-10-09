@@ -7,6 +7,7 @@ import {
 import {
   inspectUploadTargets,
   parseUploadConflictStrategy,
+  replaceUploadFile,
   validateUploadFileNames,
 } from "@/lib/file-upload";
 
@@ -134,9 +135,12 @@ export async function filesUpload(
 
     try {
       if (conflictSet.has(file.name)) {
-        fs.unlinkSync(destination);
+        // Keep the old entry intact until its complete replacement can be renamed over it
+        // (a failed write must not lose the previous file).
+        replaceUploadFile(destination, Buffer.from(file.bytes));
+      } else {
+        fs.writeFileSync(destination, file.bytes, { flag: "wx" });
       }
-      fs.writeFileSync(destination, file.bytes, { flag: "wx" });
       uploaded.push(file.name);
     } catch (error) {
       errors.push({ name: file.name, error: error instanceof Error ? error.message : String(error) });

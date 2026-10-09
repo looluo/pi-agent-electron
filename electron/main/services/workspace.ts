@@ -5,7 +5,7 @@ import path from "path";
 import { homedir } from "os";
 import { isAbsolute, resolve } from "path";
 import { stat as statAsync } from "fs/promises";
-import { statSync, mkdirSync, type Stats } from "fs";
+import { statSync, mkdirSync, lstatSync, type Stats } from "fs";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
   allowFileRoot,
@@ -276,6 +276,24 @@ export async function gitStatus(cwd: string | null) {
 }
 
 /** GET /api/git/diff?cwd=&path= */
+/** A deleted file (or its parent) may be absent: authorize the nearest existing entry, never past a dangling link or an access error. */
+function isDiffPathAllowed(filePath: string, allowedRoots: Set<string>): boolean {
+  if (filePath.includes(".." + path.sep) || filePath.startsWith(".." + path.sep)) return false;
+  let candidate = filePath;
+  while (isFilePathAllowed(candidate, allowedRoots)) {
+    try {
+      lstatSync(candidate);
+      return isExistingFilePathAllowed(candidate, allowedRoots);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") return false;
+    }
+    const parent = path.dirname(candidate);
+    if (parent === candidate) return false;
+    candidate = parent;
+  }
+  return false;
+}
+
 export async function gitDiff(cwd: string | null, filePath: string | null) {
   const trimmedCwd = cwd?.trim() ?? "";
   const trimmedPath = filePath?.trim() ?? "";
@@ -290,6 +308,11 @@ export async function gitDiff(cwd: string | null, filePath: string | null) {
     return { status: 403, body: { error: "Access denied" } };
   }
   if (!isExistingFilePathAllowed(trimmedCwd, allowedRoots)) {
+    return { status: 403, body: { error: "Access denied" } };
+  }
+  // Check the target as well as cwd: a directory junction inside a repository
+  // can otherwise expose an outside file through an apparently local path.
+  if (!isDiffPathAllowed(trimmedPath, allowedRoots)) {
     return { status: 403, body: { error: "Access denied" } };
   }
   return { status: 200, body: await getGitFileDiff(trimmedCwd, trimmedPath) as unknown as Record<string, unknown> };
