@@ -68,7 +68,7 @@ test("built-in subagents persist their selected resource policy", async () => {
 test("running snapshots expose sessions with suppressed completion notifications", async () => {
   const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
   // The web routes were re-homed onto the sessions IPC service (sessions.ts).
-  const sessionsServiceSource = await readFile(new URL("../../../../electron/main/services/sessions.ts", import.meta.url), "utf8");
+  const sessionsServiceSource = await readFile(new URL("../../../electron/main/services/sessions.ts", import.meta.url), "utf8");
   const snapshotSource = source.slice(
     source.indexOf("export function getCompletionNotificationSuppressedRpcSessionIds"),
     source.indexOf("// ----------------------------------------------------------------------------", source.indexOf("export function getCompletionNotificationSuppressedRpcSessionIds")),
