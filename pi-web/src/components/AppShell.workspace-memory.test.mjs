@@ -275,6 +275,9 @@ test("the composer's bar moves the fresh composer's draft and model picks instea
     chatInputRef: { current: null },
     newSessionChoicesRef: { current: choices },
     carriedNewSessionChoices: null,
+    // Fork-only callbacks referenced by the ported bodies' dependency arrays.
+    handleRightPanelClose() {},
+    switchProjectFileTabs: () => { context.fileTabs = []; },
     isMobile: false,
     activeCwd: "/p1",
     activeFileTabId: fileTab.id,
