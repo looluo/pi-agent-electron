@@ -52,6 +52,9 @@ contextBridge.exposeInMainWorld("pi", {
     ipcRenderer.invoke("pi:sessions:context", id, options),
   sessionsRename: (id: string, name: string) => ipcRenderer.invoke("pi:sessions:rename", id, name),
   sessionsDelete: (id: string) => ipcRenderer.invoke("pi:sessions:delete", id),
+  sessionUiStateGet: () => ipcRenderer.invoke("pi:sessions:ui-state:get"),
+  sessionUiStatePost: (request: unknown) => ipcRenderer.invoke("pi:sessions:ui-state:post", request),
+  sessionsFork: (id: string) => ipcRenderer.invoke("pi:sessions:fork", id),
   sessionsAutoName: (id: string, options?: { skipIfNamed?: boolean }) => ipcRenderer.invoke("pi:sessions:auto-name", id, options),
   sessionsThinking: (id: string, entryId: string, blockIndex: number) =>
     ipcRenderer.invoke("pi:sessions:thinking", id, entryId, blockIndex),
@@ -113,6 +116,8 @@ contextBridge.exposeInMainWorld("pi", {
   cwdBrowse: (path?: string) => ipcRenderer.invoke("pi:cwd:browse", path),
   defaultCwd: () => ipcRenderer.invoke("pi:default-cwd"),
   home: () => ipcRenderer.invoke("pi:home"),
+  openInExplorerAvailable: () => ipcRenderer.invoke("pi:open-in-explorer:get"),
+  openInExplorer: (cwd: string) => ipcRenderer.invoke("pi:open-in-explorer:post", cwd),
   projectTrustGet: (cwd: string | null) => ipcRenderer.invoke("pi:project-trust:get", cwd),
   projectTrustPost: (cwd: unknown) => ipcRenderer.invoke("pi:project-trust:post", cwd),
   worktreesGet: (cwd: string | null) => ipcRenderer.invoke("pi:worktrees:get", cwd),
