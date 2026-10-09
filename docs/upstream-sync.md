@@ -469,3 +469,49 @@ does not touch that path.
 
 Verification: `npm run typecheck` clean; `npm test` 1759/1765 (same 6 known
 skips); packaged mac build smoke-tested (Settings › MCP renders on SDK 1.0.0).
+
+## v0.10.0 → v0.11.0 (`6fcd7d4..c9e1513`) — synced 2026-10
+
+47 non-merge commits (44 with source; e2e/docs/release excluded); census:
+`.scratch/upstream-sync-v0.11.0/commit-census.md`. SDK 1.0.0 → 1.1.0.
+The dominant theme is the sidebar redesign (17-commit chain).
+
+| Upstream | Subject | Status | Notes |
+|---|---|---|---|
+| 6f2b4f0/038057f/1333c80 | subagent resume validation, write() file text, status-bar command buttons | ported | 1333c80 css re-unified at 5px (local guard) |
+| 981e270 | widenable extension dialogs | ported | exposed a v0.9.3-wave gap: 70470ca (dialog/panel queues) backfilled first |
+| 1ddaf11 | failed-upload preservation + git-diff junction authorization | ported | re-homed onto files-upload service + workspace gitDiff |
+| 7aaeff9 | models-only provider catalog protocol | ported | |
+| 5d5a69e/17bbadb/496611c | subagent profile skills/extensions, SDK turn limits | ported | |
+| 81e5b03/e2ea7da | markdown table wrap, code backgrounds | ported | |
+| 9182fdf | context-usage refresh between calls | ported | VM tests scripted onto the agentState IPC |
+| fdeea87 | desktop sidebar after mobile resize | ported | keeps PR #548 panel reset; VM stubs follow |
+| c3c5c6f | drag-drop uploads + mentions | ported | file-upload-client backed by the upload IPC |
+| a136267/6d4d6b5 | extension providers, CJK emphasis | ported | remark-cjk-friendly dep |
+| a096af3/012e805 | delete navigation, undoable mentions | ported | delete keeps cwd query per upstream |
+| 86d94e2 | custom font families/weights | ported | --font-mono-default keeps the CJK-safe stack; font-noto-mono stays 0 |
+| **2e87ddb** | sidebar redesign anchor (Sessions\|Files, groups/pins/archive, ui-state store) | ported | **pi:sessions:ui-state:get/:post** + **pi:open-in-explorer:get/:post** new IPC; agentRunning carries sessionUiStateRevision; sessionsDelete forgets ui-state |
+| fb34df9..76bdc57 (14) | sidebar chain: pagination, fork row menu (+ **pi:sessions:fork**), project order, shared picker, brand row, toolbar flatten | ported | endgame: chain files taken at upstream state + transport re-homed; NewSessionContextBar/fork naming included |
+| 2f6a0a9 | git-ignored files toggle, dimmed with reason | ported | pifile:// ?type=list gains &hidden=1 |
+| **86dea26** | pi SDK 1.1.0 | ported | MCP project overrides (`set-in-project` on pi:mcp:action), sign-in signal, agent_settled.aborted, durationMs tool cards, azure icon; mcp libs at upstream state |
+| f722a5d/0f30627 | settings scroll/title | ported | |
+| 80cd55e | SMIL spinner → CSS | folded | superseded by the redesign chain (files taken at upstream state) |
+| 99b2c3f/2e76e9a/37d4045/cf3ebfb | docs/e2e/sw/preview-secrets | n/a | no HTTP/PWA surface |
+| 1e294b0 | next 16.3.8 + audit fix | partial | next n/a; remark-cjk-friendly covers the shared dep |
+| c9e1513 | Release v0.11.0 | n/a | local version aligned 0.11.0 |
+
+Backfill beyond this range: **70470ca** (extension dialog/panel queues,
+recorded as ported in the v0.9.3 ledger but never landed — its absence
+hung concurrent permission extensions), **a0c00f3-era DismissButton**
+(missed in the v0.10.0 wave).
+
+Verification: typecheck clean (renderer + electron); `npm test` 2144
+tests, 2128 pass, 0 fail (15 skips, 1 known Defender rename flake);
+packaged build probe below.
+
+Windows-specific notes from this sync (see also the two earlier fix
+commits): dynamic `import(absolutePath)` needs pathToFileURL in jiti
+tests; the uiState hook test scripts the IPC transport with upstream's
+error semantics (Response adapters); wholesale-taken test files need
+`app/*.css` paths remapped and `@/hooks/useI18n` imported without the
+`.tsx` extension (jiti dual-instance).
