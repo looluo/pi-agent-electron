@@ -93,7 +93,7 @@ test("closes top-bar dropdowns when the file panel expands to full width", () =>
     source,
     /const handleFilePanelMaximize = useCallback\(\(event: React\.MouseEvent<HTMLButtonElement>\) => \{[\s\S]*?setActiveTopPanel\(null\);\s*setRightPanelMaximized\(true\);/,
   );
-  assert.match(source, /onClick=\{handleFilePanelMaximize\}/);
+  assert.match(source, /restore \? handleFilePanelRestore : handleFilePanelMaximize/);
 });
 
 test("a sidebar pick closes the phone's drawer unless it asks to stay open (the sidebar's Fork)", () => {
