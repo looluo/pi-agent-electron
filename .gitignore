@@ -6,3 +6,4 @@ tests/.user-data/
 tests/.artifacts/
 .DS_Store
 *.tsbuildinfo
+*.tmp.mjs
