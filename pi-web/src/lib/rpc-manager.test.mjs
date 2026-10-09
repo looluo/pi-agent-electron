@@ -18,6 +18,66 @@ test("RPC session startup preloads extension-registered providers before restori
   assert.doesNotMatch(startupSource, /await createAgentSession\(/);
 });
 
+test("only normal sessions load the codemode, tool-search, and mcp built-ins", async () => {
+  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
+  const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
+
+  assert.match(
+    startupSource,
+    /const builtins = subagentResources \|\| chatOnly\s*\? undefined\s*: await createPiWebBuiltinExtensions\(\{ agentDir \}\);/,
+  );
+  // Spread only into the normal-session factories, after the chat-only and subagent branches.
+  assert.equal(startupSource.match(/\.\.\.\(builtins\?\.extensions \?\? \[\]\)/g)?.length, 1);
+  assert.ok(
+    startupSource.indexOf("...(builtins?.extensions") > startupSource.indexOf("CHAT_ONLY_RESOURCE_LOADER_OPTIONS, extensionFactories"),
+  );
+  // The Read-only policy for MCP tools rides along with the MCP extension.
+  assert.match(startupSource, /\.\.\.\(builtins\?\.extensions \?\? \[\]\),\s*createReadOnlyMcpPolicyExtension\(\),/);
+  // The wrapper connects the host's servers before a prompt starts a run.
+  assert.match(startupSource, /\.\.\.\(builtins\?\.mcpHost \? \{ mcpHost: builtins\.mcpHost \} : \{\}\),/);
+});
+
+test("built-in subagents persist their selected resource policy", async () => {
+  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
+  const subagentSource = await readFile(new URL("./subagent-runtime.ts", import.meta.url), "utf8");
+  const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
+
+  assert.match(subagentSource, /SessionManager\.create\(parent\.cwd, undefined, \{ parentSession: parent\.sessionFile \}\)/);
+  assert.match(subagentSource, /appendCustomEntry\(SUBAGENT_META_TYPE/);
+  assert.match(subagentSource, /appendCustomEntry\(SUBAGENT_RESULT_TYPE/);
+  assert.match(subagentSource, /dependencies\.registerSession\(inner, \{/);
+  assert.match(subagentSource, /noExtensions: !profile\.loadExtensions/);
+  assert.match(subagentSource, /loadSkills: profile\.loadSkills/);
+  assert.match(subagentSource, /excludeTools: \[\.\.\.SUBAGENT_CONTROL_TOOL_NAMES\]/);
+  assert.match(subagentSource, /withSubagentExtensionTools\(profile\.tools, extensionToolNames\)/);
+  assert.match(subagentSource, /resourceSnapshot:/);
+  assert.match(startupSource, /readSubagentSessionResources\(/);
+  assert.match(startupSource, /resourceLoaderOptions: subagentResources/);
+  assert.match(startupSource, /appendSystemPrompt: subagentResources\.appendSystemPrompt/);
+  assert.match(startupSource, /noExtensions: !subagentResources\.loadExtensions/);
+  assert.match(startupSource, /loadSkills: subagentResources\.loadSkills/);
+  assert.match(startupSource, /excludeTools: \[\.\.\.SUBAGENT_CONTROL_TOOL_NAMES\]/);
+  assert.match(startupSource, /let toolsOption: string\[\] \| undefined = subagentResources\?\.tools/);
+  assert.match(source, /createSubagentController\(/);
+  assert.match(source, /suppressCompletionNotifications: true/);
+  assert.match(source, /suppressCompletionNotifications: Boolean\(subagentResources\)/);
+  assert.match(startupSource, /createSubagentExtension\([\s\S]*?SUBAGENT_CONTROLLER\.extensionRuntime,[\s\S]*?\(\) => listSubagentProfiles\(sessionCwd\),[\s\S]*?isBuiltInSubagentsEnabled/);
+  assert.match(startupSource, /preferPiWebSubagentExtension\(base\)/);
+});
+
+test("running snapshots expose sessions with suppressed completion notifications", async () => {
+  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
+  // The web routes were re-homed onto the sessions IPC service (sessions.ts).
+  const sessionsServiceSource = await readFile(new URL("../../../../electron/main/services/sessions.ts", import.meta.url), "utf8");
+  const snapshotSource = source.slice(
+    source.indexOf("export function getCompletionNotificationSuppressedRpcSessionIds"),
+    source.indexOf("// ----------------------------------------------------------------------------", source.indexOf("export function getCompletionNotificationSuppressedRpcSessionIds")),
+  );
+
+  assert.match(snapshotSource, /session\.isRunning\(\) && session\.hasSuppressedCompletionNotifications\(\)/);
+  assert.match(sessionsServiceSource, /completionNotificationSuppressedSessionIds: getCompletionNotificationSuppressedRpcSessionIds\(\)/);
+});
+
 test("RPC session startup resolves and passes the SDK-native enabled model scope", async () => {
   const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
   const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
@@ -465,8 +525,10 @@ test("exact prompts are sent through before_agent_start instead of the SDK promp
   assert.match(startupSource, /const exactSystemPromptExtension = createExactSystemPromptExtension\(\(\) => exactSystemPromptRef\.current\?\.\(\)\)/);
   assert.match(startupSource, /exactSystemPromptRef\.current = exactSystemPrompt;/);
   assert.match(startupSource, /\{ \.\.\.CHAT_ONLY_RESOURCE_LOADER_OPTIONS, extensionFactories: \[exactSystemPromptExtension\] \}/);
-  assert.match(startupSource, /usesExactSystemPrompt \? \{ extensionFactories: \[exactSystemPromptExtension\] \} : \{\}/);
-  assert.match(subagentSource, /extensionFactories: \[createExactSystemPromptExtension\(\(\) => promptPlan\.exactSystemPrompt\)\]/);
+  // Subagent projection now composes exact prompts and preloads in the shared binding;
+  // actual provider input is covered in subagent-skills.integration.test.mjs.
+  assert.match(startupSource, /\.\.\.skillsBinding!\.loaderOptions/);
+  assert.match(subagentSource, /\.\.\.skillsBinding\.loaderOptions/);
   assert.match(promptSource, /preflightResult: \(\) => acceptPreflight\(\),/);
   assert.doesNotMatch(promptSource, /requestedToolNames/);
 });

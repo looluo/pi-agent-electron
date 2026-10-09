@@ -104,6 +104,8 @@ export const zhTWLocale: LocalePlugin = {
     "agents.inheritContext": "继承上下文",
     "agents.background": "后台运行",
     "agents.duplicate": "复制",
+    "agents.skillsOnly": "只載入：{skills}",
+    "agents.skillsNone": "不載入任何技能：profile 檔案中的 skills 清單為空",
     "agents.copyName": "{name} 副本",
     "agents.delete": "刪除",
     "agents.deleteConfirm": "刪除 {name}？",
