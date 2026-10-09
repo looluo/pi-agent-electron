@@ -12,6 +12,7 @@ import {
   insertMcpServer,
   isMcpConfigWriteError,
   removeMcpServer,
+  setMcpServerEnabledInProject,
   setMcpServerExposure,
   setMcpServersEnabled,
   type McpConfigFileTarget,
@@ -26,6 +27,7 @@ import {
   type McpAddRequest,
 } from "@/lib/mcp-add";
 import { readMcpOverview, readMcpServerConfigs, readMcpServerEntry } from "@/lib/mcp-config-read";
+import { readMcpServerConfig } from "@/lib/mcp-entry-request";
 import {
   isMcpEntryRefusal,
   mcpInternalsOrRefusal,
@@ -517,6 +519,38 @@ export async function mcpAction(body: unknown): Promise<StatusBody> {
           return refusal(400, "invalid-request", `enabled must be a boolean, and servers a list of 1 to ${MAX_BULK_SERVERS} { scope, name }`);
         }
         return await switchServers(agentDir, project, internals, servers, body.enabled);
+      }
+      case "set-in-project": {
+        // As `/mcp`'s "Enable / Disable in this project": an override entry in
+        // the project's .pi/mcp.json (pi 1.0.1). The global entry must be one
+        // pi loads, since an override of anything else is skipped.
+        const name = readName(body.name);
+        if (name === undefined || typeof body.enabled !== "boolean") {
+          return refusal(400, "invalid-request", "name must be a server name, and enabled a boolean");
+        }
+        const enabled = body.enabled;
+        const target = writeTarget("project", project, agentDir);
+        if (target instanceof Refusal) return target.response();
+        if (target.scope !== "project") return refusal(500, "internal", "No project file to write to");
+        const read = readMcpServerEntry({ agentDir, scope: "global", name });
+        if (!read.ok) {
+          const params = { path: read.path, ...(read.reason === "server-missing" ? { name } : {}) };
+          if (read.reason === "unreadable") return refusal(500, "internal", read.error, params);
+          return refusal(409, read.reason, read.error, params);
+        }
+        const global = readMcpServerConfig({ agentDir, internals, scope: "global", name });
+        if (typeof global === "string") return refusal(409, "server-invalid", global, { name });
+        if (enabled && findWebPasswordField(global.config, internals)) {
+          return refusal(409, "web-password", `"${name}" references PI_WEB_PASSWORD, so this app does not turn it on`, { name });
+        }
+        try {
+          const { value: outcome, path } = await setMcpServerEnabledInProject(target, name, enabled);
+          const refused = outcomeRefusal(outcome, path);
+          if (refused) return refused.response();
+        } catch (error) {
+          return writeRefusal(error).response();
+        }
+        return overviewResponse(agentDir, project);
       }
       case "set-exposure": {
         const scope = readScope(body.scope);

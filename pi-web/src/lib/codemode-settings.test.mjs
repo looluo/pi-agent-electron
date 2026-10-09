@@ -71,7 +71,7 @@ test("writing Code mode keeps other settings and leaves an unchanged file alone"
   await assert.rejects(stat(settingsPath), { code: "ENOENT" }, "reading does not create the file");
 
   await writeFile(settingsPath, JSON.stringify({ defaultModel: "m", defaultTools: ["+grep"] }));
-  assert.deepEqual(await writeCodemodePreference("always", settingsPath), "always");
+  assert.equal(await writeCodemodePreference("always", settingsPath), "always");
   assert.deepEqual(JSON.parse(await readFile(settingsPath, "utf8")), {
     defaultModel: "m",
     defaultTools: ["+grep", "+codemode"],
@@ -169,7 +169,6 @@ test("a project's settings file is read raw, and anything but a regular file is 
 
 test("the default inline budget is the SDK's", async () => {
   // The SDK root does not export it; the codemode tool's module does.
-  // (Our layout: node_modules sits at the repo root, three levels above lib/.)
   const tool = await import(new URL("../../../node_modules/@earendil-works/pi-coding-agent/dist/extensions/codemode/tool.js", import.meta.url).href);
   assert.equal(CODEMODE_INLINE_BUDGET_DEFAULT, tool.DEFAULT_CODEMODE_INLINE_BUDGET);
 });
@@ -298,6 +297,7 @@ test("the mode is read as the codemode extension reads it", async () => {
       registered: [direct],
       getExposure: () => "direct",
       getNamespace: () => undefined,
+      getPromptGuidelines: () => [],
     };
     const hidden = definition.prepareLoadout(loadout).hiddenDeclarations;
     const expected = codemodeModeOf(codemode === undefined ? {} : { codemode }).value;
