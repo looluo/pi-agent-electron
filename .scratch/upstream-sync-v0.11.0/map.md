@@ -21,3 +21,13 @@ app 0.10.0 → 0.11.0，pi SDK 1.0.0 → 1.1.0。
   ChatWindow 180、globals.css 307、AppShell 626（PR #548 文件面板——最高危）
 - useAgentSession 569（PR #45 auto-title）
 - ModelSelector/SettingsUi/workspace-memory 零分歧
+
+## 终局（2026-10-09）
+
+- W1/W2/W3 全部落地（44 源码提交 + 70470ca/a0c00f3 两笔历史回填），ledger 见
+  docs/upstream-sync.md v0.11.0 节。
+- 新 IPC 面：pi:sessions:ui-state:get/:post、pi:open-in-explorer:get/:post、
+  pi:sessions:fork；pi:mcp:action 增 set-in-project；pi:agent:running 增
+  sessionUiStateRevision；pifile://…?type=list 增 &hidden=1。
+- 验证：typecheck 双绿；npm test 2144/2128/0（15 skip + 1 已知 Defender 偶发）；
+  package:dir + packaged-probe 10/10。
