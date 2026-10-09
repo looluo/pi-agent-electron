@@ -4,7 +4,7 @@
 import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGlobalKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { SessionSidebar, type SessionSidebarControl } from "./SessionSidebar";
+import { SessionSidebar, type SelectSessionOptions, type SessionSidebarControl } from "./SessionSidebar";
 import { ChatWindow } from "./ChatWindow";
 import { NewSessionContextBar, type NewSessionContextControl } from "./NewSessionContextBar";
 import { FileViewer } from "./FileViewer";
@@ -786,7 +786,7 @@ export function AppShell() {
     router.replace("/", { scroll: false });
   }, [activeCwd, handleRightPanelClose, invalidateWorkspaceRestore, newSessionCwd, restoreWorkspaceContext, router, selectedSession, switchProjectFileTabs]);
 
-  const handleSelectSession = useCallback((session: SessionInfo, isRestore = false, entryId?: string, blockIndex?: number) => {
+  const handleSelectSession = useCallback((session: SessionInfo, isRestore = false, entryId?: string, blockIndex?: number, options?: SelectSessionOptions) => {
     setSearchTarget(entryId ? { sessionId: session.id, entryId, blockIndex } : null);
     invalidateWorkspaceRestore();
     const activeDraftKey = activeNewSessionDraftKeyRef.current;
@@ -824,8 +824,9 @@ export function AppShell() {
     setSystemTools(null);
     setSystemInfoLoading(false);
     setInitialSessionRestored(true);
-    // On mobile, collapse the overlay drawer so the chat is revealed after pick.
-    if (isMobile && !isRestore) setSidebarOpen(false);
+    // On mobile, collapse the overlay drawer so the chat is revealed after pick
+    // (unless the sidebar still has something to show: a fork's row and toast).
+    if (isMobile && !isRestore && !options?.keepSidebarOpen) setSidebarOpen(false);
     if (isRestore) {
       // Suppress the redundant sessionKey bump that would come from the
       // onCwdChange effect firing after setSelectedCwd in the sidebar
