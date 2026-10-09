@@ -1,0 +1,52 @@
+commit 981e270f1c4ab236d35cccf3a28a5312edfe6883
+Author: nsyan <70687289+nsyan@users.noreply.github.com>
+Date:   Wed Oct 7 16:40:45 2026 +0800
+
+    fix(chat): let extension dialogs and the custom panel be widened (#947) (#1032)
+    
+    * fix(chat): let extension dialogs and the custom panel be widened (#947)
+    
+    Extensions showing long content - a formatted SQL confirmation, a diff, a
+    read-only side panel - were boxed into the hardcoded min(560px, 100%)
+    dialog with no way to get more room, and every wrapped line also costs
+    height (#947).
+    
+    - ctx.ui select/confirm/input/editor accept an optional dialogSize
+      ("sm" | "md" | "lg" | "full") hint. "sm" keeps the historical 560px
+      dialog, so default behavior is unchanged; unknown values fall back to
+      it instead of poisoning the request.
+    - The extension dialog and the custom panel get a maximize/restore
+      button next to the collapse chevron. "full" fills the content region
+      above the composer while the overlay keeps its own 20px breathing
+      room, so the composer stays visible.
+    - Without a request-level hint the user's maximize choice persists in
+      localStorage across openings; a hint wins over the stored preference,
+      and toggling a hinted dialog never writes back into it.
+    
+    * fix(chat): fit extension dialogs to their content instead of taking a size hint (#947)
+    
+    Drop the dialogSize option from ctx.ui.{select,confirm,input,editor}. It was a
+    pi-web-only field that no stock pi extension sends, and the problem is purely
+    how the dialog is shown, so the browser should decide.
+    
+    A dialog now opens at its usual 560px and grows only when a code block or table
+    inside it would scroll sideways (formatted SQL, diffs, logs): it takes exactly
+    the missing width, rounded up to 40px, capped at the content region above the
+    composer. Prose wraps and never triggers it. It only grows, and re-measures when
+    highlighted code replaces its plain fallback.
+    
+    The maximize/restore button stays as the user's override for the dialog on
+    screen. Nothing is stored: a later dialog starts from its own content.
+    
+    The custom panel's maximize button is gone. Its lines are already wrapped to the
+    width the extension asked for, so widening the box never changed the wrapping.
+    The panel is now as wide as its widest line (at least its usual 920px, at most
+    the content region), so lines wider than 920px no longer scroll sideways.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+    
+    ---------
+    
+    Co-authored-by: yanshinan <yanshinan.js@chinatelecom.cn>
+    Co-authored-by: Alex Yang <agegcn@gmail.com>
+    Co-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>

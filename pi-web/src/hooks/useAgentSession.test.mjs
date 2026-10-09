@@ -476,14 +476,17 @@ test("keeps calls a tool made itself out of the running tools", () => {
   assert.match(source, /import \{ isNestedToolExecutionEvent, isSystemMessageEvent \} from "@\/lib\/agent-event-wire";/);
 });
 
-test("plays the enabled sound once for each extension dialog", () => {
-  assert.match(chatWindowSource, /soundedExtensionDialogIdRef = useRef<string \| null>\(null\)/);
-  assert.match(
-    chatWindowSource,
-    /soundedExtensionDialogIdRef\.current === extensionDialog\.id/,
+test("plays the enabled sound once when an extension dialog appears over an empty slot", () => {
+  const soundSource = chatWindowSource.slice(
+    chatWindowSource.indexOf("const surfaced = "),
+    chatWindowSource.indexOf("}, [completionNotificationsEnabled, extensionDialog]);"),
   );
-  assert.match(chatWindowSource, /soundedExtensionDialogIdRef\.current = extensionDialog\.id/);
-  assert.match(chatWindowSource, /playDoneSoundRef\.current\(\)/);
+  assert.match(chatWindowSource, /extensionDialogShownRef = useRef\(false\)/);
+  // A dialog queued behind another surfaces right after the user answers that one,
+  // so only the transition from no dialog to a dialog sounds.
+  assert.match(soundSource, /const surfaced = Boolean\(extensionDialog\) && !extensionDialogShownRef\.current;/);
+  assert.match(soundSource, /extensionDialogShownRef\.current = Boolean\(extensionDialog\);\s+if \(!completionNotificationsEnabled \|\| !surfaced\) return;/);
+  assert.match(soundSource, /playDoneSoundRef\.current\(\)/);
 });
 
 test("routes blocking extension requests through deduplicated browser attention notifications", () => {
@@ -688,7 +691,7 @@ test("suppresses sounds and browser attention for the active subagent session", 
 
   assert.match(chatWindowSource, /completionNotificationsEnabled = session\?\.relation\?\.kind !== "subagent"/);
   assert.match(chatWindowSource, /completionNotificationsEnabled && soundEnabledRef\.current/);
-  assert.match(chatWindowSource, /!completionNotificationsEnabled[\s\S]*?!extensionDialog/);
+  assert.match(chatWindowSource, /!completionNotificationsEnabled \|\| !surfaced/);
   assert.match(completionSource, /selectedSession\?\.relation\?\.kind === "subagent"\) return/);
   assert.match(attentionSource, /selectedSession\?\.relation\?\.kind === "subagent"\) return/);
 });
