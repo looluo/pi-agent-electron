@@ -164,6 +164,7 @@ export function AppShell() {
   const [projectTrustError, setProjectTrustError] = useState<ProjectTrustFailure | null>(null);
 
   const [sidebarOpen, setSidebarOpen] = useState(() => !initialNavigation.sidebarCollapsed);
+  const desktopSidebarOpenRef = useRef(!initialNavigation.sidebarCollapsed);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [rightPanelMaximized, setRightPanelMaximized] = useState(false);
   const [mobileToolbarMoreOpen, setMobileToolbarMoreOpen] = useState(false);
@@ -226,9 +227,10 @@ export function AppShell() {
   const reclampRightPanelWidth = rightPanelResizer.reclampWidth;
   // On mobile the sidebar is an overlay drawer; hide it by default so the chat
   // is visible on load. Runs once the breakpoint resolves after hydration.
+  // Mobile drawer actions must not change the remembered desktop preference.
   useEffect(() => {
+    setSidebarOpen(isMobile ? false : desktopSidebarOpenRef.current);
     if (isMobile) {
-      setSidebarOpen(false);
       setRightPanelMaximized(false);
     }
   }, [isMobile]);
@@ -382,7 +384,11 @@ export function AppShell() {
       setActiveTopPanel(null);
       setMobileToolbarMoreOpen(false);
     }
-    setSidebarOpen((open) => !open);
+    setSidebarOpen((open) => {
+      const next = !open;
+      if (!isMobile) desktopSidebarOpenRef.current = next;
+      return next;
+    });
   }, [isMobile]);
 
   const handleMobileToolbarMoreToggle = useCallback(() => {
