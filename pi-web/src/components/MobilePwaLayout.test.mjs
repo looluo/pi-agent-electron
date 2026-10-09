@@ -9,6 +9,21 @@ const chatInputSource = await readFile(new URL("./ChatInput.tsx", import.meta.ur
 const viewportHookSource = await readFile(new URL("../hooks/useViewportHeight.ts", import.meta.url), "utf8");
 const extensionStatusBarSource = await readFile(new URL("./ExtensionStatusBar.tsx", import.meta.url), "utf8");
 const settingsCssSource = await readFile(new URL("../settings.css", import.meta.url), "utf8");
+const mcpConfigSource = await readFile(new URL("./McpConfig.tsx", import.meta.url), "utf8");
+const mcpSignInSource = await readFile(new URL("./McpSignIn.tsx", import.meta.url), "utf8");
+const mcpAddSource = await readFile(new URL("./McpAddServer.tsx", import.meta.url), "utf8");
+const newSessionBarSource = await readFile(new URL("./NewSessionContextBar.tsx", import.meta.url), "utf8");
+
+/** The declarations of the first `selector {` rule in a stylesheet. */
+function cssRule(css, selector) {
+  const start = css.indexOf(`${selector} {`);
+  assert.ok(start >= 0, `${selector} has a rule`);
+  return css.slice(start, css.indexOf("}", start));
+}
+
+// Upstream's app/layout.tsx viewport config (statusBarStyle/viewportFit/
+// interactiveWidget) is n/a on the desktop form factor: it died with the
+// Next.js retirement; index.html carries the plain viewport meta.
 
 test("tracks the visual viewport while the software keyboard is open", () => {
   assert.match(appShellSource, /useViewportHeight\(\)/);
@@ -63,6 +78,9 @@ test("collapses secondary composer chrome while the mobile keyboard is open", ()
   assert.match(cssSource, /@media \(max-width: 640px\), \(pointer: coarse\) and \(max-height: 500px\) \{\s*html\[data-keyboard-open\] \.chat-input-controls,\s*html\[data-keyboard-open\] \.extension-status-shelf \{\s*display: none !important;/);
   assert.match(cssSource, /html\[data-keyboard-open\] \.chat-content \{\s*padding-bottom: 0 !important;/);
   assert.match(cssSource, /html\[data-keyboard-open\] \.chat-input-shell \{\s*padding-bottom: 6px !important;/);
+  // A fresh composer's project bar goes too, in a rule of its own inside the same query.
+  assert.match(newSessionBarSource, /<div className="new-session-context" /);
+  assert.match(cssSource, /@media \(max-width: 640px\), \(pointer: coarse\) and \(max-height: 500px\) \{[^@]*?html\[data-keyboard-open\] \.new-session-context \{\s*display: none !important;/);
   // Mobile send is icon-only but keeps an accessible name.
   assert.match(chatInputSource, /aria-label=\{t\("chat\.send"\)\}/);
   assert.match(chatInputSource, /\{!isMobile && t\("chat\.send"\)\}/);
