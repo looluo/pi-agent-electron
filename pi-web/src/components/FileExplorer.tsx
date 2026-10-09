@@ -12,6 +12,7 @@ import {
 } from "@/lib/file-paths";
 import type { GitFileStatus, GitFileStatusKind, GitStatusResponse } from "@/lib/git-types";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
+import { uploadFiles, type UploadConflictStrategy, type UploadError, type UploadResponse } from "@/lib/file-upload-client";
 import { buildSearchTree, type SearchTreeNode } from "@/lib/search-tree";
 import { useI18n } from "@/hooks/useI18n";
 type Translate = ReturnType<typeof useI18n>["t"];
@@ -56,21 +57,6 @@ export interface FileExplorerHandle {
 }
 
 type UploadPhase = "idle" | "checking" | "uploading";
-type UploadConflictStrategy = "error" | "overwrite" | "skip";
-
-interface UploadError {
-  name: string;
-  error: string;
-}
-
-interface UploadResponse {
-  uploaded?: string[];
-  skipped?: string[];
-  errors?: UploadError[];
-  conflicts?: string[];
-  nonReplaceable?: string[];
-  error?: string;
-}
 
 interface UploadSummary {
   uploaded: string[];
@@ -170,30 +156,6 @@ function GitStatusBadge({ status, t }: { status: GitFileStatus; t: Translate }) 
       {status.code}
     </span>
   );
-}
-
-function uploadFiles(
-  targetDirectory: string,
-  files: File[],
-  strategy: UploadConflictStrategy,
-  onProgress: (progress: number) => void,
-): Promise<{ status: number; data: UploadResponse }> {
-  return (async () => {
-    const unsubscribe = window.pi.onUploadProgress((progress) => {
-      if (progress.total > 0) {
-        onProgress(Math.round((progress.done / progress.total) * 100));
-      }
-    });
-    try {
-      const payload = await Promise.all(
-        files.map(async (file) => ({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) })),
-      );
-      const result = await window.pi.filesUpload(targetDirectory, payload, strategy);
-      return { status: result.status, data: result.body as UploadResponse };
-    } finally {
-      unsubscribe();
-    }
-  })();
 }
 
 function MentionIcon({ size = 11 }: { size?: number }) {
