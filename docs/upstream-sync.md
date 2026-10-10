@@ -114,8 +114,8 @@ CSS via `<style>`, base = document). The 964635c probe check was a false positiv
 loaded the raw inline var re-resolved against the document — which loads — instead of the
 computed mask URL — which 404s. Fixed by pre-resolving the icons root with `document.baseURI` in
 `FileIcons.tsx` (SSR/node-test guarded); `asset-paths.test.mjs` and `packaged-probe.mjs` check 8
-now assert the runtime pre-resolution and load the COMPUTED `mask-image` URL; verified 10/10 on
-the repackaged mac app with a clip-screenshot pixel check (`scripts-dev/icon-probe.mjs`).
+now assert the runtime pre-resolution and load the COMPUTED `mask-image` URL; verified 10/10 on the
+repackaged mac app with a clip-screenshot pixel check (one-off `icon-probe.mjs`, since removed).
 
 Hotfix 2 (manual inspection catch): code rendered in a proportional font everywhere — file panel
 source view, chat code blocks, `pre`/`code`, ChatInput, minimap. `--font-mono`'s first stack entry
