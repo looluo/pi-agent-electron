@@ -146,12 +146,16 @@ function SkillDetail({
 
     const load = async () => {
       try {
-        const params = new URLSearchParams({ cwd, filePath: skill.filePath });
-        const response = await fetch(`/api/skills/content?${params}`, { signal: controller.signal });
-        const data = (await response.json()) as Partial<SkillContentResponse> & { error?: string };
-        if (!response.ok || data.error || typeof data.content !== "string") {
+        // Typed IPC port of GET /api/skills/content (upstream ae34240): the
+        // Electron renderer has no HTTP server (file:// origin), so the
+        // upstream HTTP call failed as "Failed to fetch". Abort stays
+        // client-side: a superseded response is discarded when it lands.
+        const response = await window.pi.skillsContent(cwd, skill.filePath);
+        const data = (response.body ?? {}) as Partial<SkillContentResponse> & { error?: string };
+        if (response.status !== 200 || data.error || typeof data.content !== "string") {
           throw new Error(data.error ?? `HTTP ${response.status}`);
         }
+        if (controller.signal.aborted) return;
         setInstructions(skillInstructionsBody(data.content));
       } catch (error) {
         if (controller.signal.aborted) return;

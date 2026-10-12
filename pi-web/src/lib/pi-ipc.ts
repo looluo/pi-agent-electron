@@ -118,6 +118,7 @@ export interface PiBridge {
   appUpdate(): Promise<{ status: number; body: Record<string, unknown> | null }>;
 
   skillsList(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  skillsContent(cwd: string, filePath: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   skillsToggle(filePath: string, disable: boolean): Promise<{ status: number; body: Record<string, unknown> | null }>;
   skillsBulkToggle(filePaths: string[], disable: boolean): Promise<{ status: number; body: Record<string, unknown> | null }>;
   skillsCheck(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;

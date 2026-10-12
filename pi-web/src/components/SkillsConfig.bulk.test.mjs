@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { createJiti } from "jiti";
 
@@ -7,6 +8,15 @@ const jiti = createJiti(import.meta.url, {
   tsconfigPaths: true,
 });
 const { applySkillToggleResults, skillsToSwitch } = await jiti.import("./SkillsConfig.tsx");
+
+test("the instructions pane reads over the typed IPC, never fetch('/api/…')", async () => {
+  // The Electron renderer has no HTTP origin (file://): upstream ae34240's
+  // fetch("/api/skills/content") surfaced as "Failed to fetch" until re-homed
+  // onto window.pi.skillsContent.
+  const source = await readFile(new URL("./SkillsConfig.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /fetch\([`"']\/api\//);
+  assert.match(source, /window\.pi\.skillsContent\(/);
+});
 
 const skills = [
   { name: "a", filePath: "/skills/a/SKILL.md", disableModelInvocation: false },

@@ -6,6 +6,7 @@ import { setDisableModelInvocation } from "@/lib/skill-frontmatter";
 import type { SkillInstallScope, SkillSearchResult } from "@/lib/api-types";
 import { loadSkillsWithInstallInfo } from "@/lib/skills-service";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
+import { readRegularFileText } from "@/lib/regular-file";
 import { runNpx } from "@/lib/npx";
 import { getProjectTrustStatus } from "@/lib/project-trust";
 import { checkSkillUpdates, buildSkillUpdateArgs } from "@/lib/skill-updates";
@@ -100,6 +101,35 @@ function parseInstallCount(installs: string): number {
 }
 
 /** GET /api/skills?cwd= */
+/** Port of GET /api/skills/content (upstream ae34240): the detail pane's full
+ * instructions. The resource loader stays the allow-list — accepting any
+ * readable Markdown path would turn the Skills panel into a general filesystem
+ * reader. */
+export async function skillsContent(cwd: string | null, filePath: string | null): Promise<StatusBody> {
+  // Skill instructions should stay small enough to inspect without a large response.
+  const SKILL_CONTENT_MAX_BYTES = 1024 * 1024;
+  if (!cwd) return { status: 400, body: { error: "cwd required" } };
+  if (!filePath) return { status: 400, body: { error: "filePath required" } };
+  try {
+    const allowedRoots = await getAllowedFileRoots();
+    if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
+      return { status: 403, body: { error: "Access denied" } };
+    }
+    const { skills } = await loadSkillsWithInstallInfo(cwd);
+    const skill = skills.find((item) => item.filePath === filePath);
+    if (!skill) {
+      return { status: 404, body: { error: "Skill not found" } };
+    }
+    const content = readRegularFileText(skill.filePath, SKILL_CONTENT_MAX_BYTES);
+    if (content === undefined) {
+      return { status: 404, body: { error: "Skill file not found" } };
+    }
+    return { status: 200, body: { content } };
+  } catch (error) {
+    return { status: 500, body: { error: error instanceof Error ? error.message : String(error) } };
+  }
+}
+
 export async function skillsList(cwd: string | null): Promise<StatusBody> {
   if (!cwd) return { status: 400, body: { error: "cwd required" } };
   try {
