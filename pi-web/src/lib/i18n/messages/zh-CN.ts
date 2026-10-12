@@ -386,6 +386,7 @@ export const zhCNLocale: LocalePlugin = {
     "sidebar.showMore": "显示更多 · {count}",
     "sidebar.showLess": "收起",
     "sidebar.openOtherProject": "打开其他项目…",
+    "sidebar.customPath": "自定义路径…",
     "sidebar.newSessionInProject": "在 {name} 新建会话",
     "sidebar.projectActions": "{name} 的操作",
     "sidebar.archiveOlderThanWeek": "归档 7 天前的会话 · {count}",

@@ -386,6 +386,7 @@ export const enLocale: LocalePlugin = {
     "sidebar.showMore": "Show more · {count}",
     "sidebar.showLess": "Show less",
     "sidebar.openOtherProject": "Open another project…",
+    "sidebar.customPath": "Custom path…",
     "sidebar.newSessionInProject": "New session in {name}",
     "sidebar.projectActions": "{name} actions",
     "sidebar.archiveOlderThanWeek": "Archive sessions older than 7 days · {count}",

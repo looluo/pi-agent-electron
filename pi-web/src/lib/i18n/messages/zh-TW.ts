@@ -385,6 +385,7 @@ export const zhTWLocale: LocalePlugin = {
     "sidebar.showMore": "顯示更多 · {count}",
     "sidebar.showLess": "收起",
     "sidebar.openOtherProject": "開啟其他專案…",
+    "sidebar.customPath": "自訂路徑…",
     "sidebar.newSessionInProject": "在 {name} 新增工作階段",
     "sidebar.projectActions": "{name} 的操作",
     "sidebar.archiveOlderThanWeek": "封存 7 天前的工作階段 · {count}",
