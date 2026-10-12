@@ -6,12 +6,15 @@ import { registerSkillsPluginsHandlers } from "./ipc-skills-plugins";
 import { registerMcpHandlers } from "./ipc-mcp";
 import { registerEarlySchemes, registerFilesProtocol } from "./files-protocol";
 import { repairPathAtStartup } from "./services/shell-path";
-import { configureHttpDispatcher } from "@/lib/http-dispatcher";
+import { configureHttpDispatcher, readHttpIdleTimeoutMs } from "@/lib/http-dispatcher";
 
 registerEarlySchemes();
 
 // Undici proxy/h2/timeout configuration (ported from Next instrumentation.ts).
-configureHttpDispatcher();
+// Apply the user's global settings.json httpIdleTimeoutMs the way the pi CLI
+// does (upstream 650d7a3): without it the built-in five minutes aborts a
+// provider stream that stays quiet for longer.
+configureHttpDispatcher(readHttpIdleTimeoutMs());
 
 // Finder/Dock launches inherit launchd's minimal PATH, which breaks child
 // spawns like the plugin manager's `npm` ("spawn npm ENOENT"). Repair it
