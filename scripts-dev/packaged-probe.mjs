@@ -171,6 +171,21 @@ try {
   check("Models panel renders provider icons", ui.result.value.clicked && ui.result.value.rendered > 0,
     `${ui.result.value.rendered}/${ui.result.value.total} rendered`);
 
+  // 9b. new-session hero logo (v0.12.0: upstream e2fe4fb's apple-touch-icon;
+  //     document-relative src — the file:// renderer's asset rule).
+  const logo = await evalJs(`(async () => {
+    for (let i = 0; i < 40; i++) {
+      const el = document.querySelector('.new-session-logo');
+      if (el && el.complete && el.naturalWidth > 0) return { tag: el.tagName, nw: el.naturalWidth };
+      await new Promise((res) => setTimeout(res, 250));
+    }
+    const el = document.querySelector('.new-session-logo');
+    return el ? { tag: el.tagName, nw: el.naturalWidth } : { tag: 'MISSING', nw: 0 };
+  })()`);
+  const logoValue = logo?.result?.value ?? logo;
+  check("new-session logo img loads under file://", logoValue?.tag === "IMG" && logoValue?.nw > 0,
+    JSON.stringify(logoValue));
+
   // 10. terminal IPC round trip (v0.9.0 sync, issue 11): subscribe responses
   //     must be structured-clone safe and a real PTY must echo over the push channel.
   const term = await evalJs(`(async () => {
