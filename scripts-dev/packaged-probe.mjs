@@ -11,9 +11,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import WebSocket from "ws";
 
-const EXE = process.platform === "win32"
-  ? "release/win-unpacked/Pi Agent App.exe"
-  : "release/mac-arm64/Pi Agent App.app/Contents/MacOS/Pi Agent App";
+const EXE = process.env.PROBE_EXE
+  ?? (process.platform === "win32"
+    ? "release/win-unpacked/Pi Agent App.exe"
+    : "release/mac-arm64/Pi Agent App.app/Contents/MacOS/Pi Agent App");
 const DEBUG_PORT = Number(process.env.PROBE_PORT ?? 9344);
 
 let results = [];
