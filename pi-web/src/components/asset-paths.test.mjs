@@ -13,6 +13,13 @@ test("provider icons reference the sprite with a relative path", async () => {
   assert.doesNotMatch(source, /["'`]\/provider-icons\.svg/);
 });
 
+test("the new-session logo is a document-relative img, not a next/image or a root-absolute src", async () => {
+  const source = await readFile(new URL("./ChatWindow.tsx", import.meta.url), "utf8");
+  assert.match(source, /<img src="icons\/apple-touch-icon\.png" width=\{40\} height=\{40\} alt="" className="new-session-logo"/);
+  assert.doesNotMatch(source, /["'`]\/icons\/apple-touch-icon/);
+  assert.doesNotMatch(source, /next\/image/);
+});
+
 test("catppuccin file icons resolve the icons root against document.baseURI", async () => {
   const source = await readFile(new URL("./FileIcons.tsx", import.meta.url), "utf8");
 

@@ -1474,8 +1474,10 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
           <div className="new-session-hero" style={{ paddingLeft: 16, paddingRight: isMobile ? 16 : 52 }}>
             <div className="new-session-hero-inner" style={{ maxWidth: "var(--chat-content-max-width, 820px)" }}>
               <div className="new-session-brand">
-                {/* Fork: no next/image — the branded glyph stands in for the logo. */}
-                <span className="new-session-logo" style={{ fontSize: 28, fontWeight: 700, color: "var(--text)", flexShrink: 0, whiteSpace: "nowrap" }}>π</span>
+                {/* Fork: plain img instead of upstream's Image — with a
+                    document-relative src (a leading "/" resolves to the
+                    filesystem root under file://). */}
+                <img src="icons/apple-touch-icon.png" width={40} height={40} alt="" className="new-session-logo" />
                 <div className="new-session-brand-text">
                   <span className="new-session-brand-name">Pi Web</span>
                   <span className="new-session-meta">
