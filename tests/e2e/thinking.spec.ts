@@ -13,7 +13,7 @@ const THINKING_MARKER = "THINKING-FULL-CONTENT-MARKER-9f3a";
 
 /** One session with a deferred-able thinking block: only the first line is
  *  the preview; the marker lives past it and only loads on expand. */
-function writeSessionFixture(): string {
+async function writeSessionFixture(): Promise<string> {
   const lines = [
     JSON.stringify({
       type: "message", id: "e2e-u1", parentId: null, timestamp: "2026-09-08T00:00:01.000Z",
@@ -31,11 +31,11 @@ function writeSessionFixture(): string {
       },
     }),
   ];
-  return createAgentHomeFixture(lines);
+  return await createAgentHomeFixture(lines);
 }
 
 test("expanding deferred thinking loads full content over IPC", async () => {
-  const agentHome = writeSessionFixture();
+  const agentHome = await writeSessionFixture();
   const { app, page } = await launchApp({ PI_CODING_AGENT_DIR: agentHome });
 
   // Open the fixture session from the sidebar (row title = first message).

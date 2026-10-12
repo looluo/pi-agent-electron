@@ -46,14 +46,13 @@ test("maximized files replace the mounted conversation and expose the sidebar to
 
 test("maximized layout exits at destructive and responsive boundaries", () => {
   assert.match(source, /const handleRightPanelClose = useCallback\(\(\) => \{\s*setRightPanelMaximized\(false\);\s*setRightPanelOpen\(false\);/);
-  // Terminal-aware close (upstream 9290c27): the panel only collapses when the
-  // last file tab goes and no terminal tab remains — and it must exit through
-  // handleRightPanelClose so the maximized flag resets too.
-  assert.match(source, /if \(next\.length === 0 && terminalTabs\.length === 0\) handleRightPanelClose\(\);/);
-  assert.match(source, /if \(!replacement && !remaining\.length && !fileTabs\.length\) handleRightPanelClose\(\);/);
+  // Terminal/agent-aware close (v0.12.0: upstream added agent tabs): the panel
+  // only collapses when the last file tab goes and no terminal or subagent tab
+  // remains.
+  assert.match(source, /if \(next\.length === 0 && terminalTabs\.length === 0 && agentTabs\.length === 0\) setRightPanelOpen\(false\);/);
+  assert.match(source, /if \(!replacement && !remaining\.length && !fileTabs\.length && !agentTabs\.length\) setRightPanelOpen\(false\);/);
   assert.match(source, /if \(isMobile\) \{[\s\S]*?setRightPanelMaximized\(false\);[\s\S]*?\}/);
   assert.match(source, /const handleAttentionNeeded = useCallback[\s\S]*?setRightPanelMaximized\(false\);/);
-  assert.match(source, /setFileTabs\(\[\]\);[\s\S]*?startsWith\("file:"\)\)\s*\{[\s\S]*?handleRightPanelClose\(\);/);
 });
 
 test("does not show split-layout affordances while maximized", () => {

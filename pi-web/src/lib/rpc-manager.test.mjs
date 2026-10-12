@@ -7,216 +7,50 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
-const { AgentSessionWrapper } = await jiti.import("./rpc-manager.ts");
+const { AgentSessionWrapper, startRpcSession } = await jiti.import("./rpc-manager.ts");
 
-test("RPC session startup preloads extension-registered providers before restoring models", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
-
-  assert.match(startupSource, /createAgentSessionServices\(/);
-  assert.match(startupSource, /createAgentSessionFromServices\(/);
-  assert.doesNotMatch(startupSource, /await createAgentSession\(/);
+test("RPC refuses a malformed subagent resource snapshot instead of reopening it as normal", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-web-corrupt-subagent-"));
+  const sessionDir = join(root, "sessions");
+  await mkdir(sessionDir);
+  try {
+    for (const parentSessionId of ["parent", null]) {
+      const manager = SessionManager.create(root, sessionDir);
+      manager.appendMessage({ role: "user", content: "delegated task", timestamp: Date.now() });
+      manager.appendCustomEntry("pi-web:subagent", {
+        version: 1,
+        parentSessionId,
+        parentSessionPath: "/tmp/parent.jsonl",
+        parentToolCallId: "call",
+        profile: "general-purpose",
+        description: "corrupt",
+        task: "task",
+        runInBackground: false,
+        createdAt: new Date().toISOString(),
+        resourceSnapshot: {
+          version: 1,
+          appendSystemPrompt: [],
+          tools: "read",
+          loadSkills: false,
+          loadExtensions: false,
+        },
+      });
+      await assert.rejects(
+        startRpcSession(manager.getSessionId(), manager.getSessionFile(), undefined),
+        /Invalid subagent resource snapshot/,
+      );
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
-test("only normal sessions load the codemode, tool-search, and mcp built-ins", async () => {
+test("normal sessions load the Read-only MCP policy with the built-ins", async () => {
   const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
   const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
 
-  assert.match(
-    startupSource,
-    /const builtins = subagentResources \|\| chatOnly\s*\? undefined\s*: await createPiWebBuiltinExtensions\(\{ agentDir \}\);/,
-  );
-  // Spread only into the normal-session factories, after the chat-only and subagent branches.
-  assert.equal(startupSource.match(/\.\.\.\(builtins\?\.extensions \?\? \[\]\)/g)?.length, 1);
-  assert.ok(
-    startupSource.indexOf("...(builtins?.extensions") > startupSource.indexOf("CHAT_ONLY_RESOURCE_LOADER_OPTIONS, extensionFactories"),
-  );
   // The Read-only policy for MCP tools rides along with the MCP extension.
   assert.match(startupSource, /\.\.\.\(builtins\?\.extensions \?\? \[\]\),\s*createReadOnlyMcpPolicyExtension\(\),/);
-  // The wrapper connects the host's servers before a prompt starts a run.
-  assert.match(startupSource, /\.\.\.\(builtins\?\.mcpHost \? \{ mcpHost: builtins\.mcpHost \} : \{\}\),/);
-});
-
-test("built-in subagents persist their selected resource policy", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const subagentSource = await readFile(new URL("./subagent-runtime.ts", import.meta.url), "utf8");
-  const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
-
-  assert.match(subagentSource, /SessionManager\.create\(parent\.cwd, undefined, \{ parentSession: parent\.sessionFile \}\)/);
-  assert.match(subagentSource, /appendCustomEntry\(SUBAGENT_META_TYPE/);
-  assert.match(subagentSource, /appendCustomEntry\(SUBAGENT_RESULT_TYPE/);
-  assert.match(subagentSource, /dependencies\.registerSession\(inner, \{/);
-  assert.match(subagentSource, /noExtensions: !profile\.loadExtensions/);
-  assert.match(subagentSource, /loadSkills: profile\.loadSkills/);
-  assert.match(subagentSource, /excludeTools: \[\.\.\.SUBAGENT_CONTROL_TOOL_NAMES\]/);
-  assert.match(subagentSource, /withSubagentExtensionTools\(profile\.tools, extensionToolNames\)/);
-  assert.match(subagentSource, /resourceSnapshot:/);
-  assert.match(startupSource, /readSubagentSessionResources\(/);
-  assert.match(startupSource, /resourceLoaderOptions: subagentResources/);
-  assert.match(startupSource, /appendSystemPrompt: subagentResources\.appendSystemPrompt/);
-  assert.match(startupSource, /noExtensions: !subagentResources\.loadExtensions/);
-  assert.match(startupSource, /loadSkills: subagentResources\.loadSkills/);
-  assert.match(startupSource, /excludeTools: \[\.\.\.SUBAGENT_CONTROL_TOOL_NAMES\]/);
-  assert.match(startupSource, /let toolsOption: string\[\] \| undefined = subagentResources\?\.tools/);
-  assert.match(source, /createSubagentController\(/);
-  assert.match(source, /suppressCompletionNotifications: true/);
-  assert.match(source, /suppressCompletionNotifications: Boolean\(subagentResources\)/);
-  assert.match(startupSource, /createSubagentExtension\([\s\S]*?SUBAGENT_CONTROLLER\.extensionRuntime,[\s\S]*?\(\) => listSubagentProfiles\(sessionCwd\),[\s\S]*?isBuiltInSubagentsEnabled/);
-  assert.match(startupSource, /preferPiWebSubagentExtension\(base\)/);
-});
-
-test("running snapshots expose sessions with suppressed completion notifications", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  // The web routes were re-homed onto the sessions IPC service (sessions.ts).
-  const sessionsServiceSource = await readFile(new URL("../../../electron/main/services/sessions.ts", import.meta.url), "utf8");
-  const snapshotSource = source.slice(
-    source.indexOf("export function getCompletionNotificationSuppressedRpcSessionIds"),
-    source.indexOf("// ----------------------------------------------------------------------------", source.indexOf("export function getCompletionNotificationSuppressedRpcSessionIds")),
-  );
-
-  assert.match(snapshotSource, /session\.isRunning\(\) && session\.hasSuppressedCompletionNotifications\(\)/);
-  assert.match(sessionsServiceSource, /completionNotificationSuppressedSessionIds: getCompletionNotificationSuppressedRpcSessionIds\(\)/);
-});
-
-test("RPC session startup resolves and passes the SDK-native enabled model scope", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
-  const resolveIndex = startupSource.indexOf("resolveVisibleModels(");
-  const createIndex = startupSource.indexOf("createAgentSessionFromServices(");
-
-  assert.ok(resolveIndex >= 0);
-  assert.ok(createIndex > resolveIndex);
-  assert.match(startupSource, /selectInitialModelScope\(/);
-  assert.match(startupSource, /scopedModels: \[\.\.\.scope\.scopedModels\]/);
-  assert.match(startupSource, /model: startupModel/);
-  assert.match(startupSource, /thinkingLevel: initial\.thinkingLevel/);
-});
-
-test("RPC session startup treats only sessions with messages as continuing", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
-
-  assert.match(
-    startupSource,
-    /const hasExistingMessages = branch\.some\(\(entry\) => entry\.type === "message" && entry\.message\.role !== "system"\)/,
-  );
-  assert.match(startupSource, /const initial = hasExistingMessages/);
-  assert.match(startupSource, /getLatestModelChange\(branch as unknown as SessionEntry\[\]\)/);
-  assert.match(startupSource, /model: startupModel/);
-  assert.doesNotMatch(startupSource, /const initial = sessionFile/);
-  assert.doesNotMatch(startupSource, /sessionManager\.buildSessionContext\(\)/);
-});
-
-test("RPC session startup opens an existing session file only once and trusts its cwd", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
-  const routeSource = await readFile(new URL("../../../electron/main/services/agent.ts", import.meta.url), "utf8");
-  const eventRouteSource = await readFile(new URL("../../../electron/main/services/agent-events.ts", import.meta.url), "utf8");
-
-  assert.equal((startupSource.match(/SessionManager\.open\(/g) ?? []).length, 1);
-  assert.match(startupSource, /const sessionCwd = sessionManager\.getCwd\(\)/);
-  assert.match(startupSource, /projectTrustReloadOptions\(sessionCwd, agentDir\)/);
-  assert.match(startupSource, /cwd: sessionCwd/);
-  // Command paths must reuse the live wrapper instead of opening the file.
-  for (const route of [routeSource, eventRouteSource]) {
-    assert.doesNotMatch(route, /SessionManager\.open\(/);
-  }
-});
-
-test("RPC wrapper avoids per-chunk idle maintenance", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const startSource = source.slice(
-    source.indexOf("  start(): void"),
-    source.indexOf("  beginExtensionBinding"),
-  );
-
-  assert.match(startSource, /IDLE_RESET_EVENT_TYPES\.has\(event\.type\)/);
-  assert.doesNotMatch(startSource, /subscribe\(\(event: AgentEvent\) => \{\s*this\.resetIdleTimer\(\)/);
-  // Upstream 024be0b: the running-status broadcaster (its only consumer was
-  // the retired SSE route) is gone entirely.
-  assert.doesNotMatch(source, /notifyRunningChange|subscribeRunningSessions/);
-});
-
-test("normal session teardown paths use graceful extension shutdown", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const deleteRouteSource = await readFile(new URL("../../../electron/main/services/sessions.ts", import.meta.url), "utf8");
-  const trustRouteSource = await readFile(new URL("../../../electron/main/services/workspace.ts", import.meta.url), "utf8");
-  const idleSource = source.slice(
-    source.indexOf("  private resetIdleTimer"),
-    source.indexOf("  private persistBashOnlySession"),
-  );
-  const forkSource = source.slice(
-    source.indexOf('case "fork"'),
-    source.indexOf('case "navigate_tree"'),
-  );
-
-  assert.match(idleSource, /this\.shutdown\(\)/);
-  assert.match(forkSource, /await this\.shutdownAfterSessionReplacement\("fork"\)/);
-  assert.match(source, /await this\.shutdownAfterSessionReplacement\("clone"\)/);
-  assert.match(deleteRouteSource, /await getRpcSession\(id\)\?\.shutdown\(\)/);
-  assert.match(trustRouteSource, /destroyRpcSessionsForCwd\(result\.cwd\)/);
-});
-
-test("new-session route applies model scope during construction instead of follow-up commands", async () => {
-  const source = await readFile(new URL("../../../electron/main/services/agent.ts", import.meta.url), "utf8");
-
-  assert.match(source, /initialModel: \{ provider, modelId \}/);
-  assert.match(source, /thinkingLevel: explicitThinkingLevel/);
-  assert.doesNotMatch(source, /session\.send\(\{ type: "set_model"/);
-  assert.doesNotMatch(source, /session\.send\(\{ type: "set_thinking_level"/);
-  assert.match(source, /model: state\.model/);
-  assert.match(source, /thinkingLevel: state\.thinkingLevel/);
-});
-
-test("prompt routes mark only preflight failures as rejected", async () => {
-  const existingRoute = await readFile(new URL("../../../electron/main/services/agent.ts", import.meta.url), "utf8");
-  const newRoute = await readFile(new URL("../../../electron/main/services/agent.ts", import.meta.url), "utf8");
-
-  for (const source of [existingRoute, newRoute]) {
-    assert.match(source, /let promptAccepted = false/);
-    assert.match(source, /await .*\.send\(/);
-    assert.match(source, /promptAccepted = .*\.type === "prompt"/);
-    assert.match(source, /commandType === "prompt" && !promptAccepted/);
-  }
-});
-
-test("custom extension UI receives the fixed headless terminal facade", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const customUiSource = source.slice(
-    source.indexOf("private requestExtensionCustomUi"),
-    source.indexOf("private requestExtensionUi"),
-  );
-
-  assert.match(customUiSource, /createHeadlessCustomUiTui\(/);
-  assert.match(customUiSource, /width,/);
-});
-
-test("reloading a session invalidates the models cache", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const reloadSource = source.slice(
-    source.indexOf('case "reload"'),
-    source.indexOf('case "abort_compaction"'),
-  );
-
-  assert.match(reloadSource, /await this\.inner\.reload\(\)/);
-  // Since pi 0.86 the exact system prompt rides before_agent_start; reload
-  // still drops the models cache after the SDK reload.
-  assert.match(reloadSource, /await this\.inner\.reload\(\);[\s\S]*?invalidateModelsCache\(\)/);
-});
-
-test("clone copies the requested leaf into a child session", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const cloneSource = source.slice(
-    source.indexOf('case "clone"'),
-    source.indexOf('case "navigate_tree"'),
-  );
-
-  assert.match(cloneSource, /typeof command\.leafId === "string"/);
-  assert.match(cloneSource, /branchHasAssistant/);
-  assert.match(cloneSource, /createBranchedSession\(leafId\)/);
-  assert.match(cloneSource, /cacheSessionPath\(newSessionId, clonedPath\)/);
-  assert.match(cloneSource, /invalidateSessionListCache\(\)/);
-  assert.match(cloneSource, /return \{ cancelled: false, newSessionId \}/);
 });
 
 test("fork_branch copies the selected assistant entry without replacing the source session", async () => {
@@ -508,90 +342,9 @@ test("clone cancels an assistant-free branch without creating a file", async () 
   }
 });
 
-test("exact prompts are sent through before_agent_start instead of the SDK prompt state", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const subagentSource = await readFile(new URL("./subagent-runtime.ts", import.meta.url), "utf8");
-  const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
-  const promptSource = source.slice(
-    source.indexOf('case "prompt"'),
-    source.indexOf('case "abort"'),
-  );
-
-  // Pi 0.86 replays agent.state.systemPrompt from the transcript: assigning it throws,
-  // and the loop's request context no longer carries a systemPrompt field.
-  assert.doesNotMatch(source, /state\.systemPrompt =/);
-  assert.doesNotMatch(source, /prepareNextTurnWithContext/);
-  assert.doesNotMatch(subagentSource, /state\.systemPrompt =/);
-  assert.match(startupSource, /const exactSystemPromptExtension = createExactSystemPromptExtension\(\(\) => exactSystemPromptRef\.current\?\.\(\)\)/);
-  assert.match(startupSource, /exactSystemPromptRef\.current = exactSystemPrompt;/);
-  assert.match(startupSource, /\{ \.\.\.CHAT_ONLY_RESOURCE_LOADER_OPTIONS, extensionFactories: \[exactSystemPromptExtension\] \}/);
-  // Subagent projection now composes exact prompts and preloads in the shared binding;
-  // actual provider input is covered in subagent-skills.integration.test.mjs.
-  assert.match(startupSource, /\.\.\.skillsBinding!\.loaderOptions/);
-  assert.match(subagentSource, /\.\.\.skillsBinding\.loaderOptions/);
-  assert.match(promptSource, /preflightResult: \(\) => acceptPreflight\(\),/);
-  assert.doesNotMatch(promptSource, /requestedToolNames/);
-});
-
-test("RPC session startup never writes the global model defaults", async () => {
+test("subagents that load resources pass the project trust gate", async () => {
   const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
   const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
 
-  // A model picked for one chat is session-scoped, as in the TUI. Saving a
-  // default is its own request (PUT /api/models/default).
-  assert.doesNotMatch(startupSource, /setDefaultModelAndProvider\(|setDefaultThinkingLevel\(/);
-  assert.doesNotMatch(source, /startup-preferences/);
-});
-
-test("custom extension UI receives the fixed headless terminal facade", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const customUiSource = source.slice(
-    source.indexOf("private requestExtensionCustomUi"),
-    source.indexOf("private requestExtensionUi"),
-  );
-
-  assert.match(customUiSource, /createHeadlessCustomUiTui\(/);
-  assert.match(customUiSource, /width,/);
-});
-
-test("reloading a session invalidates the models cache", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const reloadSource = source.slice(
-    source.indexOf('case "reload"'),
-    source.indexOf('case "abort_compaction"'),
-  );
-
-  assert.match(reloadSource, /await this\.inner\.reload\(\)/);
-  assert.match(reloadSource, /await this\.inner\.reload\(\);[\s\S]*?invalidateModelsCache\(\)/);
-});
-
-test("normal sessions restore persisted tool selections before loading resources", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const startupSource = source.slice(source.indexOf("export async function startRpcSession"));
-  const registrationSource = source.slice(
-    source.indexOf("function registerRpcWrapper"),
-    source.indexOf("const SUBAGENT_CONTROLLER"),
-  );
-
-  assert.match(startupSource, /readSessionToolSelection\(sessionManager\.getEntries\(\)/);
-  assert.match(startupSource, /const selectedToolNames = subagentResources\?\.tools \?\? persistedToolNames \?\? requestedToolNames/);
-  assert.match(startupSource, /appendSessionToolSelection\(sessionManager, requestedToolNames\)/);
-  assert.ok(startupSource.indexOf("const chatOnly") < startupSource.indexOf("createAgentSessionServices("));
-  assert.match(startupSource, /chatOnly\s*\? \{ \.\.\.CHAT_ONLY_RESOURCE_LOADER_OPTIONS/);
   assert.match(startupSource, /const trustReloadOptions = subagentResources[\s\S]*?subagentLoadsResources[\s\S]*?projectTrustReloadOptions\(sessionCwd, agentDir\)/);
-  assert.match(registrationSource, /if \(!wrapper\.isChatOnly\(\)\) wrapper\.beginExtensionBinding\(\)/);
-});
-
-test("crossing the Chat-only boundary persists and rebuilds the wrapper", async () => {
-  const source = await readFile(new URL("./rpc-manager.ts", import.meta.url), "utf8");
-  const switchSource = source.slice(
-    source.indexOf("export async function setRpcSessionTools"),
-    source.indexOf("export function getRunningRpcSessionIds"),
-  );
-
-  assert.match(switchSource, /!hasCurrentResourcePolicy\s*\|\| existing\.isChatOnly\(\) !== \(toolNames\.length === 0\)/);
-  assert.match(switchSource, /appendSessionToolSelection\(existing\.inner\.sessionManager, toolNames\)/);
-  assert.match(switchSource, /await existing\.shutdown\(\)/);
-  assert.match(switchSource, /__recreate__\$\{randomUUID\(\)\}/);
-  assert.match(switchSource, /sessionId: started\.realSessionId/);
 });

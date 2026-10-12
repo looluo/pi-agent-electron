@@ -101,38 +101,6 @@ test("keeps deferred historical thinking placeholders", async () => {
   );
 });
 
-test("keeps thinking outside contiguous process segments in original order", async () => {
-  const { getDisplayableAssistantBlocks, splitThinkingBlocks, splitFinalAssistantBlocks } = await loadSubject();
-  const message = assistant([
-    { type: "thinking", thinking: "" },
-    { type: "text", text: "Inspecting" },
-    { type: "thinking", thinking: "", deferred: true },
-    { type: "thinking", thinking: "Check the result" },
-    { type: "toolCall", toolCallId: "call-1", toolName: "bash", input: {} },
-    { type: "text", text: "Tool commentary" },
-    { type: "thinking", thinking: "Conclude" },
-    { type: "text", text: "Final answer" },
-  ]);
-  const { processBlocks, answerBlocks } = splitFinalAssistantBlocks(message);
-  const groups = splitThinkingBlocks(processBlocks);
-  assert.deepEqual(groups.map(({ thinking, blocks }) => ({
-    thinking,
-    indices: blocks.map((block) => message.content.indexOf(block)),
-  })), [
-    { thinking: false, indices: [1] },
-    { thinking: true, indices: [2, 3] },
-    { thinking: false, indices: [4, 5] },
-    { thinking: true, indices: [6] },
-  ]);
-  assert.deepEqual([...groups.flatMap(({ blocks }) => blocks), ...answerBlocks], getDisplayableAssistantBlocks(message));
-
-  const simple = splitFinalAssistantBlocks(assistant([
-    { type: "thinking", thinking: "Reasoning" },
-    { type: "text", text: "Answer" },
-  ]));
-  assert.equal(splitThinkingBlocks(simple.processBlocks).some(({ thinking }) => !thinking), false);
-  assert.deepEqual(splitThinkingBlocks([]), []);
-});
 
 test("returns completed provider errors even when the message has no content", async () => {
   const { getAssistantErrorMessage } = await loadSubject();
@@ -192,6 +160,38 @@ test("treats a background subagent completion as a turn anchor", async () => {
   }), false);
 });
 
+test("treats @tintinweb/pi-subagents' completion notification as a turn anchor (#1075)", async () => {
+  const { isMessageGroupAnchor } = await loadSubject();
+  // Sent as a follow-up that triggers a turn; without the anchor that turn's
+  // reply became the final answer and folded the earlier one into Process details.
+  assert.equal(isMessageGroupAnchor({
+    role: "custom",
+    customType: "subagent-notification",
+    content: "Background agent completed: Investigate",
+    display: true,
+  }), true);
+  assert.equal(isMessageGroupAnchor({
+    role: "custom",
+    customType: "workflow-result",
+    content: "Workflow finished",
+    display: true,
+  }), false);
+});
+
+test("hides custom messages without display, as pi's TUI does", async () => {
+  const { isHiddenCustomMessage, isMessageGroupAnchor } = await loadSubject();
+  const custom = (customType, display) => ({ role: "custom", customType, content: "payload", display });
+
+  assert.equal(isHiddenCustomMessage(custom("firstpick:session-summary-rpc", false)), true);
+  assert.equal(isHiddenCustomMessage(custom("legacy", undefined)), true);
+  assert.equal(isHiddenCustomMessage(custom("extension", true)), false);
+  assert.equal(isHiddenCustomMessage({ role: "user", content: "prompt" }), false);
+  assert.equal(isHiddenCustomMessage(assistant([])), false);
+  // Nothing renders for it, so it cannot start a turn either.
+  assert.equal(isMessageGroupAnchor(custom("pi-web:subagent-notification", false)), false);
+  assert.equal(isMessageGroupAnchor(custom("compaction", false)), false);
+});
+
 test("isAssistantTruncated is true only for a finished stopReason length", async () => {
   const { isAssistantTruncated } = await loadSubject();
 
@@ -205,4 +205,34 @@ test("isAssistantTruncated is true only for a finished stopReason length", async
   assert.equal(isAssistantTruncated({ ...assistant([]), stopReason: "stop" }), false);
   assert.equal(isAssistantTruncated({ ...assistant([]), stopReason: "error", errorMessage: "oops" }), false);
   assert.equal(isAssistantTruncated({ ...assistant([]) }), false);
+});
+
+test("collapses Process details only above an answer with text or an image (#906)", async () => {
+  const { collapsesProcessDetails, splitFinalAssistantBlocks } = await loadSubject();
+  // The answer a turn shows, built as ChatWindow builds it from the final message.
+  const answerOf = (message) => ({ ...message, content: splitFinalAssistantBlocks(message).answerBlocks });
+
+  assert.equal(collapsesProcessDetails(null), false);
+  // The reported turn ends on empty error replies after text and a trailing
+  // tool call: only the error shows, the text is in Process details.
+  assert.equal(collapsesProcessDetails(answerOf({ ...assistant([]), stopReason: "error", errorMessage: "terminated" })), false);
+  assert.equal(collapsesProcessDetails(answerOf({
+    ...assistant([{ type: "thinking", thinking: "long reasoning" }]),
+    stopReason: "length",
+  })), false);
+  assert.equal(collapsesProcessDetails(answerOf(assistant([{ type: "text", text: " \n" }]))), false);
+
+  assert.equal(collapsesProcessDetails(answerOf(assistant([
+    { type: "toolCall", toolCallId: "call-1", toolName: "bash", input: {} },
+    { type: "text", text: "Final answer" },
+  ]))), true);
+  assert.equal(collapsesProcessDetails(answerOf(assistant([
+    { type: "image", source: { type: "url", url: "https://example.com/final.png" } },
+  ]))), true);
+  // Text that made it out before the error is still an answer.
+  assert.equal(collapsesProcessDetails(answerOf({
+    ...assistant([{ type: "text", text: "Partial answer" }]),
+    stopReason: "error",
+    errorMessage: "Connection closed",
+  })), true);
 });

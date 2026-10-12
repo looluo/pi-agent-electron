@@ -143,14 +143,14 @@ test("resolves PI_CODING_AGENT_DIR as pi's getAgentDir() does", async (t) => {
     else process.env.PI_CODING_AGENT_DIR = previous;
   });
 
-  // Parity helper: on Windows both sides throw the same ERR_INVALID_FILE_URL_PATH
+    // Parity helper: on Windows both sides throw the same ERR_INVALID_FILE_URL_PATH
   // for drive-less file: URLs (the SDK's getAgentDir included), so compare
   // outcomes, not just return values (upstream only runs this on POSIX).
   const outcome = (fn) => {
     try { return { v: fn() }; } catch (e) { return { e: e.code ?? e.message }; }
   };
 
-  for (const value of [undefined, "", "~", "~/agent", "~\\agent", "/abs/agent", "rel/agent", " /padded ", "file:///tmp/agent", "/c/Users/agent", "/mnt/d/agent"]) {
+for (const value of [undefined, "", "~", "~/agent", "~\\agent", "/abs/agent", "rel/agent", " /padded ", "file:///tmp/agent", "/c/Users/agent", "/mnt/d/agent"]) {
     if (value === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = value;
     assert.deepEqual(outcome(() => defaultAgentDir()), outcome(getAgentDir), `PI_CODING_AGENT_DIR=${JSON.stringify(value)}`);

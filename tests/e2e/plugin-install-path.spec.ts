@@ -20,7 +20,7 @@ const isWindows = process.platform === "win32";
 test.skip(isWindows, "launchd minimal-PATH launches are macOS-only; win32 GUI launches inherit the full registry PATH");
 
 test("plugin install survives a launchd-like minimal PATH", async () => {
-  const agentHome = createAgentHomeFixture([
+  const agentHome = await createAgentHomeFixture([
     JSON.stringify({
       type: "message", id: "path-u1", parentId: null, timestamp: "2026-09-08T00:00:01.000Z",
       message: { role: "user", content: [{ type: "text", text: "path fixture e2e" }] },

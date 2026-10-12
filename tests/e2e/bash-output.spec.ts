@@ -37,7 +37,7 @@ test("view full output loads the truncated bash log over IPC", async () => {
       },
     }),
   ];
-  const agentHome = createAgentHomeFixture(lines);
+  const agentHome = await createAgentHomeFixture(lines);
   const { app, page } = await launchApp({ PI_CODING_AGENT_DIR: agentHome });
 
   const row = page.getByText(FIXTURE_FIRST_MESSAGE).first();

@@ -9,6 +9,7 @@ const jiti = createJiti(import.meta.url, {
   tsconfigPaths: true,
 });
 const {
+  CompactionSummaryDetails,
   MessageView,
   ThinkingBlock,
   formatToolDuration,
@@ -174,7 +175,7 @@ test("keeps the input JSON for a write with another argument, an empty file or s
   }
 });
 
-test("renders subagents as standard tool calls with only an extra session button", () => {
+test("renders subagents as standard tool calls with only an extra side-panel button", () => {
   const block = {
     type: "toolCall",
     toolCallId: "call-agent-1",
@@ -206,13 +207,13 @@ test("renders subagents as standard tool calls with only an extra session button
     content: [block],
   }, {
     toolResults: new Map([[block.toolCallId, result]]),
-    onOpenSession() {},
+    onOpenSubagent() {},
   });
 
   assert.match(html, /border:1px solid rgba\(34,197,94,0\.25\)/);
   assert.match(html, />Agent</);
   assert.match(html, />Explore</);
-  assert.match(html, /aria-label="Open sub-agent session"/);
+  assert.match(html, /aria-label="View sub-agent work in side panel"/);
   assert.doesNotMatch(html, />completed</);
   assert.doesNotMatch(html, />Find parser</);
 
@@ -223,9 +224,9 @@ test("renders subagents as standard tool calls with only an extra session button
     content: [{ ...block, toolCallId: "call-extension-1", toolName: "extension_tool" }],
   }, {
     toolResults: new Map(),
-    onOpenSession() {},
+    onOpenSubagent() {},
   });
-  assert.doesNotMatch(ordinaryHtml, /Open sub-agent session/);
+  assert.doesNotMatch(ordinaryHtml, /View sub-agent work in side panel/);
 });
 
 test("a tool card shows the run time pi recorded, else the timestamps' difference, never a tiny one", () => {
@@ -461,6 +462,36 @@ test("marks apply_patch returned failures as errors even when isError is unset",
   assert.doesNotMatch(html, /border:1px solid rgba\(34,197,94,0\.25\)/);
 });
 
+test("collapses a displayed custom message from its header alone", () => {
+  const custom = (props) => renderMessage({
+    role: "custom",
+    customType: "extension",
+    display: true,
+    timestamp: Date.now(),
+    ...props,
+  });
+  // The header is the card's first button and the only one holding the title.
+  const header = (html) => html.slice(0, html.indexOf("</button>"));
+
+  // The header is the toggle, so a message with no `details` can collapse too.
+  const shown = custom({ content: [{ type: "text", text: "a message with no details" }] });
+  assert.match(header(shown), /aria-expanded="true"/);
+  assert.match(header(shown), />extension</);
+  // The footer is for details only; it is not a second way to collapse.
+  assert.doesNotMatch(shown, /Show details|Hide details/);
+
+  // It starts expanded, as pi's TUI draws a displayed custom message in full.
+  assert.match(shown, /a message with no details/);
+  // A message with no text (images only) can collapse too.
+  assert.match(header(custom({ content: [] })), /aria-expanded="true"/);
+
+  // A message that does carry details keeps that button, for its details.
+  assert.match(
+    custom({ content: [{ type: "text", text: "a message with details" }], details: { files: ["a.ts"] } }),
+    /Show details/,
+  );
+});
+
 test("renders custom-message images as buttons that open a larger preview", () => {
   const html = renderMessage({
     role: "custom",
@@ -637,4 +668,87 @@ test("keeps the generic view for a codemode call whose input is still streaming 
   setToolCallExpanded(other.toolCallId, true);
   t.after(() => setToolCallExpanded(other.toolCallId, false));
   assert.match(textOf(renderCodemode(other)), /"script": "x"/);
+});
+
+test("labels an MCP call server/tool and indents a JSON result", (t) => {
+  const block = {
+    type: "toolCall",
+    toolCallId: "call-mcp-1",
+    toolName: "mcp__docs_v2__search",
+    input: { query: "codemode" },
+  };
+  setToolCallExpanded(block.toolCallId, true);
+  t.after(() => setToolCallExpanded(block.toolCallId, false));
+  const html = renderMessage({
+    role: "assistant",
+    provider: "anthropic",
+    model: "claude-test",
+    content: [block],
+  }, {
+    toolResults: new Map([[block.toolCallId, {
+      role: "toolResult",
+      toolCallId: block.toolCallId,
+      content: [{ type: "text", text: "{\"hits\":[{\"title\":\"Code mode\"}]}" }],
+      details: { server: "docs.v2", tool: "search" },
+    }]]),
+  });
+  const text = textOf(html);
+  assert.match(text, /docs\.v2\/search/);
+  assert.match(html, /title="mcp__docs_v2__search"/);
+  assert.match(text, /\{\n {2}"hits": \[\n {4}\{\n {6}"title": "Code mode"/);
+});
+
+test("keeps the registered name where no result names the server and tool", (t) => {
+  // Sanitizing maps docs.v2/search.pages and docs_v2/search_pages to one name, so it is not split.
+  const block = { type: "toolCall", toolCallId: "call-mcp-running", toolName: "mcp__docs_v2__search_pages", input: {} };
+  const running = textOf(renderMessage({
+    role: "assistant",
+    provider: "anthropic",
+    model: "claude-test",
+    content: [block],
+  }, { toolResults: new Map() }));
+  assert.match(running, /mcp__docs_v2__search_pages/);
+  assert.doesNotMatch(running, /docs_v2\//);
+
+  // A codemode script's calls carry only that name, which is also what the script calls.
+  const script = codemodeCall("call-codemode-mcp", "await tools.mcp__docs_v2__search_pages({})");
+  setToolCallExpanded(script.toolCallId, true);
+  t.after(() => setToolCallExpanded(script.toolCallId, false));
+  const html = renderCodemode(script, {
+    role: "toolResult",
+    toolCallId: script.toolCallId,
+    content: [{ type: "text", text: "Script completed\nWall time 0.1 seconds\nOutput:\n" }],
+    details: { calls: [{ id: "call-codemode-mcp/1", name: "mcp__docs_v2__search_pages", args: "{}", status: "ok" }] },
+  });
+  assert.match(textOf(html), /mcp__docs_v2__search_pages\{\}/);
+});
+
+test("collapses the compaction summary to its title and token count, as pi's TUI does (#1026)", () => {
+  const summary = "## Goal\n\nShip the parser fix.\n\n<read-files>\nlib/read.ts\n</read-files>\n\n<modified-files>\nlib/changed.ts\n</modified-files>";
+  const message = {
+    role: "custom",
+    customType: "compaction",
+    content: summary,
+    display: true,
+    details: { tokensBefore: 123456, firstKeptEntryId: "kept0001" },
+  };
+  const html = renderMessage(message);
+
+  assert.match(html, /<button type="button" aria-expanded="false" title="Expand"/);
+  assert.match(html, /Conversation compacted/);
+  assert.ok(html.includes(`Compacted from ${(123456).toLocaleString()} tokens`));
+  assert.doesNotMatch(html, /Ship the parser fix|following summary|File context|lib\/read\.ts|lib\/changed\.ts/);
+  assert.doesNotMatch(renderMessage({ ...message, details: undefined }), /Compacted from/);
+
+  // What the toggle reveals.
+  const details = renderToStaticMarkup(React.createElement(
+    I18nProvider,
+    null,
+    React.createElement(CompactionSummaryDetails, { summary }),
+  ));
+  assert.match(details, /following summary/);
+  assert.match(details, /Ship the parser fix/);
+  assert.match(details, /File context: 1 read, 1 modified/);
+  assert.match(details, /lib\/read\.ts/);
+  assert.match(details, /lib\/changed\.ts/);
 });

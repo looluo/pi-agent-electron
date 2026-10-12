@@ -470,6 +470,57 @@ does not touch that path.
 Verification: `npm run typecheck` clean; `npm test` 1759/1765 (same 6 known
 skips); packaged mac build smoke-tested (Settings › MCP renders on SDK 1.0.0).
 
+## v0.11.0 → v0.12.0 (`c9e1513..894e1a2`) — synced 2026-10
+
+68 non-merge commits (includes the v0.11.1 batch). pi SDK stays 1.1.0 — the
+wave is renderer work plus one main-process transport fix. Local version
+aligned 0.12.0. Executed as a file-level three-way merge (base c9e1513, ours,
+theirs 894e1a2) with per-file conflict resolution; 54 source commits ported,
+12 n/a, 2 release n/a.
+
+| Upstream | Subject | Status | Notes |
+|---|---|---|---|
+| 650d7a3 | fix(http): apply settings' httpIdleTimeoutMs to the Web UI | ported | main called `configureHttpDispatcher()` bare — same bug; `readHttpIdleTimeoutMs()` + `defaultAgentDir()` now read the global settings before startup |
+| 8347ea5…f0bc371 | chat fix batch: list-number clipping, notice centring, compaction dismiss/collapse, custom-message collapse, Process-details-on-error, Stop-slot, QR notices, desktop-app links, display:false + subagents anchor, minimap numbering + lock | ported | new libs `notice-text`, `minimap-preview-lock`, `stream-token-rate` |
+| 5af2e04/47d8b9a | markdown desktop-app links, compaction summary collapse | ported | |
+| 20b688c | deleted-project errors + Chat-only extension models | ported | rpc-manager `chatOnlyExtensionModelError`; transport re-homed onto agentNew result |
+| f87afbb/93b3aba/4ad8aa3/d69b33e | files: CSV/TSV table, >256KB HTML preview, tree reload on run writes, **workspace file-tab parking** | ported | **PR #548 superseded**: upstream formalized per-project panel parking into `file-tab-state` (`changeFileWorkspace`); our hand-rolled `switchProjectFileTabs` retired, its test deleted (superseded by `file-tab-state.test` 13/13) |
+| a3a158a/1a56053/b6318be | models: pi's /model order, Kimi quota, Fetch-model capability metadata | ported | |
+| ae34240 | skills: full instructions in settings | ported | |
+| d1529d0/7a416ce | audio chime context lifecycle | ported | |
+| 8e602ca/e83280e/51dda7c/89d7141/c8182b1/ee78105/5fd1e67/e493310/d474ce2/e7d0fda | sessions/sidebar: external discovery, gone-session links, delete-all, awaiting-input, project rename, retry/context window after switches, list rebuild-once, first-prompt-after-switch | ported | session-membership integration re-homed onto `sessionsList` service; new-session-switch test re-homed onto the window.pi bridge |
+| 311a901 + 7 follow-ups | subagents right-panel viewer + profile spawn params, mcp.json connect (mcp:on), codemode opt-in, thinking model:level, removed-worktree answers, session_start tools | ported | SubagentViewer + subagent-viewer-state; `subagents.ts` gains `extensions`/`codemode`/`mcp` profile fields + `profileNameList` rename |
+| e8b0236 | mcp detail pane: say each fact once | ported | i18n wording realigned to upstream for all shared keys |
+| 0699107/b73fdeb/a952ed5/b2b6a45/046bc67/e8d91ef | perf: turn-views, list-rebuild-once, markdown-blocks/streaming push, image + relation caches + deferred highlighting, Prism on demand, streaming-selector re-render | ported | web-push/SSE halves n/a |
+| 3fe257f…cae6201 + e2fe4fb | sidebar restyle (v0.11.1): files-below-sessions, section headers, 28px rows, fold motion, brand row (PiWebTitle), new-session brand | ported | files-placement default "below"; tabs layout kept behind pref |
+| f364bc3 | test: drop source-text assertions | ported | |
+| 6742182 | Tailwind `.claude` scan exclusion | partial | globals.css hunks landed; `@source not` lines stay dropped (Vite has no webpack snapshot issue) |
+| f98c088/5abdee3/6425d0d/30af3b4 | CLI commands/exit, server SDK preload, release docs | n/a | no CLI/HTTP server |
+| 2adb185/d9adb38/6835326/3ff7e1d | PWA runtime name, open-in-new-tab, Termux keys, phone-keyboard terminal | n/a | form factor; `lib/session-links` + `TabOpen` kept as local parity types for the gone-session fix |
+| e783721/894e1a2 | Release v0.11.1 / v0.12.0 | n/a | local version aligned 0.12.0 |
+
+Backfills beyond this range (found by the wave's tests): **mcpToolLabel**
+(v0.10.0 sync imported it but never used it — the `server/tool` MCP call label
+now renders), **`renameProviderEntry`** + 50 lines of `models-config-helpers`
+(never ported), **`lib/__fixtures__/mcp-*.mjs`** (from 6695979's test-connection
+feature).
+
+Windows notes from this sync: jiti aliases need every path spelling (the
+files-placement fixture alias carries six forms — backslash/forward/.ts/file-URL);
+dynamic imports of absolute paths still need `pathToFileURL`; the e2e fixture
+helper now derives the sessions directory from `SessionManager` itself (the
+`:`-in-dirname encoding broke on win32). **subagent-mcp.integration (11 tests)
+skips on win32**: the child-MCP flow verifies green outside the runner (same
+setup as a bare script), but under node:test the process hangs after the test
+body, before after-hooks — runner interaction still to be understood. The three
+fixture-era e2e specs (thinking/bash-output/markdown-image, 2de8638) stay
+pre-existing-red on Windows (fixture session never becomes visible on a fresh
+profile); verified red before this sync.
+
+Verification: typecheck clean (renderer + electron); `npm test` 2096 = 2069
+pass / 0 fail / 27 skip (16 pre-existing + 11 win32 mcp); `npm run test:e2e` 9
+pass / 3 pre-existing red / 1 skip; main↔preload channel diff empty.
+
 ## v0.10.0 → v0.11.0 (`6fcd7d4..c9e1513`) — synced 2026-10
 
 47 non-merge commits (44 with source; e2e/docs/release excluded); census:

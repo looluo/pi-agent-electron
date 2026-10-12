@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { Script } from "node:vm";
-import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { createJiti } from "jiti";
 import ts from "typescript";
 
@@ -11,7 +9,9 @@ const jiti = createJiti(import.meta.url, {
   jsx: { runtime: "automatic" },
   tsconfigPaths: true,
 });
-const { ChatInput, ModelErrorBanner, ModelScopeWarningBanner, canClearBuiltinCommandInput, canRestoreUserMessage, canRunBuiltinSlashCommandWhileStreaming, compressImageFile, cycleListIndex, filterModelOptions, getUpwardMenuMaxHeight, getUserMessageText, getUserMessageDraftImages, isExactSlashCommand, modelSupportsImageInput, offersBuiltinSlashCommandWhileStreaming, replaceLinksWithMarkdown, replaceTextareaRange, shouldCompressImageFile, submitsSlashCommandOnEnter } = await jiti.import("./ChatInput.tsx");
+const React = await jiti.import("react");
+const { renderToStaticMarkup } = await jiti.import("react-dom/server");
+const { ChatInput, ModelErrorBanner, ModelScopeWarningBanner, RUN_END_CLICK_GUARD_MS, canClearBuiltinCommandInput, canRestoreUserMessage, canRunBuiltinSlashCommandWhileStreaming, compressImageFile, cycleListIndex, filterModelOptions, getUpwardMenuMaxHeight, getUserMessageText, getUserMessageDraftImages, isExactSlashCommand, isRunEndStrayClick, modelSupportsImageInput, offersBuiltinSlashCommandWhileStreaming, replaceLinksWithMarkdown, replaceTextareaRange, shouldCompressImageFile, submitsSlashCommandOnEnter } = await jiti.import("./ChatInput.tsx");
 const { isBareMcpCommand } = await jiti.import("@/lib/mcp-command.ts");
 const { ModelSelector } = await jiti.import("./ModelSelector.tsx");
 const { clearDraft, getDraft, mergeRestoredSubmissionDraft, mergeRestoredSubmissionText, rekeyDraft, setDraft } = await jiti.import("@/lib/draft-store");
@@ -151,10 +151,6 @@ test("file mention insertion uses one native undoable edit", () => {
       ["selection", 6, 14],
       ["command", "insertText", "@file "],
     ]);
-
-    const source = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
-    assert.match(source, /insertText\(text: string\)[\s\S]*?replaceTextareaRange\(ta, start, end, sep \+ text\)/);
-    assert.match(source, /const applyAtCompletion[\s\S]*?replaceTextareaRange\(ta, atQuery\.start, replaceEnd, insert\.text, insert\.cursorOffset\)/);
   } finally {
     globalThis.document = originalDocument;
   }
@@ -267,6 +263,15 @@ test("shows the follow-up shortcut in the button tooltip", () => {
   assert.match(html, /aria-keyshortcuts="Alt\+Enter"/);
 });
 
+test("ignores a pointer click that reaches Stop's slot just as the run ends", () => {
+  assert.equal(isRunEndStrayClick(1, 0), true);
+  assert.equal(isRunEndStrayClick(2, RUN_END_CLICK_GUARD_MS - 1), true);
+  assert.equal(isRunEndStrayClick(1, RUN_END_CLICK_GUARD_MS), false);
+  assert.equal(isRunEndStrayClick(1, Number.POSITIVE_INFINITY), false, "no run has ended yet");
+  assert.equal(isRunEndStrayClick(0, 0), false, "Enter/Space on a focused button is never a stray click");
+  assert.ok(RUN_END_CLICK_GUARD_MS <= 700, "a deliberate click after a run must not wait noticeably");
+});
+
 test("renders the upstream model error", () => {
   const html = renderToStaticMarkup(
     React.createElement(
@@ -370,7 +375,44 @@ test("renders the compact composer with the standard Send button and no session 
   assert.match(html, /<textarea/);
   assert.match(html, />Send<\/button>/);
   assert.equal((html.match(/<button\b/g) ?? []).length, 1);
-  assert.doesNotMatch(html, /type="file"|Attach image|Change tool preset/);
+  assert.doesNotMatch(html, /type="file"|Attach files|Change tool preset/);
+});
+
+test("the attach button takes any file when the chat handles them, and images only otherwise (#1101)", () => {
+  const render = (props) => renderToStaticMarkup(
+    React.createElement(I18nProvider, null, React.createElement(ChatInput, {
+      onSend() {}, onAbort() {}, isStreaming: false, ...props,
+    })),
+  );
+  const fileInput = (html) => html.match(/<input[^>]*type="file"[^>]*>/)?.[0] ?? "";
+
+  const html = render({ onAttachFiles() {} });
+  assert.match(html, /title="Attach files"/);
+  assert.match(fileInput(html), /multiple=""/);
+  // No accept list and no capture: phones offer files, the photo library and the camera.
+  assert.doesNotMatch(fileInput(html), /accept=|capture=/);
+
+  assert.match(fileInput(render({})), /accept="image\/\*"/);
+});
+
+test("picked files go to the chat's attach handler, or attach as images without one (#1101)", () => {
+  const photo = new File(["x"], "photo.png", { type: "image/png" });
+  const report = new File(["x"], "report.pdf", { type: "application/pdf" });
+  const pick = (context) => {
+    const calls = { attached: [], images: [] };
+    const target = { files: [photo, report], value: "C:\\fakepath\\photo.png" };
+    chatInputCallback("handleFilePick", {
+      processImageFiles: (files) => calls.images.push([...files]),
+      ...context(calls),
+    })({ target });
+    return { ...calls, value: target.value };
+  };
+
+  assert.deepEqual(
+    pick((calls) => ({ onAttachFiles: (files) => calls.attached.push([...files]) })),
+    { attached: [[photo, report]], images: [], value: "" },
+  );
+  assert.deepEqual(pick(() => ({ onAttachFiles: undefined })), { attached: [], images: [[photo, report]], value: "" });
 });
 
 test("shows and locks the optimistic model while a switch is pending", () => {
@@ -443,27 +485,6 @@ test("caps an upward menu to the visible space above its anchor", () => {
   // file list would paint through the bar and hide the leading matches.
   assert.equal(getUpwardMenuMaxHeight(200, 36), 156);
   assert.ok(getUpwardMenuMaxHeight(200, 36) < 400);
-});
-
-test("file mention menu applies the measured upward height cap", () => {
-  const source = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
-  const start = source.indexOf("{atMenuOpen && atQuery !== null && (() => {");
-  assert.notEqual(start, -1);
-  const block = source.slice(start, start + 4000);
-  assert.match(block, /ref=\{atMenuRef\}/);
-  assert.match(block, /min\(48vh, 400px, \$\{atMenuMaxHeight\}px\)/);
-  assert.match(block, /flexDirection: "column"/);
-  assert.match(block, /minHeight: 0/);
-  assert.equal(block.includes("maxHeight: \"min(48vh, 400px)\""), false);
-});
-
-test("file mention menu remeasures when its layout container shifts the anchor", () => {
-  const source = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
-  const start = source.indexOf("function subscribeUpwardMenuMaxHeight");
-  assert.notEqual(start, -1);
-  const block = source.slice(start, start + 1800);
-  assert.match(block, /const layoutContainer = parent\?\.parentElement;/);
-  assert.match(block, /anchorObserver\?\.observe\(layoutContainer\)/);
 });
 
 test("compresses large images while preserving small images and GIFs", async () => {
@@ -562,7 +583,6 @@ test("locks built-in command submission until it settles", async () => {
   callback.resolve({ handled: true });
   assert.equal(await first, true);
   assert.deepEqual(callback.pendingStates, [true, false]);
-  assert.match(sourceText, /<fieldset\s+disabled=\{builtinCommandPending\}\s+aria-busy=\{builtinCommandPending\}/);
 });
 
 test("keeps only read-only built-ins available while a run is active", () => {
@@ -571,6 +591,105 @@ test("keeps only read-only built-ins available while a run is active", () => {
   assert.equal(canRunBuiltinSlashCommandWhileStreaming("/compact"), false);
   assert.equal(canRunBuiltinSlashCommandWhileStreaming("/auto-compact"), false);
   assert.equal(canRunBuiltinSlashCommandWhileStreaming("/reload"), false);
+});
+
+test("a bare /mcp reaches the built-in handler while a run is active", () => {
+  assert.equal(offersBuiltinSlashCommandWhileStreaming("/mcp"), true);
+  assert.equal(offersBuiltinSlashCommandWhileStreaming("/copy"), true);
+  assert.equal(offersBuiltinSlashCommandWhileStreaming("/compact"), false);
+  // Subcommands act on the session's connections and are queued like any message.
+  assert.equal(offersBuiltinSlashCommandWhileStreaming("/mcp login docs"), false);
+  assert.equal(offersBuiltinSlashCommandWhileStreaming("/mcp:1"), false);
+  // The built-in list itself is unchanged: /mcp is not one of the composer's built-ins.
+  assert.equal(canRunBuiltinSlashCommandWhileStreaming("/mcp"), false);
+});
+
+test("Enter on pi's built-in /mcp submits it at once; other extension commands still complete first", () => {
+  const builtinMcp = { name: "mcp", source: "extension", sourceInfo: { path: "builtin:mcp", source: "builtin", scope: "temporary", origin: "top-level" } };
+  const otherMcp = { ...builtinMcp, sourceInfo: { ...builtinMcp.sourceInfo, path: "/ext/mcp.ts" } };
+  const copy = { name: "copy", description: "", source: "builtin", availableWhileStreaming: true };
+  const compact = { name: "compact", description: "", source: "builtin" };
+
+  assert.equal(submitsSlashCommandOnEnter("/mcp", builtinMcp, false), true);
+  assert.equal(submitsSlashCommandOnEnter("/mcp", builtinMcp, true), true);
+  assert.equal(submitsSlashCommandOnEnter("/mc", builtinMcp, false), false);
+  assert.equal(submitsSlashCommandOnEnter("/mcp", otherMcp, false), false);
+  assert.equal(submitsSlashCommandOnEnter("/deploy", { ...otherMcp, name: "deploy" }, false), false);
+  // The composer's built-ins keep their rule: typed in full, and while streaming only those allowed then.
+  assert.equal(submitsSlashCommandOnEnter("/copy", copy, true), true);
+  assert.equal(submitsSlashCommandOnEnter("/compact", compact, false), true);
+  assert.equal(submitsSlashCommandOnEnter("/compact", compact, true), false);
+  assert.equal(submitsSlashCommandOnEnter("/co", copy, false), false);
+});
+
+function chatInputCallback(name, context) {
+  const sourceText = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
+  const source = ts.createSourceFile("ChatInput.tsx", sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  function findCallback(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(source) === name) {
+      return node.initializer.arguments[0];
+    }
+    return ts.forEachChild(node, findCallback);
+  }
+  return new Script(ts.transpileModule(findCallback(source).getText(source), {
+    compilerOptions: { target: ts.ScriptTarget.ES2020 },
+  }).outputText).runInNewContext(context);
+}
+
+test("while a run streams, a bare /mcp opens Settings or is queued as before", async () => {
+  const run = async (value, handled, { mode = "steer", images = [] } = {}) => {
+    const calls = { builtin: [], prompts: [], cleared: 0 };
+    const sendQueued = chatInputCallback("sendQueued", {
+      value,
+      attachedImages: images,
+      onAudioUnlock() {},
+      clearInput() { calls.cleared += 1; },
+      onBuiltinCommand: async () => ({ handled }),
+      canRunBuiltinSlashCommandWhileStreaming,
+      isBareMcpCommand,
+      runBuiltinCommand: async (message) => { calls.builtin.push(message); return handled; },
+      onPromptWithStreamingBehavior: (message, behavior, attached) => calls.prompts.push([message, behavior, attached?.length ?? 0]),
+      onSteer() { throw new Error("slash messages are prompts"); },
+      onFollowUp() { throw new Error("slash messages are prompts"); },
+    });
+    sendQueued(mode);
+    await new Promise((resolve) => setImmediate(resolve));
+    return calls;
+  };
+
+  // Owned: Settings opened, nothing queued, the handler clears the input itself.
+  assert.deepEqual(await run("/mcp", true), { builtin: ["/mcp"], prompts: [], cleared: 0 });
+  // Another extension's /mcp: queued exactly as before.
+  assert.deepEqual(await run("/mcp", false), { builtin: ["/mcp"], prompts: [["/mcp", "steer", 0]], cleared: 1 });
+  assert.deepEqual(await run("/mcp", false, { mode: "followup" }), { builtin: ["/mcp"], prompts: [["/mcp", "followUp", 0]], cleared: 1 });
+  // Subcommands and a /mcp with images never reach the handler.
+  assert.deepEqual(await run("/mcp login docs", true), { builtin: [], prompts: [["/mcp login docs", "steer", 0]], cleared: 1 });
+  assert.deepEqual(await run("/mcp", true, { images: [{}] }), { builtin: [], prompts: [["/mcp", "steer", 1]], cleared: 1 });
+  // The composer's own built-ins are unchanged.
+  assert.deepEqual(await run("/copy", true), { builtin: ["/copy"], prompts: [], cleared: 0 });
+});
+
+test("handleSend lets a handled /mcp through while streaming and sends an unowned one when idle", async () => {
+  const run = async (value, { isStreaming, handled }) => {
+    const calls = { builtin: [], sent: [] };
+    const handleSend = chatInputCallback("handleSend", {
+      value,
+      attachedImages: [],
+      onAudioUnlock() {},
+      isStreaming,
+      offersBuiltinSlashCommandWhileStreaming,
+      runBuiltinCommand: async (message) => { calls.builtin.push(message); return handled; },
+      clearInput() {},
+      onSend: (message) => calls.sent.push(message),
+    });
+    await handleSend();
+    return calls;
+  };
+  assert.deepEqual(await run("/mcp", { isStreaming: true, handled: true }), { builtin: ["/mcp"], sent: [] });
+  assert.deepEqual(await run("/mcp", { isStreaming: false, handled: true }), { builtin: ["/mcp"], sent: [] });
+  assert.deepEqual(await run("/mcp", { isStreaming: false, handled: false }), { builtin: ["/mcp"], sent: ["/mcp"] });
+  // Streaming without steer handlers keeps any other message in the composer, as before.
+  assert.deepEqual(await run("/mcp login", { isStreaming: true, handled: false }), { builtin: [], sent: [] });
 });
 
 test("restores text and base64 images when editing a user message", () => {
@@ -720,23 +839,24 @@ test("renders compact errors above the input as a wrapping alert", () => {
   assert.ok(html.indexOf('role="alert"') < html.indexOf("<textarea"));
 });
 
-test("renders the empty tool preset as Chat only", () => {
-  const html = renderToStaticMarkup(
+test("a compact error can be dismissed when the composer is given a handler", () => {
+  const render = (props) => renderToStaticMarkup(
     React.createElement(
       I18nProvider,
       null,
       React.createElement(ChatInput, {
         onSend() {},
         onAbort() {},
-        onToolPresetChange() {},
+        onCompact() {},
         isStreaming: false,
-        toolPreset: "none",
+        compactError: "Nothing to compact (session too small)",
+        ...props,
       }),
     ),
   );
 
-  assert.match(html, /title="Change tool preset: Chat only"/);
-  assert.match(html, />Chat only<\/span>/);
+  assert.match(render({ onDismissCompactError() {} }), /aria-label="Dismiss compaction error"/);
+  assert.doesNotMatch(render({}), /Dismiss compaction error/);
 });
 
 test("modelSupportsImageInput warns only when modality info is known and lacks image", () => {
@@ -796,16 +916,6 @@ test("renders image warnings for known text-only defaults without an explicit mo
   } finally {
     clearDraft(draftKey);
   }
-});
-
-test("only the chat composer offers saving a default model or reasoning level", () => {
-  const chatInputSource = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
-  const agentsConfigSource = readFileSync(new URL("./AgentsConfig.tsx", import.meta.url), "utf8");
-  assert.match(chatInputSource, /<ModelSelector[\s\S]*?defaultValue=\{defaultModel\}[\s\S]*?onSetDefault=\{onSetDefaultModel\}/);
-  // "auto" means "use the default", so it never gets a star of its own.
-  assert.match(chatInputSource, /star=\{onSetDefaultThinkingLevel && lvl !== "auto"/);
-  // A subagent profile's model is not the default for new chats.
-  assert.doesNotMatch(agentsConfigSource, /onSetDefault/);
 });
 
 test("selector rows keep the default star and the floating save button in one gutter", async () => {

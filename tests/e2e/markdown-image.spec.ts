@@ -19,7 +19,7 @@ const PNG_BYTES = Buffer.from(
 );
 
 test("markdown local image loads via pifile protocol", async () => {
-  const agentHome = resolveAgentHome();
+  const agentHome = await resolveAgentHome();
   const { app, page } = await launchApp({ PI_CODING_AGENT_DIR: agentHome });
 
   const row = page.getByText(FIXTURE_FIRST_MESSAGE).first();
@@ -36,7 +36,7 @@ test("markdown local image loads via pifile protocol", async () => {
   await app.close();
 });
 
-function resolveAgentHome(): string {
+async function resolveAgentHome(): Promise<string> {
   const lines = [
     JSON.stringify({
       type: "message", id: "e2e-u1", parentId: null, timestamp: "2026-09-08T00:00:01.000Z",
@@ -51,7 +51,7 @@ function resolveAgentHome(): string {
       },
     }),
   ];
-  const agentHome = createAgentHomeFixture(lines);
+  const agentHome = await createAgentHomeFixture(lines);
   // The markdown src is relative — resolveLocalFileHref anchors it on the
   // session cwd, which is the fixture workspace.
   writeFileSync(join(agentHome, "workspace", "screenshot.png"), PNG_BYTES);

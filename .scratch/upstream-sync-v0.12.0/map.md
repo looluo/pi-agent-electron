@@ -36,9 +36,22 @@ Upstream `agegr/pi-web` c9e1513..894e1a2（68 non-merge commits，含中间 v0.1
   SubagentViewer(+state)、PiWebTitle、TerminalExtraKeys[n/a]、DelimitedTable、web-push[n/a]、
   terminal-extra-keys[n/a]、session-membership(test)
 
-## 关键判定
+## 终局（2026-10-12）
 
-- **650d7a3 必须移植**：electron/main/index.ts 无参 configureHttpDispatcher() 忽略用户 settings.json 的
-  httpIdleTimeoutMs——与上游 bug 同构。main 侧读 settings 后传参。
-- **e83280e 移植**：?session= 恢复语义我们有（query-only replaceState shim + workspace memory）。
-- TerminalPanel 109 行分歧全是 fetch→window.pi 类？→ W-n/a 裁定时复核（6835326/3ff7e1d 不带则不动）。
+- 全波一次性落地：68 提交中 **54 源码 ported**（文件级 3-way：base=c9e1513 / ours / theirs=894e1a2，
+  78 零分歧文件整取 + 110 干净合并 + 50 文件手工解冲突 + 53 新文件整取 + i18n 三语 union+共享键值对齐上游）
+  + 12 n/a + 2 release（本地 0.12.0）。
+- PR #548 文件面板停车被上游正式化（d69b33e file-tab-state 工作区停车）→ 采纳上游版，
+  我们手工 switchProjectFileTabs 退役；file-tabs-park 测试删除（被 file-tab-state.test 13 项取代）。
+- 早前 sync 遗留补齐：mcpToolLabel 用法（v0.10 只进了 import）、models-config-helpers
+  renameProviderEntry（50 行）、lib/__fixtures__/mcp-*.mjs（6695979）。
+- 传输重定home：650d7a3（httpIdleTimeoutMs → electron main）、new-session-switch 测试
+  fetch/SSE stub → window.pi 桥 stub、session-membership → sessionsList 服务。
+- Windows 适配：PI_CODING_AGENT_DIR 奇偶性测试比 outcome；jiti 动态 import pathToFileURL；
+  useI18n 无 .tsx 后缀；app/*.css 路径重映射；PiWebTitle/package.json 相对路径；
+  files-placement alias 六形态（反斜杠/.ts/正斜杠/file-url）。
+- 已知问题：subagent-mcp.integration 11 项 win32 skip（node:test runner 下测试体后挂起，
+  功能已用同 setup 裸脚本验证绿——见 ledger）；e2e thinking/bash-output/markdown-image
+  3 项预存红（2de8638 时代的 mac CDP 探针镜像，Windows 上 fixture 会话不可见，非本波回归）。
+- 验证：typecheck 双绿；npm test 2096 = 2069 pass / 0 fail / 27 skip（16 预存 + 11 win32 mcp）；
+  e2e 9 pass / 3 预存红 / 1 skip；main↔preload channel 双向 diff 空。

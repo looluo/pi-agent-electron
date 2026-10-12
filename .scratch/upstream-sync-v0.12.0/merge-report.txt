@@ -1,0 +1,106 @@
+NEW:
+components/ChatWindow.attach-files.test.mjs
+components/ChatWindow.lazy-load.test.mjs
+components/DelimitedTable.tsx
+components/FileExplorer.expanded-paths.test.mjs
+components/PiWebTitle.test.mjs
+components/PiWebTitle.tsx
+components/SessionSidebar.tabs.test.mjs
+components/SkillsConfig.instructions.test.mjs
+components/SubagentViewer.test.mjs
+components/SubagentViewer.tsx
+components/TerminalExtraKeys.tsx
+components/__fixtures__/files-placement-tab.mjs
+components/subagent-viewer-state.ts
+hooks/new-session-switch.test.mjs
+hooks/retry-banner.test.mjs
+hooks/useAudio.test.mjs
+hooks/useFilesPlacement.test.mjs
+hooks/useFilesPlacement.ts
+hooks/usePrismLanguages.ts
+hooks/useSidebarMotion.test.mjs
+hooks/useSidebarMotion.ts
+hooks/useStreamingSelector.ts
+lib/delimited-table.test.mjs
+lib/delimited-table.ts
+lib/file-tree-expansion.test.mjs
+lib/file-tree-expansion.ts
+lib/highlight-queue.test.mjs
+lib/highlight-queue.ts
+lib/instrumentation-node.test.mjs
+lib/markdown-blocks.test.mjs
+lib/markdown-blocks.ts
+lib/minimap-preview-lock.test.mjs
+lib/minimap-preview-lock.ts
+lib/notice-text.test.mjs
+lib/notice-text.ts
+lib/pi-web-cli-commands.test.mjs
+lib/prism-languages.test.mjs
+lib/prism-languages.ts
+lib/rpc-manager-chat-only.integration.test.mjs
+lib/session-delete.ts
+lib/session-links.test.mjs
+lib/session-links.ts
+lib/session-membership.integration.test.mjs
+lib/session-membership.test.mjs
+lib/stream-token-rate.test.mjs
+lib/stream-token-rate.ts
+lib/subagent-codemode-scope.integration.test.mjs
+lib/subagent-late-tools.integration.test.mjs
+lib/subagent-mcp.integration.test.mjs
+lib/terminal-extra-keys.test.mjs
+lib/terminal-extra-keys.ts
+lib/turn-views.test.mjs
+lib/turn-views.ts
+
+CONFLICTS:
+5	components/AgentsConfig.test.mjs
+2	components/AgentsConfig.tsx
+1	components/AppShell.mobile-toolbar.test.mjs
+16	components/AppShell.tsx
+3	components/AppShell.workspace-memory.test.mjs
+2	components/ChatAppearance.test.mjs
+3	components/ChatInput.test.mjs
+1	components/ChatInput.tsx
+1	components/ChatWindow.process-details.test.mjs
+1	components/ChatWindow.scroll-to-latest.test.mjs
+12	components/ChatWindow.tsx
+2	components/EnabledModelsSection.test.mjs
+3	components/ExtensionStatusBar.test.mjs
+2	components/FileViewer.state.test.mjs
+1	components/ImagePreview.test.mjs
+1	components/McpAddServer.test.mjs
+1	components/McpConfig.test.mjs
+1	components/MessageView.test.mjs
+3	components/MobilePwaLayout.test.mjs
+2	components/ModelsConfig.test.mjs
+3	components/NewSessionContextBar.test.mjs
+2	components/ProjectTrustDialog.test.mjs
+1	components/ProjectWorktreePicker.test.mjs
+1	components/SessionSidebar.file-search.test.mjs
+5	components/SessionSidebar.test.mjs
+1	components/SessionTree.test.mjs
+3	components/SettingsPanel.test.mjs
+4	components/SettingsUi.test.mjs
+1	components/SidebarMenu.test.mjs
+1	components/SidebarToast.test.mjs
+1	components/SkillsConfig.bulk.test.mjs
+1	components/TerminalPanel.tsx
+1	hooks/useAgentSession.test.mjs
+5	hooks/useAgentSession.ts
+1	lib/http-dispatcher.test.mjs
+9	lib/i18n/messages/en.ts
+9	lib/i18n/messages/zh-CN.ts
+9	lib/i18n/messages/zh-TW.ts
+1	lib/initial-navigation.test.mjs
+1	lib/initial-navigation.ts
+2	lib/message-display.ts
+1	lib/project-trust.test.mjs
+1	lib/provider-api-key-route.test.mjs
+3	lib/rpc-manager.test.mjs
+5	lib/rpc-manager.ts
+2	lib/session-reader.ts
+3	lib/subagent-runtime.ts
+2	lib/subagents.test.mjs
+3	lib/subagents.ts
+1	lib/worktree.test.mjs
