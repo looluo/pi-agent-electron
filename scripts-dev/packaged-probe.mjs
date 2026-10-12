@@ -186,6 +186,20 @@ try {
   check("new-session logo img loads under file://", logoValue?.tag === "IMG" && logoValue?.nw > 0,
     JSON.stringify(logoValue));
 
+  // 9c. skill instructions over IPC (v0.12.0 fix: ae34240's pane re-homed from
+  //     a dead HTTP fetch onto pi:skills:content).
+  const skill = await evalJs(`(async () => {
+    const cwd = 'D:/Test/pi-agent-worktrees/electron-ipc-migration';
+    const list = await window.pi.skillsList(cwd);
+    const first = (list.body?.skills ?? [])[0];
+    if (!first) return { status: 0 };
+    const res = await window.pi.skillsContent(cwd, first.filePath);
+    return { status: res.status, len: (res.body?.content ?? '').length };
+  })()`);
+  const skillValue = skill?.result?.value ?? skill;
+  check("skill instructions load over IPC", skillValue?.status === 200 && (skillValue?.len ?? 0) > 0,
+    JSON.stringify(skillValue));
+
   // 10. terminal IPC round trip (v0.9.0 sync, issue 11): subscribe responses
   //     must be structured-clone safe and a real PTY must echo over the push channel.
   const term = await evalJs(`(async () => {
