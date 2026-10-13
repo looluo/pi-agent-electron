@@ -521,6 +521,28 @@ Verification: typecheck clean (renderer + electron); `npm test` 2096 = 2069
 pass / 0 fail / 27 skip (16 pre-existing + 11 win32 mcp); `npm run test:e2e` 9
 pass / 3 pre-existing red / 1 skip; main↔preload channel diff empty.
 
+## v0.12.0 → v0.12.1 (`894e1a2..f83b1a5`) — synced 2026-10
+
+2 non-merge commits: pi SDK 1.1.0 → 1.2.0 with every `@earendil-works/*`
+package exact-pinned, plus the MCP-resources adaptation (pi 1.2 lists
+resources only when a resource tool asks, never while connecting).
+
+| Upstream | Subject | Status | Notes |
+|---|---|---|---|
+| `35067b6` | chore(deps): pi 1.2.0 + pin every pi package | ported | root package.json switched `^1.1.0` carets → exact `1.2.0` for the SDK four **plus new direct pins** `pi-codemode`/`pi-mcp`/`pi-telemetry` (our carets were the exact pairing hazard upstream fixed — `npm ci` after pi 1.2.0 would have paired pi-coding-agent 1.1.0 with pi-codemode 1.2.0, which no longer exports `MCP_TYPESCRIPT_PREAMBLE`); `McpTestResult.resources` becomes a `true` flag (`resourceTemplates` gone); mcp-host `LIST_METHODS` = tools only (a resources-only server no longer holds every prompt for the 10 s wait); `pi-sdk-internals` drops `McpResource`/`McpResourceTemplate`/`McpContentAnnotations` and the `resources`/`resourceTemplates` connection fields; McpConfig test status says "Offers resources."; `mcp-env-server` fixture gains `PI_WEB_FIXTURE_RESOURCES_ONLY`; new guard `pi-web/src/lib/pi-packages.test.mjs` (paths adapted: reads root `package.json`/lockfile, 3 levels up); AGENTS.md gains "Upgrading pi" |
+| `f83b1a5` | Release v0.12.1 | n/a | local version aligned 0.12.1 |
+
+Not carried: upstream `lib/mcp-test.test.mjs` and `lib/mcp-host.integration.test.mjs`
+(never imported by this fork — this wave's coverage rides the ported `mcp-host.test.mjs`
+resources case + `McpConfig.test.mjs`); upstream `docs/agents/mcp-test-sign-in.md`
+hunk (that doc is not carried).
+
+Verification: typecheck clean (renderer + electron); `npm test` 2099 = 2091 pass /
+2 fail (the pre-existing `subagent-mcp.integration` child-process pair, red before
+this sync on pi 1.1.0 as well) / 6 skip; `npm run test:e2e` 10 pass / 3 pre-existing
+red (the documented 2de8638 fixture trio) / 0 skip. All seven pi packages verified
+at 1.2.0 in node_modules and the lockfile.
+
 ## v0.10.0 → v0.11.0 (`6fcd7d4..c9e1513`) — synced 2026-10
 
 47 non-merge commits (44 with source; e2e/docs/release excluded); census:
