@@ -55,6 +55,26 @@ test("maximized layout exits at destructive and responsive boundaries", () => {
   assert.match(source, /const handleAttentionNeeded = useCallback[\s\S]*?setRightPanelMaximized\(false\);/);
 });
 
+test("picking a conversation restores a maximized panel to its split size", () => {
+  // The sidebar's own early return for re-clicking the open conversation
+  // (including the one that opened the file) must restore too, or the chat
+  // stays hidden behind the maximized file view.
+  assert.match(
+    source,
+    /if \(selectedSession\.id === session\.id && sameProject\) \{\s*if \(isMobile\) setSidebarOpen\(false\);[\s\S]*?setRightPanelMaximized\(false\);\s*return;/,
+  );
+  // The full select path (a different conversation) restores before the
+  // remount, and starting a new session does the same for the composer.
+  assert.match(
+    source,
+    /setNewSessionCwd\(null\);\s*setSelectedSession\(session\);\s*\/\/ A conversation picked[\s\S]*?setRightPanelMaximized\(false\);/,
+  );
+  assert.match(
+    source,
+    /setActiveTopPanel\(null\);\s*\/\/ The composer is a conversation surface too[\s\S]*?setRightPanelMaximized\(false\);/,
+  );
+});
+
 test("does not show split-layout affordances while maximized", () => {
   assert.match(source, /rightPanelOpen && !rightPanelMaximized && \(/);
   assert.match(source, /rightPanelOpen && !rightPanelMaximized \? " is-open" : ""/);

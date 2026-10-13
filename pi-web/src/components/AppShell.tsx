@@ -839,11 +839,18 @@ export function AppShell() {
         workspaceKeyOf(selectedSession) === workspaceKeyOf(session);
       if (selectedSession.id === session.id && sameProject) {
         if (isMobile) setSidebarOpen(false);
+        // Re-clicking the open conversation must also reveal it when the
+        // right panel was maximized — the panel returns to its split size,
+        // as any other conversation pick below does.
+        setRightPanelMaximized(false);
         return;
       }
     }
     setNewSessionCwd(null);
     setSelectedSession(session);
+    // A conversation picked from the sidebar is what the user came for; a
+    // maximized right panel must not keep hiding it behind the file view.
+    setRightPanelMaximized(false);
     setSessionKey((k) => k + 1);
     setBranchTree([]);
     setBranchActiveLeafId(null);
@@ -906,6 +913,9 @@ export function AppShell() {
     setSystemTools(null);
     setSystemInfoLoading(false);
     setActiveTopPanel(null);
+    // The composer is a conversation surface too: starting one while the
+    // right panel is maximized restores the split so the input is visible.
+    setRightPanelMaximized(false);
     if (isMobile) setSidebarOpen(false);
     router.replace(`?cwd=${encodeURIComponent(cwd)}`, { scroll: false });
   }, [activeCwd, changeFileWorkspace, invalidateWorkspaceRestore, isMobile, newSessionCwd, router, selectedSession]);
