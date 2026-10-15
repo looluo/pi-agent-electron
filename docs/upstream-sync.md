@@ -14,7 +14,7 @@ Mechanics for each port (helper: `scripts-dev/port-patch.sh`):
   taking the semantic change, not the literal hunk
 
 Status vocabulary: **ported** (in this repo, adapted), **n/a** (web/HTTP form factor we dropped,
-ADR-0003), **deferred** (ticketed under `.scratch/upstream-sync-v0.8.11/issues/`).
+ADR-0003), **deferred** (ticketed under `.scratch/archive/upstream-sync-v0.8.11/issues/`).
 
 ## v0.8.9 → v0.8.11 (`2a6e537..28bab3c`) — synced 2026-08
 
@@ -161,7 +161,7 @@ visible.
 
 ## v0.8.11 → v0.9.0+ (`28bab3c..ce18006`) — synced 2026-09 (branch `sync/pi-web-v0.9.0`)
 
-48 non-merge commits; tracker: `.scratch/upstream-sync-v0.9.0/` (issues 01–11, all resolved).
+48 non-merge commits; tracker: `.scratch/archive/upstream-sync-v0.9.0/` (issues 01–11, all resolved).
 
 | Upstream | Subject | Status | Notes |
 |---|---|---|---|
@@ -228,7 +228,7 @@ responses now carry `sessionListVersion`.
 
 ## v0.9.0+ → `0ff1138` — synced 2026-09 (batch on `main`)
 
-16 non-merge commits; tracker: `.scratch/upstream-sync-v0.9.1/` (issues 01–07, all
+16 non-merge commits; tracker: `.scratch/archive/upstream-sync-v0.9.1/` (issues 01–07, all
 resolved). Landed together with a local fix: the issue-11 terminal-tabs port had
 reshaped the panel-close paths to call `setRightPanelOpen(false)` directly, dropping
 the PR #548 `rightPanelMaximized` reset — all close paths (last file tab, last
@@ -264,7 +264,7 @@ commit-by-commit and file-by-file when the batch touches files the fork reshaped
 
 ## v0.9.1 (`0ff1138..8366762`) — synced 2026-09 (batch on `main`)
 
-24 non-merge commits; tracker: `.scratch/upstream-sync-v0.9.1/` (issues 01–11 across
+24 non-merge commits; tracker: `.scratch/archive/upstream-sync-v0.9.1/` (issues 01–11 across
 both post-v0.9.0 batches). Local version bumped 0.9.0 → 0.9.1 to match the upstream
 release.
 
@@ -300,7 +300,7 @@ PATH baseline failure; 3 win32 skips). New IPC surface: `pi:provider-usage:query
 ## post-v0.9.1 (`8366762..3f07a5f`) — synced 2026-09
 
 13 non-merge commits off `main` after the v0.9.1 tag (no new upstream release;
-local version stays 0.9.2); tracker: `.scratch/upstream-sync-v0.9.2/` (issues 01–07).
+local version stays 0.9.2); tracker: `.scratch/archive/upstream-sync-v0.9.2/` (issues 01–07).
 `3f07a5f` is a squash-PR whose constituent fixes were ported separately first.
 
 | Upstream | Subject | Status | Notes |
@@ -401,7 +401,7 @@ Three-way risk callouts (per the earlier #lesson — port each with its source-a
 
 ## v0.9.3 (`040fadd..5d4c0b5`) — synced 2026-10
 
-100 non-merge commits; tracker: `.scratch/upstream-sync-v0.9.3/` (issues 01–09).
+100 non-merge commits; tracker: `.scratch/archive/upstream-sync-v0.9.3/` (issues 01–09).
 SDK jumped 0.87.0 → 0.99.1; the MCP wave (ADR 0006) is the dominant theme.
 Every upstream commit in the range is accounted for below or in the tracker's
 issue docs; `b908729`/`2bb48f5` (SDK upgrades) landed as issue 01.
@@ -409,7 +409,7 @@ issue docs; `b908729`/`2bb48f5` (SDK upgrades) landed as issue 01.
 | Upstream | Subject | Status | Notes |
 |---|---|---|---|
 | `3f07a5f` | reasoning level of the running turn (#777) | ported | v0.9.2 wave; superseded by d0bf6be mid-run change |
-| `d2056b6`…`c04bab7` | v0.9.2 wave (8 commits) | ported | issues recorded in `.scratch/upstream-sync-v0.9.2/` |
+| `d2056b6`…`c04bab7` | v0.9.2 wave (8 commits) | ported | issues recorded in `.scratch/archive/upstream-sync-v0.9.2/` |
 | `2bb48f5` | pi SDK 0.99.1 | ported | issue 01; pi-types taken from upstream verbatim |
 | `b3c7255`/`687af27`/`82d1f54` | security: untrusted tool results, `..` escape, links, worktree real-path | ported | issue 02; allow-link POST rides pifile:// |
 | chat cluster (16 commits) | fork-while-running, edit drafts/branch-on-send, dialog queue, composer text, compaction reporting, worktree force, process-details | ported | issue 03; onNavigate retired for edit-then-branch |
@@ -442,7 +442,7 @@ it, the test runner does not).
 
 Scope note: the v0.9.3 wave had already landed everything through upstream
 `5d4c0b5`, so this sync is the last 21 commits. Census:
-`.scratch/upstream-sync-v0.10.0/commit-census.md`.
+`.scratch/archive/upstream-sync-v0.10.0/commit-census.md`.
 
 | Upstream | Subject | Status | Notes |
 |---|---|---|---|
@@ -546,7 +546,7 @@ at 1.2.0 in node_modules and the lockfile.
 ## v0.10.0 → v0.11.0 (`6fcd7d4..c9e1513`) — synced 2026-10
 
 47 non-merge commits (44 with source; e2e/docs/release excluded); census:
-`.scratch/upstream-sync-v0.11.0/commit-census.md`. SDK 1.0.0 → 1.1.0.
+`.scratch/archive/upstream-sync-v0.11.0/commit-census.md`. SDK 1.0.0 → 1.1.0.
 The dominant theme is the sidebar redesign (17-commit chain).
 
 | Upstream | Subject | Status | Notes |

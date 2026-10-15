@@ -1,7 +1,7 @@
 # Issue 03: models-panel-batch
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 
 Five commits, all on the Models settings surface. Local base: provider-usage
@@ -36,6 +36,8 @@ refresh button (needs real catalog fetch).
 
 
 ## Answer
+Resolved in 34c98ae (Port models panel batch from pi-web, sync r2 issue 03)
+— status line was left stale; corrected during the 2026-10-14 .scratch cleanup.
 
 Resolved, all five commits. Port order adjusted: 79894b9 first (it creates
 lib/model-runtime.ts, which 50f6cce's route imports).
