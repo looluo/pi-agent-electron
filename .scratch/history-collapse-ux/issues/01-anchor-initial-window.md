@@ -1,6 +1,6 @@
 # 初始窗口回退到最近回合锚点
 
-Status: ready-for-agent
+Status: resolved
 
 ## 问题
 
@@ -38,3 +38,11 @@ Status: ready-for-agent
 ### 2026-09-16 追加修复 2：回退上限 300 → 2000（Symphony 会话实测）
 
 用户在「实现支持多 Coding Agent 的 Symphony」（921 条）复现：进对话最后一回合不折叠，滚到提问处才折叠。根因：该会话**活动分支**最后一个回合 541 条（链上最后用户锚点在 379 位，tail-50 窗口头在 870 位，距离 491），超过 300 上限 → 回退放弃 → 平铺；滚动分页两页后锚点入窗 → 重组折叠。上限提至 2000（真实会话实测覆盖；渲染端有虚拟化，成本在载荷不在 DOM）。真实文件探针验证：初始窗口现以 user 消息开头、541 条一回合成组。500 条的旧上限用例改为 2500，并新增 541 形态回归用例。
+
+## Answer
+
+Resolved in 26be91e (2026-09-16, default-collapse process details with
+anchor-aware history windows). Survived the v0.9.3→v0.12.1 syncs intact:
+`ANCHOR_ROLLBACK_CAP = 2000` lives in session-reader.ts:719 and
+session-reader.anchor-rollback.test.mjs passes 8/8 on the v0.12.1 tree
+(2026-10-14 re-audit).

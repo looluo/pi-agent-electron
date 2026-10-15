@@ -29,3 +29,27 @@ sessionStorage 而非 localStorage：随应用重启重置是有意为之——�
 ### 2026-09-16 已实现（工作树，未提交）
 
 新增 `pi-web/src/lib/process-group-expansion.ts`（sessionStorage `pi-process-groups:<sessionId>`，展开锚点 id 数组，FIFO 封顶 200，读写 best-effort）。`ProcessDetailsGroup` 增加 `persistence?: { sessionId; anchorId }`：初值 `isProcessGroupExpanded(...) ?? defaultExpanded`，toggle 写回；`reveal` 仅内存态。调用点在 `session?.id` 存在时以 `entryIds[userIdx]` 为锚点传入。新增 `process-group-expansion.test.mjs`（7 用例，fake window 模式）。
+
+## Answer
+
+### 2026-10-14 re-audit: REGRESSED by the v0.12.0 sync — needs re-landing
+
+26be91e landed this ticket's design (lib + persistence-aware
+ProcessDetailsGroup). The v0.12.0 sync then took upstream's rewritten
+ProcessDetailsGroup (f47c38a: internal useState, `answered`-keyed remount) in
+place of ours — the persistence wiring went with it. Today
+lib/process-group-expansion.ts sits unreferenced (dead code) and
+ProcessDetailsGroup is persistence-free: manual expand/collapse is lost again
+on session switches.
+
+Re-landing notes for the next pass (small, but adapt, don't paste):
+- Re-attach `persistence?: { sessionId, anchorId }` to the upstream component;
+  the useState initializer and the toggle are the two touch points.
+- New upstream behavior to integrate with: the group re-keys on
+  `answered` flips (`key={answered ? "answered" : "unanswered"}`), remounting
+  mid-stream — with persistence the remount reads the stored state instead of
+  defaultExpanded, which is strictly better for the streaming case.
+- `reveal` still writes nothing (transient navigation).
+- Decide the stored default for never-touched groups: defaultExpanded
+  (!answered) — the #906 open-for-error-turns semantics (ticket 02) — stays
+  the fallback when no stored state exists.

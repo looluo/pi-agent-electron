@@ -1,6 +1,6 @@
 # 无最终回答的回合默认折叠
 
-Status: ready-for-agent
+Status: resolved
 
 ## 问题
 
@@ -23,3 +23,21 @@ Status: ready-for-agent
 ### 2026-09-16 已实现（工作树，未提交）
 
 `pi-web/src/components/ChatWindow.tsx`：ProcessDetailsGroup 调用点移除 `defaultExpanded={!finalAnswerMessage}`，回落组件默认 `false`；`reveal`（搜索跳转强制展开）不变。`ChatWindow.process-details.test.mjs` 断言反转为锁定新行为。
+
+## Answer (2026-10-14 re-audit: superseded by upstream #906)
+
+Our fix (26be91e, defaultExpanded always false) was displaced by the v0.12.0
+sync's f47c38a semantics. Current call site is
+`defaultExpanded={!answered}` with `collapsesProcessDetails()` deciding: a
+turn collapses when its answer carries non-empty text or an image, and stays
+open for error/truncation notices, aborted turns and pure-thinking turns —
+the opposite call from this ticket, deliberately: upstream #906 argues that
+text a turn wrote before its last tool call lives inside the group, and
+collapsing error turns would hide it.
+
+Judgement: accept the upstream semantics and close. The original complaint
+("everything reopens expanded") is largely absorbed by tickets 01 + 03
+(anchor-aligned windows + remembered expansion), and re-carrying this diff
+against upstream would re-conflict on every sync. If aborted turns' open
+state still bothers in practice, the upstream-compatible lever is persisting
+them collapsed (ticket 03's mechanism), not flipping the default.
