@@ -1,6 +1,6 @@
 # 组展开状态按会话持久化
 
-Status: ready-for-agent
+Status: resolved
 
 ## 问题
 
@@ -53,3 +53,13 @@ Re-landing notes for the next pass (small, but adapt, don't paste):
 - Decide the stored default for never-touched groups: defaultExpanded
   (!answered) — the #906 open-for-error-turns semantics (ticket 02) — stays
   the fallback when no stored state exists.
+
+### 2026-10-14 re-landed
+
+Per the notes above: `persistence?: { sessionId, anchorId }` re-attached to the
+upstream f47c38a component — initializer reads the store with defaultExpanded
+fallback, the toggle writes back, reveal stays in-memory (guarded by the
+rewritten ChatWindow.process-details.test.mjs, which the v0.12.0 sync had left
+empty). Call site passes `{ sessionId: session.id, anchorId }` whenever the
+session id is known; the answered re-key remounts now read back the stored
+choice instead of resetting. npm test 2101 = 2074/0/27.

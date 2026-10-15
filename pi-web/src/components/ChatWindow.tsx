@@ -6,6 +6,7 @@ import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecuti
 import { normalizeCustomPanelLines } from "@/lib/ansi";
 import { AnsiText } from "./AnsiText";
 import { splitNoticeText } from "@/lib/notice-text";
+import { isProcessGroupExpanded, setProcessGroupExpanded } from "@/lib/process-group-expansion";
 import { EXTENSION_DIALOG_BASE_WIDTH, fitExtensionDialogWidth } from "@/lib/extension-dialog-fit";
 import { asBracketedPaste, toTerminalKeyData } from "@/lib/terminal-input";
 import { collapsesProcessDetails, countToolCallBlocks, getDisplayableAssistantBlocks, hasAssistantAnswer, isHiddenCustomMessage, isMessageGroupAnchor, splitFinalAssistantBlocks } from "@/lib/message-display";
@@ -210,14 +211,23 @@ function withAssistantBlocks(
   return next;
 }
 
-function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = false, reveal = false, children, t }: { messageCount: number; toolCallCount: number; defaultExpanded?: boolean; reveal?: boolean; children: ReactNode; t: (key: string, params?: Record<string, string | number>) => string }) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
+function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = false, reveal = false, persistence, children, t }: { messageCount: number; toolCallCount: number; defaultExpanded?: boolean; reveal?: boolean; persistence?: { sessionId: string; anchorId: string }; children: ReactNode; t: (key: string, params?: Record<string, string | number>) => string }) {
+  // Manual expand/collapse survives session switches (and the answered re-key
+  // below) via sessionStorage; a never-touched group falls back to
+  // defaultExpanded. Reveal stays in-memory only.
+  const [expanded, setExpanded] = useState(() => (
+    persistence ? isProcessGroupExpanded(persistence.sessionId, persistence.anchorId, defaultExpanded) : defaultExpanded
+  ));
   useLayoutEffect(() => {
     if (reveal) setExpanded(true);
   }, [reveal]);
   // Reveal only flips in-memory state: a search jump is transient navigation
   // and must not persist expansion the user did not choose.
-  const toggle = () => setExpanded((v) => !v);
+  const toggle = () => setExpanded((v) => {
+    const next = !v;
+    if (persistence) setProcessGroupExpanded(persistence.sessionId, persistence.anchorId, next);
+    return next;
+  });
   const parts = [t("chat.processDetails"), `${messageCount} ${t(messageCount === 1 ? "chat.message" : "chat.messages")}`];
   if (toolCallCount > 0) parts.push(`${toolCallCount} ${t(toolCallCount === 1 ? "chat.toolCall" : "chat.toolCalls")}`);
 
@@ -1261,12 +1271,13 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
                       key={`process-group-${anchorId}`}
                       ref={processRefIdx === undefined ? undefined : (el) => { messageRefs.current[processRefIdx] = el; }}
                     >
-                      {/* Re-key on answer availability: useState reads defaultExpanded only
+                      {/* Re-key on answer availability: useState reads the initial state only
                           on mount, so a turn first rendered without an answer (expanded)
                           would otherwise stay open once its answer shows up, e.g. when
                           switching between an answered and an unanswered leaf of the same
-                          turn. Manual toggles survive every other re-render. */}
-                      <ProcessDetailsGroup key={answered ? "answered" : "unanswered"} messageCount={processViews.length} toolCallCount={processToolCount} defaultExpanded={!answered} reveal={revealProcess} t={t}>
+                          turn. With persistence the remount reads back the user's stored
+                          choice; without it, manual toggles survive every other re-render. */}
+                      <ProcessDetailsGroup key={answered ? "answered" : "unanswered"} messageCount={processViews.length} toolCallCount={processToolCount} defaultExpanded={!answered} reveal={revealProcess} persistence={session?.id ? { sessionId: session.id, anchorId } : undefined} t={t}>
                         {processViews}
                       </ProcessDetailsGroup>
                     </div>,
