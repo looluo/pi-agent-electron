@@ -26,10 +26,11 @@ test("ProcessDetailsGroup persists manual expand/collapse per session", async ()
 });
 
 test("reveal stays in-memory: the layout effect must not write the store", async () => {
-  const effect = source.slice(
-    source.indexOf("useLayoutEffect(() => {", source.indexOf("function ProcessDetailsGroup")),
-    source.indexOf("const toggle", source.indexOf("function ProcessDetailsGroup")),
-  );
+  const fn = source.indexOf("function ProcessDetailsGroup");
+  const start = source.indexOf("useLayoutEffect(() => {", fn);
+  const end = source.indexOf("}, [reveal]);", start);
+  assert.ok(start !== -1 && end !== -1, "reveal effect not found");
+  const effect = source.slice(start, end);
   assert.match(effect, /if \(reveal\) setExpanded\(true\);/);
   assert.doesNotMatch(effect, /setProcessGroupExpanded/);
 });

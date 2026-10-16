@@ -33,7 +33,18 @@ export function TabBar({ tabs, activeTabId, onSelectTab, onCloseTab }: Props) {
   return (
     <div
       role="tablist"
-      className="file-panel-tab-list"
+      style={{
+        // The tabs fill the scrollport, not a fixed 36px: once they overflow,
+        // the app's scrollbar (globals.css) takes its height out of the bar,
+        // and 36px tabs were pushed up past its top and clipped (#1225).
+        display: "flex",
+        alignItems: "stretch",
+        background: "var(--bg-panel)",
+        overflowX: "auto",
+        overflowY: "hidden",
+        flexShrink: 0,
+        height: 36,
+      }}
     >
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId;
@@ -72,7 +83,6 @@ export function TabBar({ tabs, activeTabId, onSelectTab, onCloseTab }: Props) {
               display: "flex",
               alignItems: "center",
               gap: 6,
-              height: "var(--file-tab-height, 36px)",
               paddingLeft: 12,
               paddingRight: 6,
               borderRight: "1px solid var(--border)",

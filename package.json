@@ -1,6 +1,6 @@
 {
   "name": "pi-agent-desktop",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "private": true,
   "description": "Pi Agent App - Electron desktop app for the pi coding agent",
   "main": "out/main/main.mjs",

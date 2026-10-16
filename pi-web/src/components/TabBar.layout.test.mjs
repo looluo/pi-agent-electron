@@ -14,9 +14,13 @@ test("visible scrollbars share the global 5px dimensions", () => {
 
 // Structural guard for the layout contract. Pixel geometry is verified in
 // Chromium with non-overlay scrollbars; DOM-only tests cannot measure that.
+// Upstream bf0730c (#1225): the list stretches to the scrollport inline (no
+// className); once tabs overflow, the app scrollbar takes its height out of
+// the bar and stretched tabs are not pushed past its top.
 test("file tabs reserve a scrollbar lane without shrinking or raising the tab row", () => {
-  assert.match(tabBar, /role="tablist"\s+className="file-panel-tab-list"/);
-  assert.match(tabBar, /height: "var\(--file-tab-height, 36px\)"/);
+  assert.match(tabBar, /role="tablist"\s+style=\{\{/);
+  assert.match(tabBar, /overflowX: "auto"/);
+  assert.match(tabBar, /flexShrink: 0/);
   const header = css.match(/\.file-panel-tab-header\s*\{([^}]+)\}/)?.[1];
   assert.ok(header);
   assert.match(header, /--file-tab-height: 36px/);

@@ -160,7 +160,8 @@ contextBridge.exposeInMainWorld("pi", {
 
   // skills & plugins & export
   skillsList: (cwd: string | null) => ipcRenderer.invoke("pi:skills:list", cwd),
-  skillsContent: (cwd: string, filePath: string) => ipcRenderer.invoke("pi:skills:content", cwd, filePath),
+  skillsContent: (cwd: string, filePath: string, document?: string | null) =>
+    ipcRenderer.invoke("pi:skills:content", cwd, filePath, document),
   skillsToggle: (filePath: string, disable: boolean) => ipcRenderer.invoke("pi:skills:toggle", filePath, disable),
   skillsBulkToggle: (filePaths: string[], disable: boolean) =>
     ipcRenderer.invoke("pi:skills:bulk-toggle", filePaths, disable),

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import path from "path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
@@ -7,6 +7,7 @@ import type { SkillInstallScope, SkillSearchResult } from "@/lib/api-types";
 import { loadSkillsWithInstallInfo } from "@/lib/skills-service";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import { readRegularFileText } from "@/lib/regular-file";
+import { isExistingPathWithinRoots } from "@/lib/path-security";
 import { runNpx } from "@/lib/npx";
 import { getProjectTrustStatus } from "@/lib/project-trust";
 import { checkSkillUpdates, buildSkillUpdateArgs } from "@/lib/skill-updates";
@@ -101,13 +102,15 @@ function parseInstallCount(installs: string): number {
 }
 
 /** GET /api/skills?cwd= */
-/** Port of GET /api/skills/content (upstream ae34240): the detail pane's full
- * instructions. The resource loader stays the allow-list — accepting any
- * readable Markdown path would turn the Skills panel into a general filesystem
- * reader. */
-export async function skillsContent(cwd: string | null, filePath: string | null): Promise<StatusBody> {
+/** Port of GET /api/skills/content (upstream ae34240 + f17a73a's document
+ * param): the detail pane's instructions, or the Markdown document a relative
+ * link names under the skill's folder. The resource loader stays the
+ * allow-list — accepting any readable Markdown path would turn the Skills
+ * panel into a general filesystem reader. */
+export async function skillsContent(cwd: string | null, filePath: string | null, document?: string | null): Promise<StatusBody> {
   // Skill instructions should stay small enough to inspect without a large response.
   const SKILL_CONTENT_MAX_BYTES = 1024 * 1024;
+  const MARKDOWN_FILE = /\.(md|markdown)$/i;
   if (!cwd) return { status: 400, body: { error: "cwd required" } };
   if (!filePath) return { status: 400, body: { error: "filePath required" } };
   try {
@@ -120,12 +123,30 @@ export async function skillsContent(cwd: string | null, filePath: string | null)
     if (!skill) {
       return { status: 404, body: { error: "Skill not found" } };
     }
-    const content = readRegularFileText(skill.filePath, SKILL_CONTENT_MAX_BYTES);
+    let target = skill.filePath;
+    if (document != null) {
+      // The client sends a normalized path. A `..` after a link names one file
+      // to path.join() and realpath, another to the filesystem (#748).
+      if (path.isAbsolute(document) || /[\\:\0]/.test(document) || document.split("/").includes("..")) {
+        return { status: 400, body: { error: "Document path must stay inside the skill folder" } };
+      }
+      if (!MARKDOWN_FILE.test(document)) return { status: 415, body: { error: "Only Markdown documents can be opened" } };
+      target = path.join(skill.baseDir, document);
+      if (!existsSync(target)) return { status: 404, body: { error: "Skill document not found" } };
+      if (!isExistingPathWithinRoots(target, new Set([skill.baseDir]))) return { status: 403, body: { error: "Document is outside the skill folder" } };
+      if (!MARKDOWN_FILE.test(realpathSync(target))) return { status: 415, body: { error: "Only Markdown documents can be opened" } };
+      const stats = statSync(target);
+      if (!stats.isFile()) return { status: 400, body: { error: "Skill document is not a regular file" } };
+      if (stats.size > SKILL_CONTENT_MAX_BYTES) return { status: 413, body: { error: "Skill document is larger than 1 MiB" } };
+    }
+    const content = readRegularFileText(target, SKILL_CONTENT_MAX_BYTES);
     if (content === undefined) {
       return { status: 404, body: { error: "Skill file not found" } };
     }
     return { status: 200, body: { content } };
   } catch (error) {
+    // Node's errors name the path; a document's answer stays without one.
+    if (document != null) return { status: 500, body: { error: "Skill document could not be read" } };
     return { status: 500, body: { error: error instanceof Error ? error.message : String(error) } };
   }
 }

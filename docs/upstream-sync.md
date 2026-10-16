@@ -128,6 +128,39 @@ asserts computed styles, so only eyes on the UI caught it. Fixed by stripping th
 `release-v2/win-unpacked` (running v0.9.0 instances lock `release/win-unpacked`) and
 `release/Pi-Agent-App-0.9.0-portable.zip` replaced (145MB).
 
+## v0.12.1 → v0.12.2 (`f83b1a5..b017cd4`) — synced 2026-10
+
+37 non-merge commits; pi SDK stays 1.2.0. The theme system grows from 5 to 14
+palettes (swatch picker, terminal follows light/dark, scroll-edge fades,
+grayscale dark-theme smoothing), chat gains cache/cost notices, per-turn
+durations and a leaner fold summary, the agent switcher shows time/tokens/cost
+and toggles subagent tabs, subagent worktree lifecycles get answers (worktree
+destination told to the parent, resume refused when the folder is gone, input
+files sized by the child's context window), sessions scan only the appended
+tail of growing files and omit provider signatures from payloads, file tabs
+survive overflow inline, uploads drag-drop into precise subdirectories, and
+models-config learns editable context windows plus a deferred-default fix.
+33 ported, 3 n/a (browser-tab projects, Termux keys stay out), release n/a.
+
+Transport re-homes: `pi:skills:content` gains upstream f17a73a's `document`
+param (relative Markdown links inside the skill folder, with the route's
+refusal shapes); upload-check targets the drop's directory; models-config
+saves the normalized draft. ProcessDetailsGroup merges upstream's new
+signature (durationMs, cache misses, notice-only turns, messageKeys) with our
+persistence re-land. `proxyTunnel: true` (4c0077b) landed with the merge.
+
+Windows notes: skills-service.integration skips ×3 — DefaultResourceLoader
+merges the real user skills tree even with PI_CODING_AGENT_DIR/HOME/USERPROFILE
+pointed at the temp root (upstream CI runs HOME-isolated linux); the boot
+theme script test now asserts full equality with THEME_INIT_SCRIPT (the inline
+index.html copy is regenerated each theme wave); upstream #1211 formalized the
+Windows jiti alias fix our SessionSidebar.tabs.test had already worked around
+(six-spelling hack replaced by upstream's normalized single key).
+
+Verification: typecheck clean (renderer + electron); `npm test` 2233 = 2203
+pass / 0 fail / 30 skip (27 pre-existing + 3 win32 skills-isolation); e2e 9
+pass / 3 pre-existing red (the 2de8638 fixture trio) / 1 skip.
+
 ## External PR ports (not in upstream)
 
 Changes pi-web never accepted, carried in this fork. Recorded here so drift against upstream stays

@@ -58,3 +58,13 @@ export function removeExtensionUiRequest<T extends { id: string }>(queue: T[], i
   if (!queue.some((item) => item.id === id)) return queue;
   return queue.filter((item) => item.id !== id);
 }
+
+/**
+ * Keeps only the requests the server still holds. A close sent while this tab's
+ * event stream was down never arrives, and the stale request would otherwise stay
+ * at the head of the queue, hiding every request behind it.
+ */
+export function retainExtensionUiRequests<T extends { id: string }>(queue: T[], ids: ReadonlySet<string>): T[] {
+  if (queue.every((item) => ids.has(item.id))) return queue;
+  return queue.filter((item) => ids.has(item.id));
+}
