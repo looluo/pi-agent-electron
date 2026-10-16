@@ -130,10 +130,12 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/cache-miss-notices")
-      .then(async (response) => {
-        const data = await response.json() as { enabled?: boolean; error?: string };
-        if (!response.ok || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
+    // Typed IPC port of GET /api/cache-miss-notices (upstream 653cd7c): the
+    // Electron renderer has no HTTP server (file:// origin).
+    void window.pi.cacheMissNoticesGet()
+      .then((response) => {
+        const data = (response.body ?? {}) as { enabled?: boolean; error?: string };
+        if (response.status !== 200 || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
         if (!cancelled) setCacheMissNotices(data.enabled === true);
       })
       .catch((cause) => {
@@ -147,13 +149,9 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
     setCacheMissNoticesSaving(true);
     setCacheMissNoticesError(null);
     try {
-      const response = await fetch("/api/cache-miss-notices", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled }),
-      });
-      const data = await response.json() as { enabled?: boolean; error?: string };
-      if (!response.ok || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
+      const response = await window.pi.cacheMissNoticesPut(enabled);
+      const data = (response.body ?? {}) as { enabled?: boolean; error?: string };
+      if (response.status !== 200 || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
       setCacheMissNotices(data.enabled === true);
       if (sessionId) onSessionReloaded();
     } catch (cause) {

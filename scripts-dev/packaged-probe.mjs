@@ -200,6 +200,13 @@ try {
   check("skill instructions load over IPC", skillValue?.status === 200 && (skillValue?.len ?? 0) > 0,
     JSON.stringify(skillValue));
 
+  // 9d. Settings › General's cache-miss switch (v0.12.2 fix: 653cd7c's route
+  //     re-homed onto pi:settings:cache-miss-notices).
+  const notices = await evalJs("(async () => { const r = await window.pi.cacheMissNoticesGet(); return { status: r.status, enabled: r.body?.enabled }; })()");
+  const noticesValue = notices?.result?.value ?? notices;
+  check("cache-miss notices switch over IPC", noticesValue?.status === 200 && typeof noticesValue?.enabled === "boolean",
+    JSON.stringify(noticesValue));
+
   // 10. terminal IPC round trip (v0.9.0 sync, issue 11): subscribe responses
   //     must be structured-clone safe and a real PTY must echo over the push channel.
   const term = await evalJs(`(async () => {

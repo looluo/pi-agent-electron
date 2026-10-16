@@ -200,5 +200,9 @@ contextBridge.exposeInMainWorld("pi", {
   toolsSettingsGet: () => ipcRenderer.invoke("pi:tools:settings:get"),
   toolsSettingsPut: (changes: { enabled?: boolean; codemode?: "automatic" | "always" }) =>
     ipcRenderer.invoke("pi:tools:settings:put", changes),
+  cacheMissNoticesGet: (): Promise<{ status: number; body: { enabled?: boolean; error?: string } }> =>
+    ipcRenderer.invoke("pi:settings:cache-miss-notices:get"),
+  cacheMissNoticesPut: (enabled: boolean): Promise<{ status: number; body: { enabled?: boolean; error?: string } }> =>
+    ipcRenderer.invoke("pi:settings:cache-miss-notices:put", enabled),
   sessionExport: (id: string) => ipcRenderer.invoke("pi:sessions:export", id),
 });

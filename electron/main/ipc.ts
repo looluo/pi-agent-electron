@@ -43,6 +43,7 @@ import {
   subagentsSettingsPut,
 } from "./services/subagents";
 import { toolsSettingsGet, toolsSettingsPut } from "./services/tools-settings";
+import { cacheMissNoticesGet, cacheMissNoticesPut } from "./services/cache-miss-notices";
 
 /** Route-era error semantics: resolve { error } instead of rejecting. */
 async function guard<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
@@ -215,6 +216,10 @@ export function registerIpcHandlers(): void {
   // ---- tools settings -----------------------------------------------------------
   ipcMain.handle("pi:tools:settings:get", () => toolsSettingsGet());
   ipcMain.handle("pi:tools:settings:put", (_e, changes: unknown) => toolsSettingsPut((changes ?? {}) as { enabled?: unknown; codemode?: unknown; codemodeInlineBudget?: unknown }));
+
+  // ---- cache-miss notices (pi's showCacheMissNotices, upstream 653cd7c) ---------
+  ipcMain.handle("pi:settings:cache-miss-notices:get", () => cacheMissNoticesGet());
+  ipcMain.handle("pi:settings:cache-miss-notices:put", (_e, enabled: unknown) => cacheMissNoticesPut(enabled));
 }
 
 function dropFileWatch(token: string): void {

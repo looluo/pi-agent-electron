@@ -145,6 +145,8 @@ export interface PiBridge {
   mcpSignInCancel(flowId: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   toolsSettingsGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
   toolsSettingsPut(changes: { enabled?: boolean; codemode?: "automatic" | "always"; codemodeInlineBudget?: number | null }): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  cacheMissNoticesGet(): Promise<{ status: number; body: { enabled?: boolean; error?: string } }>;
+  cacheMissNoticesPut(enabled: boolean): Promise<{ status: number; body: { enabled?: boolean; error?: string } }>;
   sessionExport(id: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
 }
 
