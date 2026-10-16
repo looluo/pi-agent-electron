@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { registerIpcHandlers } from "./ipc";
 import { registerModelsAuthHandlers } from "./ipc-models-auth";
@@ -41,6 +41,25 @@ function createWindow(): void {
   // Close = quit (ADR-0003): in-flight runs stop, sessions persist in jsonl.
   mainWindow.on("closed", () => {
     mainWindow = null;
+  });
+
+  // Links open in the system browser (upstream pi-web is a web app; here a
+  // target="_blank" click would spawn a bare Electron window without our
+  // preload). Desktop-app schemes (obsidian://, vscode://, …, upstream 5af2e04)
+  // reach their registered handlers through the OS too. pifile:// and file://
+  // are internal resources and never leave the app.
+  const isInternalUrl = (url: string): boolean =>
+    url.startsWith("file:")
+    || url.startsWith("pifile://")
+    || (process.env.ELECTRON_RENDERER_URL !== undefined && url.startsWith(process.env.ELECTRON_RENDERER_URL));
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (!isInternalUrl(url)) void shell.openExternal(url);
+    return { action: "deny" };
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (isInternalUrl(url)) return;
+    event.preventDefault();
+    void shell.openExternal(url);
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {
