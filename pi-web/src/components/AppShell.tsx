@@ -604,9 +604,12 @@ export function AppShell() {
     // Terminal tabs span workspaces and keep control of the panel while active.
     if (!activeFileTabId || activeFileId || activeFileTabId.startsWith("agent:")) {
       setActiveFileTabId(next.activeTabId);
-      setRightPanelOpen(next.open);
+      // Exiting the panel on a workspace switch must clear maximized too, or
+      // an empty panel keeps covering the hidden conversation.
+      if (next.open) setRightPanelOpen(true);
+      else handleRightPanelClose();
     }
-  }, [activeFileTabId, fileTabs, rightPanelOpen]);
+  }, [activeFileTabId, fileTabs, handleRightPanelClose, rightPanelOpen]);
 
   // Same @mention format as the chat input's @ autocomplete, so the agent's
   // read tool resolves it the same way (it strips the @ prefix).
@@ -1217,7 +1220,7 @@ export function AppShell() {
     const remaining = terminalTabs.filter((item) => item.id !== tab.id);
     setTerminalTabs((tabs) => tabs.flatMap((item) => item.id !== tab.id ? [item] : replacement ? [replacement] : []));
     setActiveFileTabId((current) => current !== tab.id ? current : replacement?.id ?? remaining.at(-1)?.id ?? fileTabs.at(-1)?.id ?? lastAgentTabId(agentTabs));
-    if (!replacement && !remaining.length && !fileTabs.length && !agentTabs.length) setRightPanelOpen(false);
+    if (!replacement && !remaining.length && !fileTabs.length && !agentTabs.length) handleRightPanelClose();
   };
 
   const handleCloseFileTab = useCallback((tabId: string) => {
@@ -1232,12 +1235,12 @@ export function AppShell() {
         if (cur !== tabId) return cur;
         return fileTabs.at(-1)?.id ?? terminalTabs.at(-1)?.id ?? lastAgentTabId(remainingAgents);
       });
-      if (fileTabs.length === 0 && terminalTabs.length === 0 && remainingAgents.length === 0) setRightPanelOpen(false);
+      if (fileTabs.length === 0 && terminalTabs.length === 0 && remainingAgents.length === 0) handleRightPanelClose();
       return;
     }
     setFileTabs((prev) => {
       const next = prev.filter((t) => t.id !== tabId);
-      if (next.length === 0 && terminalTabs.length === 0 && agentTabs.length === 0) setRightPanelOpen(false);
+      if (next.length === 0 && terminalTabs.length === 0 && agentTabs.length === 0) handleRightPanelClose();
       return next;
     });
     setActiveFileTabId((cur) => {
@@ -1245,7 +1248,7 @@ export function AppShell() {
       const remaining = fileTabs.filter((t) => t.id !== tabId);
       return remaining.at(-1)?.id ?? terminalTabs.at(-1)?.id ?? lastAgentTabId(agentTabs);
     });
-  }, [fileTabs, terminalTabs, agentTabs]);
+  }, [agentTabs, fileTabs, handleRightPanelClose, terminalTabs]);
 
   const handleViewFullHistory = useCallback(() => {
     if (!selectedSession) return;

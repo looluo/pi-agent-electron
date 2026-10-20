@@ -47,10 +47,16 @@ test("maximized files replace the mounted conversation and expose the sidebar to
 test("maximized layout exits at destructive and responsive boundaries", () => {
   assert.match(source, /const handleRightPanelClose = useCallback\(\(\) => \{\s*setRightPanelMaximized\(false\);\s*setRightPanelOpen\(false\);/);
   // Terminal/agent-aware close (v0.12.0: upstream added agent tabs): the panel
-  // only collapses when the last file tab goes and no terminal or subagent tab
-  // remains.
-  assert.match(source, /if \(next\.length === 0 && terminalTabs\.length === 0 && agentTabs\.length === 0\) setRightPanelOpen\(false\);/);
-  assert.match(source, /if \(!replacement && !remaining\.length && !fileTabs\.length && !agentTabs\.length\) setRightPanelOpen\(false\);/);
+  // only collapses when the last tab of every kind is gone — and every close
+  // path must exit through handleRightPanelClose() so a maximized panel
+  // un-maximizes with it. A bare setRightPanelOpen(false) leaves the hidden
+  // conversation behind an empty maximized panel (.right-panel-maximized
+  // beats .right-panel-closed in the cascade); regressed once in the v0.12.0
+  // sync, keep this asserted.
+  assert.match(source, /if \(next\.length === 0 && terminalTabs\.length === 0 && agentTabs\.length === 0\) handleRightPanelClose\(\);/);
+  assert.match(source, /if \(!replacement && !remaining\.length && !fileTabs\.length && !agentTabs\.length\) handleRightPanelClose\(\);/);
+  assert.match(source, /if \(fileTabs\.length === 0 && terminalTabs\.length === 0 && remainingAgents\.length === 0\) handleRightPanelClose\(\);/);
+  assert.match(source, /if \(next\.open\) setRightPanelOpen\(true\);\s*else handleRightPanelClose\(\);/);
   assert.match(source, /if \(isMobile\) \{[\s\S]*?setRightPanelMaximized\(false\);[\s\S]*?\}/);
   assert.match(source, /const handleAttentionNeeded = useCallback[\s\S]*?setRightPanelMaximized\(false\);/);
 });
