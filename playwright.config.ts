@@ -7,6 +7,7 @@ import { resolve } from "node:path";
  */
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/setup.ts",
   timeout: 120_000,
   workers: 1,
   retries: 0,

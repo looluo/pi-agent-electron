@@ -225,7 +225,8 @@ test("resume after the child closed reopens it with its MCP servers", WIN32_SKIP
   });
   assert.equal((await resumed.completion).status, "completed");
   const reopened = wrappers.get(childId);
-  assert.equal(toolResult(reopened, "mcp__fix__env_has").isError, false);
+  const resumedRead = toolResult(reopened, "mcp__fix__env_has");
+  assert.equal(resumedRead.isError, false, textOf(resumedRead));
   // The read-only scope comes back from the snapshot, not from the profile file.
   assert.match(textOf(toolResult(reopened, "mcp__fix__record")), /does not mark "mcp__fix__record" as read-only/);
 });

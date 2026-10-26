@@ -965,8 +965,15 @@ export class AgentSessionWrapper {
         this.resetIdleTimer();
         // Stop must unwind extension commands that have not started the agent yet.
         this.extensionUiAbortController.abort(new DOMException("Extension UI cancelled by Stop", "AbortError"));
+        // Both sent prompts and subagent runs can be waiting on MCP before
+        // the SDK starts streaming; inner.abort() alone cannot stop that wait.
+        const mcpWait = this.mcpPromptWait;
+        mcpWait?.controller.abort();
         try {
-          await this.withFinalIdleReset(() => this.inner.abort());
+          await this.withFinalIdleReset(async () => {
+            await mcpWait?.done;
+            await this.inner.abort();
+          });
           return null;
         } finally {
           if (!this.isRunning()) this.forceShutdownOnIdle = false;
@@ -2528,7 +2535,7 @@ export async function startRpcSession(
       settingsManager,
       resourceLoaderOptions: subagentResources
         ? {
-            noExtensions: !subagentResources.loadExtensions,
+            ...subagentExtensionLoaderOptions(subagentResources),
             ...skillsBinding!.loaderOptions,
             ...(subagentExtensionFactories.length > 0 ? { extensionFactories: subagentExtensionFactories } : {}),
             noPromptTemplates: true,

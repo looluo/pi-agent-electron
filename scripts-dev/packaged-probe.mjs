@@ -4,18 +4,37 @@
 // paths — absolute "/x.svg" resolves to the filesystem root there).
 // Cross-platform: probes release/win-unpacked on Windows and
 // release/mac-arm64 on macOS (electron-builder --dir output per platform).
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
-import { mkdtempSync } from "node:fs";
+import { constants, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import WebSocket from "ws";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 const EXE = process.env.PROBE_EXE
   ?? (process.platform === "win32"
     ? "release/win-unpacked/Pi Agent App.exe"
     : "release/mac-arm64/Pi Agent App.app/Contents/MacOS/Pi Agent App");
 const DEBUG_PORT = Number(process.env.PROBE_PORT ?? 9344);
+const directory = mkdtempSync(join(tmpdir(), "pi-probe-"));
+const agentDir = join(directory, "agent");
+const workspace = join(directory, "workspace");
+const skillName = "packaged-probe";
+const skillContent = "---\nname: packaged-probe\ndescription: Packaged IPC smoke fixture\n---\n\nPACKAGED-SKILL-IPC-OK\n";
+
+function prepareFixture() {
+  mkdirSync(agentDir, { mode: 0o700 });
+  for (const name of ["auth.json", "models.json", "settings.json", "npm"]) {
+    const source = join(getAgentDir(), name);
+    if (existsSync(source)) cpSync(source, join(agentDir, name), { recursive: true, mode: constants.COPYFILE_FICLONE });
+  }
+  const skillDir = join(agentDir, "skills", skillName);
+  mkdirSync(skillDir, { recursive: true });
+  writeFileSync(join(skillDir, "SKILL.md"), skillContent);
+  mkdirSync(workspace);
+  writeFileSync(join(workspace, "README.md"), "Packaged smoke fixture\n");
+}
 
 let results = [];
 const check = (name, ok, detail = "") => {
@@ -28,7 +47,7 @@ async function waitForCdp() {
     try {
       const res = await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/list`);
       const targets = await res.json();
-      const page = targets.find((t) => t.type === "page");
+      const page = targets.find((t) => t.type === "page" && t.url.startsWith("file://"));
       if (page) return page;
     } catch { /* not up yet */ }
     await delay(500);
@@ -43,7 +62,8 @@ function connect(wsUrl) {
   ws.on("message", (raw) => {
     const msg = JSON.parse(raw.toString());
     if (msg.id && pending.has(msg.id)) {
-      const { resolve, reject } = pending.get(msg.id);
+      const { resolve, reject, timer } = pending.get(msg.id);
+      clearTimeout(timer);
       pending.delete(msg.id);
       if (msg.error) reject(new Error(JSON.stringify(msg.error)));
       else resolve(msg.result);
@@ -52,10 +72,24 @@ function connect(wsUrl) {
   const call = (method, params = {}) =>
     new Promise((resolve, reject) => {
       const id = ++seq;
-      pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`CDP ${method} timed out after 30s`));
+      }, 30_000);
+      pending.set(id, { resolve, reject, timer });
       ws.send(JSON.stringify({ id, method, params }));
     });
-  return new Promise((resolve) => ws.on("open", () => resolve({ ws, call })));
+  ws.on("close", () => {
+    for (const { reject, timer } of pending.values()) {
+      clearTimeout(timer);
+      reject(new Error("CDP connection closed"));
+    }
+    pending.clear();
+  });
+  return new Promise((resolve, reject) => {
+    ws.once("error", reject);
+    ws.once("open", () => resolve({ ws, call }));
+  });
 }
 
 const imgLoads = `(src) => new Promise((res) => {
@@ -66,15 +100,34 @@ const imgLoads = `(src) => new Promise((res) => {
   i.src = src;
 })`;
 
-const child = spawn(EXE, [
-  `--remote-debugging-port=${DEBUG_PORT}`,
-  // Throwaway profile: never touch a concurrently running instance's profile.
-  `--user-data-dir=${mkdtempSync(join(tmpdir(), "pi-probe-"))}`,
-], { stdio: "ignore", detached: false });
+let child;
+let ws;
 try {
+  prepareFixture();
+  child = spawn(EXE, [
+    `--remote-debugging-port=${DEBUG_PORT}`,
+    `--user-data-dir=${join(directory, "profile")}`,
+  ], { stdio: "ignore", detached: false, env: { ...process.env, PI_CODING_AGENT_DIR: agentDir } });
   const page = await waitForCdp();
-  const { ws, call } = await connect(page.webSocketDebuggerUrl);
-  const evalJs = (expression) => call("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+  const connection = await connect(page.webSocketDebuggerUrl);
+  ws = connection.ws;
+  const { call } = connection;
+  const evalJs = async (expression) => {
+    const result = await call("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
+    return result;
+  };
+
+  // Select a real, owned workspace rather than relying on saved user state or
+  // an empty default folder. The renderer validates and authorizes this cwd.
+  const url = new URL(page.url);
+  url.searchParams.set("cwd", workspace);
+  await call("Page.navigate", { url: url.href });
+  for (let i = 0; i < 60; i++) {
+    const ready = await evalJs("document.readyState === 'complete' && typeof window.pi === 'object'");
+    if (ready.result.value) break;
+    await delay(250);
+  }
 
   // Wait for the app shell (sidebar footer shortcuts) to mount.
   await evalJs(`(async () => {
@@ -103,9 +156,8 @@ try {
   const sessions = await evalJs("window.pi.sessionsList(false).then((r) => ({ ok: Array.isArray(r.sessions), n: r.sessions?.length }))");
   check("sessionsList over IPC", sessions.result.value.ok === true, `${sessions.result.value.n} sessions`);
 
-  // 3. subagents IPC surface (issue 01). Enabled reflects the live
-  //    ~/pi/agent/agents/settings.json — assert the channel, not the default
-  //    (the machine running the probe may have subagents turned on).
+  // 3. subagents IPC surface (issue 01). Assert the channel and value type,
+  // not an assumption about the user's configured default.
   const sub = await evalJs("window.pi.subagentsSettingsGet().then((r) => ({ status: r.status, enabled: r.body?.enabled }))");
   check("subagents settings channel", sub.result.value.status === 200 && typeof sub.result.value.enabled === "boolean", `status=${sub.result.value.status} enabled=${sub.result.value.enabled} (live setting; default off, user-settable since upstream 237d0ca)`);
 
@@ -189,15 +241,16 @@ try {
   // 9c. skill instructions over IPC (v0.12.0 fix: ae34240's pane re-homed from
   //     a dead HTTP fetch onto pi:skills:content).
   const skill = await evalJs(`(async () => {
-    const cwd = 'D:/Test/pi-agent-worktrees/electron-ipc-migration';
+    const cwd = ${JSON.stringify(workspace)};
     const list = await window.pi.skillsList(cwd);
-    const first = (list.body?.skills ?? [])[0];
-    if (!first) return { status: 0 };
-    const res = await window.pi.skillsContent(cwd, first.filePath);
-    return { status: res.status, len: (res.body?.content ?? '').length };
+    if (list.status !== 200) return { stage: 'list', status: list.status };
+    const fixture = (list.body?.skills ?? []).find((skill) => skill.name === ${JSON.stringify(skillName)});
+    if (!fixture) return { stage: 'fixture missing' };
+    const res = await window.pi.skillsContent(cwd, fixture.filePath);
+    return { status: res.status, matches: res.body?.content === ${JSON.stringify(skillContent)} };
   })()`);
   const skillValue = skill?.result?.value ?? skill;
-  check("skill instructions load over IPC", skillValue?.status === 200 && (skillValue?.len ?? 0) > 0,
+  check("skill instructions load over IPC", skillValue?.status === 200 && skillValue?.matches === true,
     JSON.stringify(skillValue));
 
   // 9d. Settings › General's cache-miss switch (v0.12.2 fix: 653cd7c's route
@@ -210,7 +263,7 @@ try {
   // 10. terminal IPC round trip (v0.9.0 sync, issue 11): subscribe responses
   //     must be structured-clone safe and a real PTY must echo over the push channel.
   const term = await evalJs(`(async () => {
-    const cwd = (await window.pi.defaultCwd()).cwd;
+    const cwd = ${JSON.stringify(workspace)};
     const id = 'probe-terminal-1';
     const created = await window.pi.terminalCreate(cwd, 80, 24, id);
     if (created.status !== 200) return { ok: false, stage: 'create', created };
@@ -234,18 +287,23 @@ try {
   check("terminal IPC round trip (create/subscribe/write/kill)", term.result.value.ok === true,
     term.result.value.ok ? `${term.result.value.bytes} bytes echoed` : JSON.stringify(term.result.value));
 
-  ws.close();
 } finally {
+  ws?.terminate();
   // child.kill cannot reap the Electron process tree on Windows; a stale
   // instance keeps the debug port and the NEXT run connects to a dying app
   // ("Execution context was destroyed" / "Promise was collected"). Kill the
   // tree explicitly. On macOS SIGKILL to the main process takes the
   // GPU/renderer helpers down with it.
-  if (process.platform === "win32") {
-    spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
-  } else {
-    child.kill("SIGKILL");
+  if (child?.pid && child.exitCode === null && child.signalCode === null) {
+    const exited = new Promise((resolve) => child.once("exit", resolve));
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    } else {
+      child.kill("SIGKILL");
+    }
+    await exited;
   }
+  rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }
 
 const failed = results.filter((r) => !r.ok);
