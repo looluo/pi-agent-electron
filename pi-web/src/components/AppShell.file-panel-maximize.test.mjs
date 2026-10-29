@@ -67,9 +67,9 @@ test("the chat header keeps its v0.12.2 right-aligned stats and file-toggle plac
   // tools menu and the file toggle floats mid-bar.
   assert.match(source, /marginLeft: mobile \? 0 : "auto",/);
   assert.match(source, /marginLeft: !mobile && !sessionStats && !contextUsage \? "auto" : 0,/);
-  // Desktop shows the chat-header file toggle only while the panel is hidden;
-  // the open panel's own header carries its controls.
-  assert.match(source, /if \(!mobile && rightPanelOpen\) return null;/);
+  // The desktop file toggle stays visible with the panel open too (its
+  // pressed style mirrors the panel's state; the toggle still right-aligns).
+  assert.doesNotMatch(source, /if \(!mobile && rightPanelOpen\) return null;/);
 });
 
 test("picking a conversation restores a maximized panel to its split size", () => {

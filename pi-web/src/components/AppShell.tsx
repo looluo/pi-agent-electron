@@ -2106,11 +2106,6 @@ export function AppShell() {
   };
 
   const renderMainFileToggle = (mobile: boolean) => {
-    // Desktop: only while the panel is hidden — the open panel's own header
-    // carries its close and layout controls, so the chat header's toggle would
-    // be a duplicate (and the v0.13.0 debug-wave margin reshuffle left it
-    // floating mid-bar; restore the original right-aligned placement below).
-    if (!mobile && rightPanelOpen) return null;
     const covered = mobile && isNarrowMobile && mobileToolbarMoreOpen;
     return (
       <button
