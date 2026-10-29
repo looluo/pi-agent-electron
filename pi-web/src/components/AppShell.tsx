@@ -1961,8 +1961,7 @@ export function AppShell() {
         className={mobile ? "mobile-session-stats" : undefined}
         data-mobile-toolbar-stats={mobile ? "true" : undefined}
         style={{
-          // The Debug button before it takes the free space (renderDebugButton).
-          marginLeft: 0,
+          marginLeft: mobile ? 0 : "auto",
           display: "flex", alignItems: "center", justifyContent: "flex-end",
           flex: mobile ? 1 : undefined,
           minWidth: 0,
@@ -2107,6 +2106,11 @@ export function AppShell() {
   };
 
   const renderMainFileToggle = (mobile: boolean) => {
+    // Desktop: only while the panel is hidden — the open panel's own header
+    // carries its close and layout controls, so the chat header's toggle would
+    // be a duplicate (and the v0.13.0 debug-wave margin reshuffle left it
+    // floating mid-bar; restore the original right-aligned placement below).
+    if (!mobile && rightPanelOpen) return null;
     const covered = mobile && isNarrowMobile && mobileToolbarMoreOpen;
     return (
       <button
@@ -2121,8 +2125,7 @@ export function AppShell() {
         aria-label={rightPanelOpen ? translate("files.hidePanel") : translate("files.showPanel")}
         data-mobile-toolbar-file={mobile ? "true" : undefined}
         style={{
-          // With a chat the Debug button is right-aligned instead (renderDebugButton).
-          marginLeft: !mobile && !showChat ? "auto" : 0,
+          marginLeft: !mobile && !sessionStats && !contextUsage ? "auto" : 0,
           display: "flex", alignItems: "center", justifyContent: "center",
           width: TOP_BAR_ICON_BUTTON_SIZE, height: TOP_BAR_ICON_BUTTON_SIZE, padding: 0,
           visibility: covered ? "hidden" : "visible",

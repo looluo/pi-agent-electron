@@ -61,6 +61,17 @@ test("maximized layout exits at destructive and responsive boundaries", () => {
   assert.match(source, /const handleAttentionNeeded = useCallback[\s\S]*?setRightPanelMaximized\(false\);/);
 });
 
+test("the chat header keeps its v0.12.2 right-aligned stats and file-toggle placement", () => {
+  // The v0.13.0 debug-wave hunks moved the free-space margin onto the Debug
+  // button we do not render; without these the token usage sits after the
+  // tools menu and the file toggle floats mid-bar.
+  assert.match(source, /marginLeft: mobile \? 0 : "auto",/);
+  assert.match(source, /marginLeft: !mobile && !sessionStats && !contextUsage \? "auto" : 0,/);
+  // Desktop shows the chat-header file toggle only while the panel is hidden;
+  // the open panel's own header carries its controls.
+  assert.match(source, /if \(!mobile && rightPanelOpen\) return null;/);
+});
+
 test("picking a conversation restores a maximized panel to its split size", () => {
   // The sidebar's own early return for re-clicking the open conversation
   // (including the one that opened the file) must restore too, or the chat
