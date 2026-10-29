@@ -2,6 +2,7 @@ import {
   createAgentSessionServices,
   getAgentDir,
   type ModelRuntime,
+  type SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { randomUUID } from "node:crypto";
 import { rememberProviderModels } from "./deferred-provider-models";
@@ -23,8 +24,34 @@ import { serializeByKey } from "./key-serializer";
 export async function createModelRuntimeWithExtensions(): Promise<ModelRuntime> {
   const agentDir = getAgentDir();
   const services = await createAgentSessionServices({ cwd: agentDir, agentDir });
+  installSettingsManager = services.settingsManager;
   await rememberProviderModels(services.modelRuntime);
   return services.modelRuntime;
+}
+
+/**
+ * The settings manager of the last runtime build, or its own services when
+ * none was built yet: login needs the installation's device ID (#OpenAI
+ * ChatGPT) before it can build its own runtime, and `getOrCreateDeviceId()`
+ * persists into the global settings file exactly as pi's own CLI does.
+ */
+let installSettingsManager: SettingsManager | undefined;
+async function settingsManagerForDeviceId(): Promise<SettingsManager> {
+  installSettingsManager ??= (await createAgentSessionServices({
+    cwd: getAgentDir(),
+    agentDir: getAgentDir(),
+  })).settingsManager;
+  return installSettingsManager;
+}
+
+/**
+ * This installation's stable device ID, created on first use and reused after
+ * (pi-ai `LoginOptions.getDeviceId`; OpenAI sends it as the agent host ID
+ * `urn:uuid:<uuid>`, and a fresh random value per sign-in would register a new
+ * device every time).
+ */
+export async function getOrCreateInstallDeviceId(): Promise<string> {
+  return (await settingsManagerForDeviceId()).getOrCreateDeviceId();
 }
 
 interface SharedModelRuntime {

@@ -6,7 +6,7 @@ import { app } from "electron";
 import type { AssistantMessage } from "@earendil-works/pi-ai/compat";
 import { completeSimple } from "@earendil-works/pi-ai/compat";
 import { createAgentSessionServices, getAgentDir, ModelRuntime, type SettingsManager } from "@earendil-works/pi-coding-agent";
-import { createModelRuntimeWithExtensions } from "@/lib/model-runtime";
+import { createModelRuntimeWithExtensions, getOrCreateInstallDeviceId } from "@/lib/model-runtime";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import {
   loadModelsWithCache,
@@ -638,6 +638,10 @@ export async function authLoginStart(
   registerCleanup(() => abort.abort());
 
   try {
+    // pi-ai LoginOptions: OpenAI's ChatGPT flow requires this installation's
+    // stable device ID (agent host `urn:uuid:<uuid>`); without it the sign-in
+    // refuses with "requires a device ID (UUID) for this installation".
+    const deviceId = await getOrCreateInstallDeviceId();
     await modelRuntime.login(provider, "oauth", {
       prompt: async (prompt: AuthPrompt) => {
         const request = prompt.type === "manual_code"
@@ -694,6 +698,9 @@ export async function authLoginStart(
         }
       },
       signal: abort.signal,
+    }, {
+      getDeviceId: () => deviceId,
+      agentName: "Pi Agent App",
     });
 
     invalidateModelsCache();
