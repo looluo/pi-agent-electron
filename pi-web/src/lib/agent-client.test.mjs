@@ -59,3 +59,53 @@ test("successful agent commands unwrap the data payload", async () => {
   const data = await sendAgentCommand("session-id", { type: "get_state" });
   assert.deepEqual(data, { isStreaming: false });
 });
+
+test("a prompt refused for a missing folder carries the folder (#1422)", async () => {
+  const { cwdMissingError, cwdMissingBody, missingCwdFromBody } = await jiti.import("./missing-cwd.ts");
+  const refusal = cwdMissingError("/old/app");
+  assert.equal(refusal.message, "Directory does not exist: /old/app");
+  // The bridge reads the answered body by its fields, never its class.
+  assert.equal(missingCwdFromBody(refusal), "/old/app");
+  assert.equal(missingCwdFromBody(new Error("Directory does not exist: /old/app")), null);
+  // The body the bridge answers with: the typed fields beside prompt_rejected.
+  installBridge(async () => ({
+    ok: false,
+    ...cwdMissingBody(refusal.cwd),
+    code: "prompt_rejected",
+    accepted: false,
+  }));
+  await assert.rejects(
+    sendAgentCommand("session-id", { type: "prompt", message: "hello" }),
+    (error) => {
+      assert.equal(error.missingCwd, "/old/app");
+      assert.equal(isPromptRejectedError(error), true);
+      return true;
+    },
+  );
+
+  // Any other refusal names no folder, even with a cwd field or the same text.
+  installBridge(async () => ({
+    ok: false,
+    error: "Directory does not exist: /old/app",
+    cwd: "/old/app",
+    code: "prompt_rejected",
+    accepted: false,
+  }));
+  await assert.rejects(
+    sendAgentCommand("session-id", { type: "prompt", message: "hello" }),
+    (error) => error.missingCwd === undefined,
+  );
+  assert.equal(missingCwdFromBody({ reason: "cwd-missing", cwd: "" }), null);
+  assert.equal(missingCwdFromBody(null), null);
+});
+
+test("only an explicit negative prompt acknowledgement is definitive", () => {
+  assert.equal(
+    isPromptRejectedError(new AgentCommandError("proxy failure", 502)),
+    false,
+  );
+  assert.equal(
+    isPromptRejectedError(new AgentCommandError("generic API failure", 500, "internal_error", false)),
+    false,
+  );
+});

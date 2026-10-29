@@ -44,8 +44,8 @@ test("view full output loads the truncated bash log over IPC", async () => {
   await expect(row).toBeVisible({ timeout: 20_000 });
   await row.click();
 
-  // "view full output" is a plain-text button rendered under the bash block.
-  const viewFull = page.getByRole("button", { name: "view full output" });
+  // The full-output link is localized (d97b8fd); the app under test runs zh-CN.
+  const viewFull = page.getByRole("button", { name: "查看完整输出" });
   await expect(viewFull).toBeVisible({ timeout: 20_000 });
   await viewFull.click();
 

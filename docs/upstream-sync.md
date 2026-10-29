@@ -128,6 +128,53 @@ asserts computed styles, so only eyes on the UI caught it. Fixed by stripping th
 `release-v2/win-unpacked` (running v0.9.0 instances lock `release/win-unpacked`) and
 `release/Pi-Agent-App-0.9.0-portable.zip` replaced (145MB).
 
+## v0.12.2 → v0.13.0 (`b017cd4..upstream/main`) — synced 2026-10
+
+99 non-merge commits; census: `.scratch/upstream-sync-v0.13.0/commit-census.md`.
+SDK 1.2.0 → **1.4.0** (all seven packages exact-pinned). Executed as a
+file-level three-way merge (base b017cd4): 82 zero-drift files taken
+wholesale, 55 three-way merged (63 conflict hunks resolved), 31 new files
+landed.
+
+**Debug-cluster decision**: the read-only Debug panel + SSE observability
+wave (#1443 anchor, 45 files) is web form factor — **not adopted**; salvaged
+`usePageHidden`, `file-version`, `debug-types` (pure types) and a local
+inert **`lib/page-debug.ts` shim** (upstream signatures, no-op bodies) so
+merged component code typechecks unchanged. `terminal-extra-keys` taken
+wholesale (phone/Termux keys).
+
+| Theme | Status | Notes |
+|---|---|---|
+| SDK 1.4.0 (`5c033d2`) | ported | adapter sweep (deferred-provider-models, enabled-models-runtime, model-scope, pi-types) rode the wholesale batch |
+| chat: queued-compaction (#1426), send-recovery (#1457), slash filter (#1414), flat tool args (#1324), HTML-as-text (#1444), stats-line SVG (#1449/4), shell text (#1396), attachments uncompressed (#1442 — **reverts our v0.8.11 compression port**) | ported | ChatInput/ChatWindow/useAgentSession/rpc-manager three-way; `promptDoneEvent()` semantics carried into our admission chain |
+| models: base-URL override (#1288), adaptive thinking (#1331), image-size limit (ec9f38a), provider check (78a9f7c), deferred-cache fix (f78c672), searches (df163cd), rename-tracking cleanup (3edded3) | ported | `modelsCatalog` IPC gains 4th `baseUrl` param (preload+service wired); deleteProviderEntry/applyProviderRename landed |
+| subagents: wait budgets (#1448), completion-after-last-report (#1434/#1437), report-wait prompt text (#1384) | ported | `hasUnsettledSubagentRun` gates completion notify + `withSubagentsActive` marker |
+| session/liveness: hidden-page stream release (#1328/#1445), status-slimming (#1306), rename-via-AgentSession (#1451), active-time merge (#1340), tool-order restore (#1405) | ported | **lease IPC re-shaped**: `pi:agent:lease` answers `{running, awaitingInput, subagentsActive}` (route port in services/agent.ts); requestLease over IPC with timeout→`unanswered` classification; all `agentStatusUrl` fetch reads re-homed to `window.pi.agentState` |
+| files/markdown: svg fence preview (#1455), math copy (#1380), fragment links (#1323), code wrap (#1369), hunk ellipsis (#1304), symlink changes (#1387), binary download notice (#1401), audio/video inline (#1280) | ported | media srcs stay `pifile://local/…` |
+| worktrees: branch-holder name (#1456), transient-failure cache (#1339) | ported | failure mapping adapted onto worktreesPost IPC |
+| terminal: font-follow (#1329), extra keys | ported | xterm + globals.css |
+| misc: Ctrl+Alt+N macOS (#1337), skills.sh grouping (42909b6), settings css, i18n runs (#1382/#1383/#1378/#1379) | ported | 3-locale both-sides merge + 206 dup keys deduped per locale |
+| debug panel, SSE page registry, stream-client, file-watch-registry, demo/bin/e2e/docs/CI | n/a | web form factor / upstream-internal |
+
+**Fork transport adaptations** (all recorded in-code): `ipc-bridge-adapter.mjs`
+test fixture (hooks/__fixtures__) maps the ported VM-scripted tests' fetch+
+EventSource harness onto `window.pi` + `subscribeAgentEvents` frames; known
+deviation annotated in send-recovery.test (branch-switch notice takes the safe
+"unconfirmed" severity through the adapter; draft recovery asserted and green);
+IPC lease has no HTTP status (debug-reader assertions adapted).
+
+Local-test updates: TabBar layout regex (className="tabbar-scroll" final
+contract), TabBar.test globals.css path, maximize-guard regex (debug-aware
+setActiveTopPanel), auto-title regex tolerates subagentsActive spread,
+bash-output e2e uses the zh-CN "查看完整输出" label (d97b8fd localized it).
+Electron boot now calls `applyCodemodeWorkerDefault()` (#837/#1444).
+
+Verification: typecheck clean (renderer + electron); `npm test` 2521 =
+**2515 pass / 0 fail** / 6 skip (pre-existing); `npm run test:e2e` 13 pass /
+0 fail (thinking + markdown-image fixture specs now green on this wave's
+session-reader/message changes); preload→main channel diff clean. Local
+version aligned 0.13.0.
+
 ## v0.12.1 → v0.12.2 (`f83b1a5..b017cd4`) — synced 2026-10
 
 37 non-merge commits; pi SDK stays 1.2.0. The theme system grows from 5 to 14

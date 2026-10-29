@@ -45,7 +45,7 @@ export interface PiBridge {
   }>>;
   agentCommand(sessionId: string, command: unknown): Promise<IpcResult<unknown>>;
   agentState(sessionId: string): Promise<{ running: boolean; state?: unknown }>;
-  agentLease(sessionId: string): Promise<{ renewed: number }>;
+  agentLease(sessionId: string): Promise<{ running: boolean; awaitingInput: boolean; subagentsActive: boolean } | null>;
   agentRunning(): Promise<{ sessionListVersion?: number; runningSessionIds: string[]; completionNotificationSuppressedSessionIds?: string[]; sessionUiStateRevision?: number | null }>;
   agentBashOutput(sessionId: string, path: string): Promise<IpcResult<{ output: string }>>;
   agentBashOutputDownload(sessionId: string, path: string): Promise<IpcResult<{ output: string }>>;
@@ -102,7 +102,7 @@ export interface PiBridge {
   modelsConfigPut(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   modelsTest(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   modelsDiscover(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
-  modelsCatalog(q: string, provider: string, limit: number): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  modelsCatalog(q: string, provider: string, limit: number, baseUrl?: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   modelsEnabledGet(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
   modelsEnabledPut(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   modelsCatalogRefresh(provider: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;

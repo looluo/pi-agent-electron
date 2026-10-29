@@ -94,7 +94,7 @@ test("agent completion triggers silent title generation for unnamed sessions", (
   );
   assert.match(
     settledSource,
-    /if \(wasRunning\) \{\s*onAgentEnd\?\.\(\{ aborted: event\.aborted === true \}\);[\s\S]*?maybeAutoNameSession\(\);/,
+    /if \(wasRunning\) \{\s*onAgentEnd\?\.\(\{ aborted: event\.aborted === true[\s\S]*?\}\);[\s\S]*?maybeAutoNameSession\(\);/,
   );
   // Bare prompts (slash commands without an agent run) never trigger a title.
   assert.doesNotMatch(promptDoneSource, /maybeAutoNameSession/);

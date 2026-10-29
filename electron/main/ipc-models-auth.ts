@@ -35,8 +35,8 @@ function registerModelsAuthHandlers(): void {
   ipcMain.handle("pi:models-config:put", (_e, body: Record<string, unknown> | undefined | null) => modelsConfigPut(body));
   ipcMain.handle("pi:models-config:test", (_e, body: Record<string, unknown>) => modelsTest(body ?? {}));
   ipcMain.handle("pi:models-config:discover", (_e, body: Record<string, unknown>) => modelsDiscover(body ?? {}));
-  ipcMain.handle("pi:models-config:catalog", (_e, q: string, provider: string, limit: number) =>
-    modelsCatalog(q ?? "", provider ?? "", Number.isFinite(limit) ? limit : 50));
+  ipcMain.handle("pi:models-config:catalog", (_e, q: string, provider: string, limit: number, baseUrl: string) =>
+    modelsCatalog(q ?? "", provider ?? "", Number.isFinite(limit) ? limit : 50, baseUrl ?? ""));
   ipcMain.handle("pi:models:enabled:get", (_e, cwd: string | null) => modelsEnabledGet(cwd));
   ipcMain.handle("pi:models:enabled:put", (_e, body: Record<string, unknown> | undefined | null) => modelsEnabledPut(body));
   ipcMain.handle("pi:models:catalog:refresh", (_e, provider: string | null) => modelsCatalogRefresh(provider));

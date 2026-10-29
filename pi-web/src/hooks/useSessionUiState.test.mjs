@@ -7,7 +7,6 @@ import { createJiti } from "jiti";
 // takes the next answer in line.
 const shimPath = fileURLToPath(new URL("./__fixtures__/react-hook-shim.mjs", import.meta.url));
 const jiti = createJiti(import.meta.url, { tsconfigPaths: true, alias: { react: shimPath } });
-// Windows: a dynamic import takes a URL, never a bare drive-letter path.
 const { renderHook } = await import(pathToFileURL(shimPath).href);
 const { useSessionUiState } = await jiti.import("./useSessionUiState.ts");
 

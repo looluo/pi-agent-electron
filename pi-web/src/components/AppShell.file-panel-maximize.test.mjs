@@ -77,7 +77,7 @@ test("picking a conversation restores a maximized panel to its split size", () =
   );
   assert.match(
     source,
-    /setActiveTopPanel\(null\);\s*\/\/ The composer is a conversation surface too[\s\S]*?setRightPanelMaximized\(false\);/,
+    /setActiveTopPanel\(\(panel\) => panel === "debug" \? panel : null\);\s*\/\/ The composer is a conversation surface too[\s\S]*?setRightPanelMaximized\(false\);/,
   );
 });
 

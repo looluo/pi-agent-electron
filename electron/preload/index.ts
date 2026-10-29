@@ -133,7 +133,7 @@ contextBridge.exposeInMainWorld("pi", {
   modelsConfigPut: (body: unknown) => ipcRenderer.invoke("pi:models-config:put", body),
   modelsTest: (body: unknown) => ipcRenderer.invoke("pi:models-config:test", body),
   modelsDiscover: (body: unknown) => ipcRenderer.invoke("pi:models-config:discover", body),
-  modelsCatalog: (q: string, provider: string, limit: number) => ipcRenderer.invoke("pi:models-config:catalog", q, provider, limit),
+  modelsCatalog: (q: string, provider: string, limit: number, baseUrl?: string) => ipcRenderer.invoke("pi:models-config:catalog", q, provider, limit, baseUrl ?? ""),
   modelsEnabledGet: (cwd: string | null) => ipcRenderer.invoke("pi:models:enabled:get", cwd),
   modelsEnabledPut: (body: unknown) => ipcRenderer.invoke("pi:models:enabled:put", body),
   modelsCatalogRefresh: (provider: string | null) => ipcRenderer.invoke("pi:models:catalog:refresh", provider),

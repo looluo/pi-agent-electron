@@ -7,6 +7,7 @@ import { registerMcpHandlers } from "./ipc-mcp";
 import { registerEarlySchemes, registerFilesProtocol } from "./files-protocol";
 import { repairPathAtStartup } from "./services/shell-path";
 import { configureHttpDispatcher, readHttpIdleTimeoutMs } from "@/lib/http-dispatcher";
+import { applyCodemodeWorkerDefault } from "@/lib/codemode-workers";
 
 registerEarlySchemes();
 
@@ -15,6 +16,9 @@ registerEarlySchemes();
 // does (upstream 650d7a3): without it the built-in five minutes aborts a
 // provider stream that stays quiet for longer.
 configureHttpDispatcher(readHttpIdleTimeoutMs());
+// pi-web 0.13.0 (#837/#1444): raise pi's codemode worker limit before any
+// agent starts; the SDK reads PI_CODEMODE_MAX_WORKERS per call.
+applyCodemodeWorkerDefault();
 
 // Finder/Dock launches inherit launchd's minimal PATH, which breaks child
 // spawns like the plugin manager's `npm` ("spawn npm ENOENT"). Repair it

@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { allowFileRoot } from "@/lib/file-access";
 import { getCompletionNotificationSuppressedRpcSessionIds, getRpcSession, getRunningRpcSessionIds, setRpcSessionTools, startRpcSession, type AgentSessionWrapper } from "@/lib/rpc-manager";
+import { hasUnsettledSubagentRun } from "@/lib/subagent-runtime";
 import { getSessionUiStateRevision } from "@/lib/session-ui-state";
 import { getSessionListVersion, invalidateSessionListCache, resolveSessionPath } from "@/lib/session-reader";
-import { renewSessionLivenessLeases } from "@/lib/session-liveness";
 import {
   MAX_INLINE_BASH_OUTPUT_BYTES,
   openRegularFileNoFollow,
@@ -213,9 +213,23 @@ export async function agentState(sessionId: string): Promise<{ running: boolean;
   return { running: true, state };
 }
 
-/** Port of app/api/agent/[id]/lease (POST) — renew selected-session leases. */
-export function agentLease(sessionId: string): { renewed: number } {
-  return { renewed: renewSessionLivenessLeases(sessionId) };
+/** Port of app/api/agent/[id]/lease (POST) — renew selected-session leases.
+ *  The reply says what is under way (v0.13.0 liveness refactor): a hidden
+ *  window lets go of an idle stream and reopens it when this reports activity
+ *  (#1283). Never starts a wrapper. */
+export function agentLease(sessionId: string): { running: boolean; awaitingInput: boolean; subagentsActive: boolean } {
+  const session = getRpcSession(sessionId);
+  const alive = Boolean(session?.isAlive());
+  // A wrapper built before a reload lacks the method; its own timer still runs.
+  if (alive && typeof session!.renewIdleTimer === "function") session!.renewIdleTimer();
+  return {
+    // A run, a queued prompt, a `!` command or a compaction (isRunning()).
+    running: alive && session!.isRunning(),
+    // An extension dialog waiting for an answer.
+    awaitingInput: alive && session!.isAwaitingInput(),
+    // A subagent under this session, at any depth, whose end starts a turn here.
+    subagentsActive: hasUnsettledSubagentRun(sessionId),
+  };
 }
 
 /** Port of app/api/agent/running (GET). */
