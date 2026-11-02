@@ -128,6 +128,31 @@ asserts computed styles, so only eyes on the UI caught it. Fixed by stripping th
 `release-v2/win-unpacked` (running v0.9.0 instances lock `release/win-unpacked`) and
 `release/Pi-Agent-App-0.9.0-portable.zip` replaced (145MB).
 
+## v0.13.0 → v0.14.1 (`d128bae..v0.14.1`) — synced 2026-11
+
+23 non-merge commits; pi SDK stays 1.4.0. Census: `.scratch/upstream-sync-v0.14.1/commit-census.md`.
+Executed as a file-level three-way merge (base d128bae): 22 zero-drift wholesale, 24 three-way
+(19 conflict hunks), 10 new files, SubagentViewer + subagent-viewer-state deleted.
+
+| Theme | Status | Notes |
+|---|---|---|
+| side sessions `/side` (3bad742d, ADR 0007) | ported | SessionChatPanel + side tabs; **transport re-homed**: createSideChat → `window.pi.sessionsFork(id, {side, name})`, panel loads via sessionsGet; sessionsGet/search/fork services carry sideOwnEntries/readSideRelation/createSideSession semantics |
+| favicon attention badge (0b1eeffa) | ported+adapted | favicon-badge lib wholesale; badge dataURL → new `pi:window:set-taskbar-badge` IPC → `BrowserWindow.setOverlayIcon` (the desktop analog of a browser tab badge) |
+| quote-selected-as-blockquote (6d0946b1), custom-message layout (b25fa0aa), narrow-phone action labels (cb3cebef), skill-search dormancy ranking (7b5cd68d) | ported | ChatInput/ChatWindow/MessageView/MarkdownBody/markdown.ts three-way; quote-caret test keeps the no-demo/ fork guard |
+| git-changes Tree/List view (2251c3fa), prose wrap default (f07f3682), sandboxed HTML preview storage (5269cb0d), DirectoryPicker fixes (c2ef9a5d/2621aa10) | ported | FileExplorer/sidebar-prefs/file-viewer-state/html-sandbox-polyfill wholesale |
+| tool-order carry (c319c850), subagent turn-settle (98ad3908), missing-id subagent list (6fbb36b5) | ported | rpc-manager three-way; settleDirectTurn wiring kept, **notifySessionComplete web-push stripped** |
+| models: IME-Escape picker (c6789c5d), 1h shared runtime (15c52bbb), auth-feedback + selector i18n (4bb6d2f8/62650652) | ported | authLoginCode IPC keeps transport; errors localized with result.status |
+| sidebar pin on empty project group (2b7c4033) | ported | sidebar.css wholesale |
+| docker (e97d00b1), PWA manifest (b54a63d9) | n/a | web form factor |
+
+**Latent v0.13.0 bug fixed en route**: AgentSessionPanel's `fetch("/api/sessions/stats")` never
+worked under file:// — the agent switcher's usage numbers silently never loaded. The stats route
+is now `pi:sessions:stats` (services/session-stats.ts, WeakMap summary cache incl. sideOwnEntries).
+
+Verification: typecheck clean (renderer + electron); `npm test` 2572 = **2537 pass / 0 fail** /
+35 skip; local version aligned 0.14.1. Local-test adaptations: MessageView css path, side-chat-client
+IPC mock, zh enterSendMode dedup.
+
 ## v0.12.2 → v0.13.0 (`b017cd4..upstream/main`) — synced 2026-10
 
 99 non-merge commits; census: `.scratch/upstream-sync-v0.13.0/commit-census.md`.

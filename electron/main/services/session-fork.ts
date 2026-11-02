@@ -5,7 +5,8 @@
  * down an AgentSession.
  */
 import { getRpcSession } from "@/lib/rpc-manager";
-import { forkSessionBranch, readForkSourceTitle, SessionForkError } from "@/lib/session-fork";
+import { sideChatNameFromText } from "@/lib/session-family";
+import { createSideSession, forkSessionBranch, readForkSourceTitle, SessionForkError } from "@/lib/session-fork";
 import {
   cacheSessionPath,
   invalidateSessionListCache,
@@ -16,11 +17,17 @@ import {
 } from "@/lib/session-reader";
 import type { SessionInfo } from "@/lib/types";
 
-/** POST /api/sessions/[id]/fork — answers with the new session. */
-export async function sessionsFork(id: string): Promise<{ status: number; body: Record<string, unknown> }> {
+/** POST /api/sessions/[id]/fork — answers with the new session. Body `{}`, or
+ *  `{ side: true, name? }` for a side chat (`/side`, ADR 0007). */
+export async function sessionsFork(
+  id: string,
+  options: { side?: boolean; name?: string } = {},
+): Promise<{ status: number; body: Record<string, unknown> }> {
   const refusal = (status: number, code: string, error: string) => ({ status, body: { error, code } });
 
   try {
+    const side = options.side === true;
+    const sideName = typeof options.name === "string" ? sideChatNameFromText(options.name) ?? undefined : undefined;
     const opened = getRpcSession(id);
     const sourcePath = (opened?.isAlive() ? opened.sessionFile : "") || await resolveSessionPath(id);
     if (!sourcePath) {
@@ -30,7 +37,7 @@ export async function sessionsFork(id: string): Promise<{ status: number; body: 
     // The title the sidebar shows for the source, which the copy's name
     // starts with (null: the source has none, the copy stays unnamed). Read
     // first: the copy below allows no await.
-    const sourceTitle = await readForkSourceTitle(sourcePath);
+    const sourceTitle = side ? null : await readForkSourceTitle(sourcePath);
 
     // No await from here until the copy exists: pi appends finished entries
     // synchronously in this process, so the leaf read here and the file read
@@ -41,14 +48,18 @@ export async function sessionsFork(id: string): Promise<{ status: number; body: 
       const diskLatest = readLatestSessionEntryId(wrapper.sessionFile);
       if (diskLatest && !wrapper.inner.sessionManager.getEntry(diskLatest)) liveLeafId = undefined;
     }
-    const fork = forkSessionBranch(sourcePath, liveLeafId, sourceTitle);
+    const fork = side ? createSideSession(sourcePath, liveLeafId, sideName) : forkSessionBranch(sourcePath, liveLeafId, sourceTitle);
     cacheSessionPath(fork.sessionId, fork.path);
     invalidateSessionListCache();
 
     // Read after the name was written: the row carries it.
     const info = await readSessionInfo(fork.path);
     if (!info) throw new Error("The forked session could not be read");
-    const session: SessionInfo = { ...info, parentSessionId: id, relation: { kind: "fork", originSessionId: id } };
+    const session: SessionInfo = {
+      ...info,
+      parentSessionId: id,
+      relation: side ? { kind: "side", parentSessionId: id } : { kind: "fork", originSessionId: id },
+    };
     return { status: 200, body: { sessionId: fork.sessionId, session } };
   } catch (error) {
     if (error instanceof SessionForkError) {

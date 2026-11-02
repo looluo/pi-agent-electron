@@ -56,7 +56,10 @@ export interface PiBridge {
   sessionsContext(id: string, options?: { leafId?: string; deferThinking?: boolean; deferMedia?: boolean; tail?: number; before?: string }): Promise<unknown>;
   sessionsRename(id: string, name: string): Promise<unknown>;
   sessionsDelete(id: string): Promise<unknown>;
-  sessionsFork(id: string): Promise<{ status: number; body: Record<string, unknown> }>;
+  sessionsFork(id: string, options?: { side?: boolean; name?: string }): Promise<{ status: number; body: Record<string, unknown> }>;
+  sessionsStats(ids: string[]): Promise<{ status: number; body: Record<string, unknown> }>;
+  /** Desktop analog of the browser favicon badge: overlays the taskbar icon. null clears. */
+  setTaskbarBadge(dataUrl: string | null): Promise<void>;
   sessionUiStateGet(): Promise<{ state?: unknown }>;
   sessionUiStatePost(request: unknown): Promise<{ state?: unknown; error?: string; reason?: string }>;
   sessionsAutoName(id: string, options?: { skipIfNamed?: boolean }): Promise<unknown>;

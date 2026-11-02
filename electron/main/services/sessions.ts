@@ -28,6 +28,7 @@ import { projectTreeForResponse } from "@/lib/project-tree";
 import { computeSessionTotalActiveMs } from "@/lib/session-timing";
 import { searchSessionContents } from "@/lib/session-search";
 import { computeSessionStats } from "@/lib/session-stats";
+import { readSideRelation, sideOwnEntries } from "@/lib/side-session";
 import { generateSessionTitle } from "@/lib/session-title";
 import { getCompletionNotificationSuppressedRpcSessionIds, getRunningRpcSessionIds } from "@/lib/rpc-manager";
 import { readSubagentRun, readSubagentSessionResources, SUBAGENT_META_TYPE } from "@/lib/subagents";
@@ -71,7 +72,9 @@ export async function sessionsSearch(query: string) {
   }
   try {
     const sessions = trimmed ? await listAllSessions() : [];
-    return { status: 200 as const, body: await searchSessionContents(sessions, trimmed) };
+    // A side chat copies its parent's whole text and never opens as the main chat.
+    const searchable = sessions.filter((session) => session.relation?.kind !== "side");
+    return { status: 200 as const, body: await searchSessionContents(searchable, trimmed) };
   } catch (error) {
     return { status: 500 as const, body: { error: String(error) } };
   }
@@ -127,11 +130,12 @@ export async function sessionsGet(
     tail,
     sessionId: id, // local: lazy URLs for historical tool-result images
   });
-  const totalActiveMs = computeSessionTotalActiveMs(entries);
+  const ownEntries = sideOwnEntries(entries) as typeof entries;
+  const totalActiveMs = computeSessionTotalActiveMs(ownEntries);
   // Cumulative usage over ALL entries, including history compacted away —
   // the same aggregation the SDK's getSessionStats() uses. Lets the client
   // keep monotonic token/cost counters across compaction and page reloads.
-  const stats = computeSessionStats(entries as never);
+  const stats = computeSessionStats(ownEntries as never);
   const sessionName = sm.getSessionName();
   const firstUserEntry = entries.find((entry) => entry.type === "message" && entry.message.role === "user");
   const firstUserMessage = firstUserEntry?.type === "message" ? firstUserEntry.message : undefined;
@@ -145,6 +149,7 @@ export async function sessionsGet(
   const subagent = header
     ? readSubagentRun(entries as never, header.id, filePath)
     : null;
+  const side = !subagent && header ? readSideRelation(entries as never) : null;
   const toolNames = readSubagentSessionResources(entries as never)?.tools
     ?? readSessionToolSelection(entries as never);
   const info = header ? (await attachSessionProjectInfo([{
@@ -164,9 +169,11 @@ export async function sessionsGet(
     parentSessionId,
     ...(subagent
       ? { relation: { kind: "subagent" as const, parentSessionId: subagent.parentSessionId, profile: subagent.profile, description: subagent.description, status: liveRpc?.isRunning() ? "running" as const : subagent.status } }
-      : header?.parentSession
-        ? { relation: { kind: "fork" as const, ...(parentSessionId ? { originSessionId: parentSessionId } : {}) } }
-        : {}),
+      : side
+        ? { relation: { kind: "side" as const, ...side } }
+        : header?.parentSession
+          ? { relation: { kind: "fork" as const, ...(parentSessionId ? { originSessionId: parentSessionId } : {}) } }
+          : {}),
     transient: !filePath || !existsSync(filePath),
   }]))[0] : null;
 
