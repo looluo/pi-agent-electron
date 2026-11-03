@@ -1617,12 +1617,25 @@ export class AgentSessionWrapper {
         // does this to active `direct` tools. The set is private to pi 0.99's AgentSession.
         const hiddenDeclarations: unknown = Reflect.get(this.inner, "_hiddenDeclarations");
         const hidden = hiddenDeclarations instanceof Set ? hiddenDeclarations : new Set<unknown>();
-        return all.map((t) => ({
-          ...t,
-          description: declared.get(t.name) ?? t.description,
-          active: active.has(t.name),
-          declarationHidden: hidden.has(t.name),
-        }));
+        // Fork transport: upstream serializes this over HTTP JSON, which drops the
+        // SDK tool objects' function members (execute, renderers) silently; our
+        // ipcRenderer.invoke uses structured clone and THROWS on them. Allowlist the
+        // fields the panel reads and JSON-purify the schema-shaped ones.
+        return all.map((t) => {
+          const parameters = JSON.parse(JSON.stringify((t as { parameters?: unknown }).parameters ?? null)) as unknown;
+          const guidelines = (t as { promptGuidelines?: unknown }).promptGuidelines;
+          return {
+            name: t.name,
+            description: declared.get(t.name) ?? t.description ?? "",
+            active: active.has(t.name),
+            declarationHidden: hidden.has(t.name),
+            ...(t.exposure !== undefined ? { exposure: t.exposure } : {}),
+            ...(parameters && typeof parameters === "object" ? { parameters } : {}),
+            ...(Array.isArray(guidelines) && guidelines.every((g) => typeof g === "string")
+              ? { promptGuidelines: guidelines as string[] }
+              : {}),
+          };
+        });
       }
 
       case "get_commands": {
