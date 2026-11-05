@@ -23,6 +23,8 @@ import {
   resolveSessionPath,
 } from "@/lib/session-reader";
 import { sessionPathKey } from "@/lib/session-path";
+import { deleteSessions, MAX_SESSION_DELETE_IDS } from "@/lib/session-delete";
+import { SESSION_ID_PATTERN } from "@/lib/session-ui-state-shared";
 import { MAX_TOOL_RESULT_IMAGE_BYTES, TOOL_RESULT_IMAGE_MIMES } from "@/lib/tool-result-images";
 import { projectTreeForResponse } from "@/lib/project-tree";
 import { computeSessionTotalActiveMs } from "@/lib/session-timing";
@@ -242,6 +244,7 @@ export async function sessionsDelete(id: string) {
   const filePath = await resolveSessionPath(id);
   if (!filePath) return { notFound: true as const };
 
+
   // Read only the bounded header before deleting. Empty runtime sessions have a
   // cached path before their first disk write (upstream #440).
   let parentSessionPath: string | undefined;
@@ -398,6 +401,29 @@ export async function sessionsDelete(id: string) {
   }
   invalidateSessionListCache();
   return { ok: true as const };
+}
+
+/** Port of app/api/sessions/delete (POST) — a project group's "Delete all
+ *  sessions": the ids the sidebar showed in its confirmation, each with the
+ *  subagent sessions below it, in one pass over the catalogue
+ *  (lib/session-delete.ts). A session that started running since is kept and
+ *  reported, never stopped; an id already gone is reported too. */
+export async function sessionsDeleteBatch(ids: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { status: 400, body: { error: "ids must be a non-empty array" } };
+  }
+  if (ids.length > MAX_SESSION_DELETE_IDS) {
+    return { status: 400, body: { error: `ids may hold at most ${MAX_SESSION_DELETE_IDS} session ids` } };
+  }
+  if (!ids.every((id) => typeof id === "string" && SESSION_ID_PATTERN.test(id))) {
+    return { status: 400, body: { error: "ids must be session ids" } };
+  }
+  try {
+    const result = await deleteSessions(ids as string[], { keepRunning: true });
+    return { status: 200, body: result as unknown as Record<string, unknown> };
+  } catch (error) {
+    return { status: 500, body: { error: error instanceof Error ? error.message : String(error) } };
+  }
 }
 
 /** Port of app/api/sessions/[id]/auto-name (POST). `skipIfNamed` powers the

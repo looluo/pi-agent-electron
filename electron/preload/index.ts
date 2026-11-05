@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld("pi", {
     ipcRenderer.invoke("pi:sessions:context", id, options),
   sessionsRename: (id: string, name: string) => ipcRenderer.invoke("pi:sessions:rename", id, name),
   sessionsDelete: (id: string) => ipcRenderer.invoke("pi:sessions:delete", id),
+  sessionsDeleteBatch: (ids: string[]) => ipcRenderer.invoke("pi:sessions:delete:batch", ids),
   sessionUiStateGet: () => ipcRenderer.invoke("pi:sessions:ui-state:get"),
   sessionUiStatePost: (request: unknown) => ipcRenderer.invoke("pi:sessions:ui-state:post", request),
   sessionsFork: (id: string, options?: { side?: boolean; name?: string }) => ipcRenderer.invoke("pi:sessions:fork", id, options),

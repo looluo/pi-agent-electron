@@ -148,22 +148,22 @@ export interface ProjectSessionsDeleteOutcome {
  * Deletes the root ids a project's confirmation showed, in parts of
  * PROJECT_DELETE_IDS_PER_REQUEST, one request at a time. A refused part ends
  * the run: what was deleted until then is reported with the error.
+ *
+ * Fork transport: upstream's POST /api/sessions/delete is the
+ * `pi:sessions:delete:batch` IPC; `fetchImpl` stays as a seam for the tests.
  */
 export async function deleteProjectSessions(
   ids: readonly string[],
-  fetchImpl: typeof fetch,
+  fetchImpl?: (ids: string[]) => Promise<{ status: number; body: Record<string, unknown> }>,
 ): Promise<ProjectSessionsDeleteOutcome> {
+  const transport = fetchImpl ?? ((part: string[]) => window.pi.sessionsDeleteBatch(part));
   const outcome: ProjectSessionsDeleteOutcome = { deletedRoots: [], deleted: [], running: [], error: null };
   for (let start = 0; start < ids.length; start += PROJECT_DELETE_IDS_PER_REQUEST) {
     const part = ids.slice(start, start + PROJECT_DELETE_IDS_PER_REQUEST);
     try {
-      const res = await fetchImpl("/api/sessions/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: part }),
-      });
-      const data = await res.json().catch(() => ({})) as { deleted?: string[]; running?: string[]; error?: string };
-      if (!res.ok || !Array.isArray(data.deleted)) {
+      const res = await transport(part);
+      const data = res.body as { deleted?: string[]; running?: string[]; error?: string } | null ?? {};
+      if (res.status !== 200 || !Array.isArray(data.deleted)) {
         outcome.error = data.error ?? `HTTP ${res.status}`;
         break;
       }

@@ -155,14 +155,13 @@ test("a project rename saves a trimmed name, and empty or the folder's own name 
   assert.deepEqual(projectRenameRequest(plain, long), { action: "rename-project", projectKey: "/work/thermal-key", name: long });
 });
 
-/** A scripted POST /api/sessions/delete: each call's ids, then the answer `respond` gives. */
+/** A scripted pi:sessions:delete:batch transport: each call's ids, then the answer `respond` gives. */
 function deleteFetch(respond) {
   const calls = [];
-  const fetchImpl = async (url, init) => {
-    const { ids } = JSON.parse(init.body);
-    calls.push({ url, method: init.method, contentType: init.headers["Content-Type"], ids });
+  const fetchImpl = async (ids) => {
+    calls.push({ ids });
     const answer = await respond(ids, calls.length);
-    return new Response(JSON.stringify(answer.body), { status: answer.status ?? 200 });
+    return { status: answer.status ?? 200, body: answer.body };
   };
   return { calls, fetchImpl };
 }
@@ -182,7 +181,6 @@ test("a project's delete-all goes out in parts, one at a time, and sums what eac
 
   assert.deepEqual(calls.map((call) => call.ids.length), [PROJECT_DELETE_IDS_PER_REQUEST, PROJECT_DELETE_IDS_PER_REQUEST, 3]);
   assert.deepEqual(calls.flatMap((call) => call.ids), ids);
-  for (const call of calls) assert.deepEqual([call.url, call.method, call.contentType], ["/api/sessions/delete", "POST", "application/json"]);
   assert.deepEqual(outcome.deletedRoots, ids.filter((id) => id !== "s7"));
   assert.ok(outcome.deleted.includes("s0-child"));
   assert.equal(outcome.deleted.length, ids.length);
@@ -200,8 +198,8 @@ test("a refused or failed part ends a project's delete-all, reporting what went 
   assert.equal(outcome.deletedRoots.length, PROJECT_DELETE_IDS_PER_REQUEST);
   assert.equal(outcome.error, "Untrusted API request");
 
-  // No JSON error: the status stands in; a network failure ends it too.
-  const bare = await deleteProjectSessions(["a"], async () => new Response("oops", { status: 502 }));
+  // No error body: the status stands in; a transport failure ends it too.
+  const bare = await deleteProjectSessions(["a"], async () => ({ status: 502, body: {} }));
   assert.deepEqual(bare, { deletedRoots: [], deleted: [], running: [], error: "HTTP 502" });
   const offline = await deleteProjectSessions(["a", "b"], async () => { throw new TypeError("Failed to fetch"); });
   assert.deepEqual(offline, { deletedRoots: [], deleted: [], running: [], error: "Failed to fetch" });

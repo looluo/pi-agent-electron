@@ -4,6 +4,7 @@ import {
   sessionsAutoName,
   sessionsContext,
   sessionsDelete,
+  sessionsDeleteBatch,
   sessionsGet,
   sessionsList,
   sessionsSearch,
@@ -103,6 +104,7 @@ export function registerIpcHandlers(): void {
     guard(() => sessionsContext(id, options ?? {})));
   ipcMain.handle("pi:sessions:rename", (_e, id: string, name: string) => guard(() => sessionsRename(id, name)));
   ipcMain.handle("pi:sessions:delete", (_e, id: string) => guard(() => sessionsDelete(id)));
+  ipcMain.handle("pi:sessions:delete:batch", (_e, ids: unknown) => guard(() => sessionsDeleteBatch(ids)));
   ipcMain.handle("pi:sessions:fork", (_e, id: string, options?: { side?: boolean; name?: string }) => guard(() => sessionsFork(id, options ?? {})));
   ipcMain.handle("pi:sessions:stats", (_e, ids: unknown) => guard(() => sessionsStats(ids)));
   ipcMain.handle("pi:window:set-taskbar-badge", (e, dataUrl: string | null) => {

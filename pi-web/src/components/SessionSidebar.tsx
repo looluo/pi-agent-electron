@@ -2102,7 +2102,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     deletingRunsRef.current.add(runKey);
     showToast(t("sidebar.deletingSessions"));
     try {
-      const outcome = await deleteProjectSessions(ids, fetch);
+      const outcome = await deleteProjectSessions(ids);
       for (const id of outcome.deleted) onSessionDeleted?.(id);
       // A group goes with its last session (in the tree, unless it is
       // current or pinned): focus that fell to the page with it moves on.
