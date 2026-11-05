@@ -121,6 +121,10 @@ export interface McpOAuthSettings {
   callbackPort?: number;
   callbackUrl?: string;
   scope?: string;
+  clientName?: string;
+  /** How pi identifies itself without `clientId`: its Client ID Metadata Document when supported (pi 1.5's default), dynamic registration, or always the document. */
+  clientRegistration?: "auto" | "dcr" | "cimd";
+  authServerMetadataUrl?: URL;
 }
 
 /** The part of pi-mcp's `McpClient` that pi-web reads. */

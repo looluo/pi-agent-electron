@@ -6,7 +6,7 @@ import { app } from "electron";
 import type { AssistantMessage } from "@earendil-works/pi-ai/compat";
 import { completeSimple } from "@earendil-works/pi-ai/compat";
 import { createAgentSessionServices, getAgentDir, ModelRuntime, type SettingsManager } from "@earendil-works/pi-coding-agent";
-import { createModelRuntimeWithExtensions, getOrCreateInstallDeviceId } from "@/lib/model-runtime";
+import { createLoginOptions, createModelRuntimeWithExtensions } from "@/lib/model-runtime";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import {
   loadModelsWithCache,
@@ -14,7 +14,8 @@ import {
   withSafeModelLoadFailure,
   type ModelsData,
 } from "@/lib/models-cache";
-import { resolveVisibleModels, selectInitialModelScope } from "@/lib/model-scope";
+import { orderSelectorModels, resolveVisibleModels, selectInitialModelScope } from "@/lib/model-scope";
+import { providerDisplayNames, rememberProviderModels, withDeferredProviderModels } from "@/lib/deferred-provider-models";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import { projectTrustReloadOptions } from "@/lib/project-trust";
 import { readModelsConfig, writeModelsConfig } from "@/lib/models-config-store";
@@ -40,20 +41,9 @@ import type { AuthEvent, AuthPrompt } from "@earendil-works/pi-ai";
 
 type StatusBody = { status: number; body: Record<string, unknown> };
 
-const modelNameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-
-function compareModelEntries(
-  a: { id: string; name: string; provider: string },
-  b: { id: string; name: string; provider: string },
-): number {
-  return modelNameCollator.compare(a.name || a.id, b.name || a.id)
-    || modelNameCollator.compare(a.provider, b.provider)
-    || modelNameCollator.compare(a.id, b.id);
-}
-
-async function loadModels(cwd: string): Promise<ModelsData> {
+async function loadModels(cwd: string, scopeAll = false): Promise<ModelsData> {
   const nameMap = new Map<string, string>();
-  let modelList: { id: string; name: string; provider: string }[] = [];
+  let modelList: { id: string; name: string; provider: string; providerName: string }[] = [];
   let defaultModel: { provider: string; modelId: string } | null = null;
   const thinkingLevels: Record<string, string[]> = {};
   const thinkingLevelMaps: Record<string, Record<string, string | null>> = {};
@@ -67,16 +57,24 @@ async function loadModels(cwd: string): Promise<ModelsData> {
   });
   const modelError = services.modelRuntime.getError();
   const settings: SettingsManager = services.settingsManager;
+  await rememberProviderModels(services.modelRuntime);
+  const providerNames = providerDisplayNames(services.modelRuntime);
+  // `enabledModels` supports globs and fuzzy patterns, so resolve it the same
+  // way the CLI does instead of comparing pattern strings literally (#307).
   const scope = await resolveVisibleModels(
-    services.modelRuntime,
-    settings.getEnabledModels(),
+    withDeferredProviderModels(services.modelRuntime),
+    scopeAll ? undefined : settings.getEnabledModels(),
   );
   const { visible, thinkingLevelPins, warnings } = scope;
-  modelList = visible.map((m) => ({
+  modelList = orderSelectorModels(scope).map((m) => ({
     id: m.id,
     name: m.name,
     provider: m.provider,
-  })).sort(compareModelEntries);
+    // The selector groups by provider id, but labels the group with its display
+    // name; models.json providers get theirs from `name` too.
+    providerName: providerNames.get(m.provider) ?? m.provider,
+    input: m.input,
+  }));
   for (const m of visible) {
     const key = `${m.provider}:${m.id}`;
     nameMap.set(key, m.name);
@@ -117,6 +115,7 @@ async function loadModels(cwd: string): Promise<ModelsData> {
       thinkingLevelMaps,
       thinkingLevelPins,
       ...(warnings.length > 0 ? { modelScopeWarnings: warnings } : {}),
+      isScoped: scopeAll ? false : scope.scopedModels.length > 0,
     },
     modelError,
   );
@@ -131,10 +130,11 @@ const EMPTY_MODELS: ModelsData = {
   thinkingLevels: {},
   thinkingLevelMaps: {},
   thinkingLevelPins: {},
+  isScoped: false,
 };
 
 /** GET /api/models?cwd= */
-export async function modelsGet(requestedCwd: string | null): Promise<StatusBody> {
+export async function modelsGet(requestedCwd: string | null, scope: "all" | null = null): Promise<StatusBody> {
   const cwd = resolve(requestedCwd || process.cwd());
 
   let cwdStat;
@@ -152,7 +152,7 @@ export async function modelsGet(requestedCwd: string | null): Promise<StatusBody
   }
 
   try {
-    return { status: 200, body: await loadModelsWithCache(cwd, () => loadModels(cwd)) as unknown as Record<string, unknown> };
+    return { status: 200, body: await loadModelsWithCache(cwd, () => loadModels(cwd, scope === "all")) as unknown as Record<string, unknown> };
   } catch {
     return { status: 200, body: withSafeModelLoadFailure(EMPTY_MODELS) as unknown as Record<string, unknown> };
   }
@@ -453,7 +453,11 @@ export async function authProviders(): Promise<Record<string, unknown>> {
   const inputs = await collectProviderListingInputs(modelRuntime);
   const oauthProviders = buildOAuthProviderList(inputs);
   const apiKeyProviders = buildApiKeyProviderList(inputs);
-  return { providers: oauthProviders, oauthProviders, apiKeyProviders };
+  // Every runtime provider, not only those with a chat model: the Models
+  // sidebar also labels a configured provider with no models (e.g. a
+  // classifier-only built-in such as TypeSafe).
+  const providerNames = Object.fromEntries(inputs.map((provider) => [provider.id, provider.name]));
+  return { providers: oauthProviders, oauthProviders, apiKeyProviders, providerNames };
 }
 
 /** GET /api/auth/all-providers */
@@ -639,9 +643,10 @@ export async function authLoginStart(
 
   try {
     // pi-ai LoginOptions: OpenAI's ChatGPT flow requires this installation's
-    // stable device ID (agent host `urn:uuid:<uuid>`); without it the sign-in
-    // refuses with "requires a device ID (UUID) for this installation".
-    const deviceId = await getOrCreateInstallDeviceId();
+    // stable device ID (agent host `urn:uuid:<uuid>`); pi keeps it as `deviceId`
+    // in the global settings.json, so the TUI and this app sign in as the same
+    // host. `flush()` waits for that first write.
+    const loginOptions = createLoginOptions();
     await modelRuntime.login(provider, "oauth", {
       prompt: async (prompt: AuthPrompt) => {
         const request = prompt.type === "manual_code"
@@ -699,9 +704,10 @@ export async function authLoginStart(
       },
       signal: abort.signal,
     }, {
-      getDeviceId: () => deviceId,
+      ...loginOptions.options,
       agentName: "Pi Agent App",
     });
+    await loginOptions.flush();
 
     invalidateModelsCache();
     push({ event: "success", data: { type: "success" } });

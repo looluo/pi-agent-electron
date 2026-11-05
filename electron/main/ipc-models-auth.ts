@@ -30,7 +30,7 @@ const loginSessions = new Map<string, LoginSession>();
 
 function registerModelsAuthHandlers(): void {
   // models
-  ipcMain.handle("pi:models", (_e, cwd: string | null) => modelsGet(cwd));
+  ipcMain.handle("pi:models", (_e, cwd: string | null, scope?: "all") => modelsGet(cwd, scope ?? null));
   ipcMain.handle("pi:models-config:get", () => modelsConfigGet());
   ipcMain.handle("pi:models-config:put", (_e, body: Record<string, unknown> | undefined | null) => modelsConfigPut(body));
   ipcMain.handle("pi:models-config:test", (_e, body: Record<string, unknown>) => modelsTest(body ?? {}));

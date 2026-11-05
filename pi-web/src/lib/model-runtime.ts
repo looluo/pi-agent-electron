@@ -1,8 +1,8 @@
 import {
   createAgentSessionServices,
   getAgentDir,
+  SettingsManager,
   type ModelRuntime,
-  type SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { randomUUID } from "node:crypto";
 import { rememberProviderModels } from "./deferred-provider-models";
@@ -30,6 +30,7 @@ export async function createModelRuntimeWithExtensions(): Promise<ModelRuntime> 
 }
 
 /**
+/**
  * The settings manager of the last runtime build, or its own services when
  * none was built yet: login needs the installation's device ID (#OpenAI
  * ChatGPT) before it can build its own runtime, and `getOrCreateDeviceId()`
@@ -52,6 +53,21 @@ async function settingsManagerForDeviceId(): Promise<SettingsManager> {
  */
 export async function getOrCreateInstallDeviceId(): Promise<string> {
   return (await settingsManagerForDeviceId()).getOrCreateDeviceId();
+}
+
+/**
+ * The options pi's TUI passes to `ModelRuntime.login()`. Sign in with ChatGPT
+ * (the `openai` provider's OAuth) refuses to start without this installation's
+ * device ID; pi creates it on first use and keeps it as `deviceId` in the
+ * global settings.json, so the TUI and Pi Web sign in as the same host.
+ * `flush()` waits for that first write.
+ */
+export function createLoginOptions(agentDir = getAgentDir()) {
+  const settingsManager = SettingsManager.create(agentDir, agentDir);
+  return {
+    options: { getDeviceId: () => settingsManager.getOrCreateDeviceId() },
+    flush: () => settingsManager.flush(),
+  };
 }
 
 interface SharedModelRuntime {

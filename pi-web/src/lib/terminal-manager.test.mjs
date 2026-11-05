@@ -9,6 +9,8 @@ import ts from "typescript";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": fileURLToPath(new URL("../", import.meta.url)) } });
 const { createTerminal, getTerminalCwd, hasTerminal, killTerminal, subscribeTerminal, TERMINAL_RECONNECT_MS } = await jiti.import("./terminal-manager.ts");
+// The vm harnesses below require() terminal-manager's imports; the SDK is ESM-only, so they get this stub.
+const piSdkStub = { getPowerShellConfig() { throw new Error("No PowerShell executable found."); } };
 
 test("native module load failures are deferred until creation and include repair instructions", async () => {
   const require = createRequire(import.meta.url);
@@ -18,6 +20,7 @@ test("native module load failures are deferred until creation and include repair
   const exports = {};
   runInNewContext(outputText, { exports, process, require(id) {
     if (id === "node-pty") throw new Error("Cannot find module pty.node");
+    if (id === "@earendil-works/pi-coding-agent") return piSdkStub;
     return id === "./paths" ? paths : require(id);
   } });
   assert.equal(exports.hasTerminal("missing"), false);
@@ -38,6 +41,7 @@ test("shell environment defaults to UTF-8 locale when the host has none", async 
   const fakePty = { onData() {}, onExit() {}, write() {}, resize() {}, kill() {} };
   const fakeRequire = (id) => {
     if (id === "node-pty") return { spawn: (...args) => { spawnCalls.push(args); return fakePty; } };
+    if (id === "@earendil-works/pi-coding-agent") return piSdkStub;
     if (id === "./paths") return paths;
     return require(id);
   };
@@ -58,6 +62,7 @@ test("shell environment preserves a case-insensitive Windows locale", async () =
   const fakePty = { onData() {}, onExit() {}, write() {}, resize() {}, kill() {} };
   const fakeRequire = (id) => {
     if (id === "node-pty") return { spawn: (...args) => { spawnCalls.push(args); return fakePty; } };
+    if (id === "@earendil-works/pi-coding-agent") return piSdkStub;
     if (id === "./paths") return paths;
     return require(id);
   };

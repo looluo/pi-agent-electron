@@ -128,6 +128,33 @@ asserts computed styles, so only eyes on the UI caught it. Fixed by stripping th
 `release-v2/win-unpacked` (running v0.9.0 instances lock `release/win-unpacked`) and
 `release/Pi-Agent-App-0.9.0-portable.zip` replaced (145MB).
 
+## v0.14.1 → v0.15.0 (`v0.14.1..v0.15.0`) — synced 2026-11
+
+28 non-merge commits; census: `.scratch/upstream-sync-v0.15.0/commit-census.md`. **SDK 1.4.0 → 1.5.0**
+(all eight `@earendil-works/*` exact-pinned, new `pi-schema`). File-level three-way merge
+(base v0.14.1): 32 wholesale, 32 three-way (27 hunks), 9 new files; mcp-import* wholesale
+after a partially-resolved 3-way proved lossy.
+
+| Theme | Status | Notes |
+|---|---|---|
+| SDK 1.5.0 wave (ff8de361) | ported | mcp-import* clientRegistration/cimd validation, OAuth metadata URL; pi-sdk-internals; project-trust; subagent-extension |
+| models feature run: drag/Alt+arrows/A–Z reorder, provider names not ids, scoped-vs-all selector, signed-out enabledModels, mid-run model switch | ported | `pi:models` IPC gains `scope:"all"`; loadModels ports providerName/isScoped; authProviders answers `providerNames` |
+| side sessions: tabs restore with main session, delete from Agents switcher | ported | side-tab-state new; deleteSideChat → `pi:sessions:delete` IPC; upstream tab-session/SSR restore effect dropped (web multi-tab) |
+| chat: streaming token/speed indicators, paste race fix | ported | stripAnsi in ChatWindow |
+| auth device ID (797d94b9) | ported | upstream's `createLoginOptions` supersedes our v0.14.1 device-id port; models-auth login switched |
+| files: right-panel tab drag reorder | ported | panel-tab-order new |
+| extensions: pi palette theme; notifications: one alert per completion | ported | extension-ui-theme new |
+| terminal: PowerShell before cmd on Windows; export: drop pi-1.5-obsolete HTML patch; sidebar archive label | ported | export.ts patchExportHtml deleted |
+| mobile/settings cluster | ported | top-bar height var adopted; phone Agents-icon hunk dropped (fork file-panel icons kept) |
+| Next.js 16 + undici, docker, CI, docs | n/a | web/infra form factor |
+
+**Local-test adaptations** (win32/fork): extension-ui-theme pathToFileURL + CRLF normalize,
+css paths, side-tabs vm stub, terminal-manager piSdkStub, model-loading bridge kept,
+side-chat-client IPC rewrite, ModelSelector.test wholesale.
+
+Verification: typecheck clean; `npm test` 2680 = **2645 pass / 0 fail** / 35 skip;
+version aligned 0.15.0.
+
 ## v0.13.0 → v0.14.1 (`d128bae..v0.14.1`) — synced 2026-11
 
 23 non-merge commits; pi SDK stays 1.4.0. Census: `.scratch/upstream-sync-v0.14.1/commit-census.md`.

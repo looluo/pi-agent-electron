@@ -130,7 +130,7 @@ contextBridge.exposeInMainWorld("pi", {
   fileIndex: (cwd: string | null, q?: string | null) => ipcRenderer.invoke("pi:file-index", cwd, q),
 
   // models & auth
-  models: (cwd: string | null) => ipcRenderer.invoke("pi:models", cwd),
+  models: (cwd: string | null, scope?: "all") => ipcRenderer.invoke("pi:models", cwd, scope),
   modelsConfigGet: () => ipcRenderer.invoke("pi:models-config:get"),
   modelsConfigPut: (body: unknown) => ipcRenderer.invoke("pi:models-config:put", body),
   modelsTest: (body: unknown) => ipcRenderer.invoke("pi:models-config:test", body),

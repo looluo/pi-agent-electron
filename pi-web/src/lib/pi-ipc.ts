@@ -100,7 +100,7 @@ export interface PiBridge {
   gitDiff(cwd: string | null, path: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
   fileIndex(cwd: string | null, q?: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
 
-  models(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  models(cwd: string | null, scope?: "all"): Promise<{ status: number; body: Record<string, unknown> | null }>;
   modelsConfigGet(): Promise<Record<string, unknown>>;
   modelsConfigPut(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   modelsTest(body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
