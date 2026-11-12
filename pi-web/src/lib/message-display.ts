@@ -123,12 +123,34 @@ function isFinalAnswerBlock(block: AssistantContentBlock): boolean {
   return block.type === "text" || block.type === "image";
 }
 
+/** Tools pi ships whose calls visibly change the workspace or drive the turn:
+ *  a fold explains them (rpc-manager's coding set, the session-level tools and
+ *  pi's subagent tools). A call of any other tool — an extension's like
+ *  pi-memory's memory_write, or an MCP server's — may ride at the end of an
+ *  answer without turning the text before it into process. */
+const PROCESS_TOOL_NAMES = new Set([
+  "read", "bash", "powershell", "edit", "write", "grep", "find", "ls",
+  "lookup", "ask", "codemode", "tool_search", "scripted", "searchable",
+  "Agent", "get_subagent_result", "steer_subagent",
+]);
+
+/** A tool call the fold counts as process: one of pi's own work tools. */
+export function isProcessToolCall(block: AssistantContentBlock): boolean {
+  return block.type === "toolCall" && PROCESS_TOOL_NAMES.has(block.toolName);
+}
+
 export function splitFinalAssistantBlocks(
   message: AssistantMessage,
   options: DisplayOptions = {},
 ): { answerBlocks: AssistantContentBlock[]; processBlocks: AssistantContentBlock[] } {
   const blocks = getDisplayableAssistantBlocks(message, options);
-  const lastProcessIndex = blocks.findLastIndex((block) => !isFinalAnswerBlock(block));
+  let lastProcessIndex = blocks.findLastIndex((block) => !isFinalAnswerBlock(block));
+  // A trailing run of non-pi tool calls (an extension writing its memory, an
+  // MCP server) is not work the fold explains: skip it, so the answer text
+  // before such a call stays the answer instead of folding away (#pi-memory).
+  while (lastProcessIndex >= 0 && blocks[lastProcessIndex].type === "toolCall" && !isProcessToolCall(blocks[lastProcessIndex])) {
+    lastProcessIndex = blocks.findLastIndex((block, index) => index < lastProcessIndex && !isFinalAnswerBlock(block));
+  }
   if (lastProcessIndex === -1) {
     return { answerBlocks: blocks, processBlocks: [] };
   }
@@ -140,6 +162,61 @@ export function splitFinalAssistantBlocks(
 
 export function countToolCallBlocks(blocks: AssistantContentBlock[]): number {
   return blocks.filter((block): block is ToolCallContent => block.type === "toolCall").length;
+}
+
+/** An assistant message the turn can show an answer from: trailing text or an
+ *  image. A message whose only tail is a non-pi tool call has its text before
+ *  that call as the answer (splitFinalAssistantBlocks), so it qualifies too. */
+export function hasFinalAssistantAnswer(message: AgentMessage): boolean {
+  if (message.role !== "assistant") return false;
+  return splitFinalAssistantBlocks(message as AssistantMessage).answerBlocks.some((block) => (
+    block.type === "image" || (block.type === "text" && block.text.trim().length > 0)
+  ));
+}
+
+/** Whether the assistant message ends with a run of non-pi tool calls over
+ *  answer text — the shape of an extension (pi-memory's memory_write) or an
+ *  MCP server riding on a finished answer. */
+function endsWithExemptedCallOverAnswer(message: AssistantMessage): boolean {
+  const blocks = getDisplayableAssistantBlocks(message);
+  const last = blocks[blocks.length - 1];
+  return Boolean(
+    last
+    && last.type === "toolCall"
+    && !isProcessToolCall(last)
+    && blocks.some((block) => block.type === "text" && block.text.trim().length > 0),
+  );
+}
+
+/** The turn's final assistant message: the last one with an answer, walking
+ *  back over a trailing non-pi tool call's chain. A reply that only follows
+ *  such a call (the confirmation after memory_write) is an epilogue, not the
+ *  answer: the message whose text preceded the call stays the answer, and the
+ *  epilogue renders after it instead of folding the answer away. */
+export function findFinalAssistantIndex(messages: AgentMessage[], userIdx: number, endIdx: number): number {
+  let answerIdx = -1;
+  for (let candidateIdx = endIdx - 1; candidateIdx > userIdx; candidateIdx--) {
+    if (hasFinalAssistantAnswer(messages[candidateIdx])) { answerIdx = candidateIdx; break; }
+  }
+  if (answerIdx === -1) {
+    for (let candidateIdx = endIdx - 1; candidateIdx > userIdx; candidateIdx--) {
+      if (messages[candidateIdx]?.role === "assistant") return candidateIdx;
+    }
+    return -1;
+  }
+  // Walk back over [assistant(text + exempted call), toolResult, candidate]:
+  // each step makes the earlier message the answer, and may chain again.
+  for (let prev = answerIdx - 1; prev > userIdx; prev--) {
+    const message = messages[prev];
+    if (message.role === "toolResult") continue;
+    if (message.role !== "assistant") break;
+    if (endsWithExemptedCallOverAnswer(message as AssistantMessage) && hasFinalAssistantAnswer(message)) {
+      answerIdx = prev;
+      continue;
+    }
+    break;
+  }
+  return answerIdx;
 }
 
 /**

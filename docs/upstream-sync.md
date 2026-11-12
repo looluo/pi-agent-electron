@@ -16,6 +16,12 @@ Mechanics for each port (helper: `scripts-dev/port-patch.sh`):
 Status vocabulary: **ported** (in this repo, adapted), **n/a** (web/HTTP form factor we dropped,
 ADR-0003), **deferred** (ticketed under `.scratch/archive/upstream-sync-v0.8.11/issues/`).
 
+Fork-local re-homes to remember when porting: `hasFinalAssistantAnswer` and
+`findFinalAssistantIndex` live in `lib/message-display.ts` (moved out of ChatWindow.tsx,
+2026-11) with an epilogue walk over trailing non-pi tool calls — port upstream changes
+to ChatWindow's copies into the lib versions, and keep `splitFinalAssistantBlocks`'
+trailing-run exemption for extension/MCP tools in mind.
+
 ## v0.8.9 → v0.8.11 (`2a6e537..28bab3c`) — synced 2026-08
 
 | Upstream | Subject | Status | Notes |

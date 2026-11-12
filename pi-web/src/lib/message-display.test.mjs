@@ -148,9 +148,41 @@ test("does not expose text before a trailing tool call as final answer", async (
   ]);
 
   const result = splitFinalAssistantBlocks(message, { isStreaming: false });
-
   assert.deepEqual(result.answerBlocks, []);
   assert.deepEqual(result.processBlocks.map((block) => block.type), ["thinking", "text", "toolCall"]);
+});
+
+test("keeps the answer text before a trailing non-pi tool call (extension memory_write)", async () => {
+  const { splitFinalAssistantBlocks } = await loadSubject();
+  // pi-memory's shape: the summary and the memory_write share one message, the
+  // call after the text — the text stays the answer so the fold keeps it open.
+  const message = assistant([
+    { type: "thinking", thinking: "wrap up" },
+    { type: "text", text: "克隆成功，根因与修复……" },
+    { type: "toolCall", toolCallId: "call-m", toolName: "memory_write", input: {} },
+  ]);
+
+  const result = splitFinalAssistantBlocks(message, { isStreaming: false });
+  assert.deepEqual(result.answerBlocks.map((block) => block.type || block.toolName), ["text", "toolCall"]);
+  assert.equal(result.answerBlocks[0].text, "克隆成功，根因与修复……");
+  assert.deepEqual(result.processBlocks.map((block) => block.type), ["thinking"]);
+});
+
+test("a trailing run of non-pi calls is skipped together, a pi call between them still splits", async () => {
+  const { splitFinalAssistantBlocks } = await loadSubject();
+  const message = assistant([
+    { type: "text", text: "Summary" },
+    { type: "toolCall", toolCallId: "c1", toolName: "memory_write", input: {} },
+    { type: "toolCall", toolCallId: "c2", toolName: "mcp_docs_search", input: {} },
+  ]);
+  assert.deepEqual((await loadSubject()).splitFinalAssistantBlocks(message).answerBlocks.map((b) => b.type === "text" ? "text:" + b.text : b.toolName), ["text:Summary", "memory_write", "mcp_docs_search"]);
+
+  const withPiWork = assistant([
+    { type: "text", text: "Summary" },
+    { type: "toolCall", toolCallId: "c1", toolName: "memory_write", input: {} },
+    { type: "toolCall", toolCallId: "c2", toolName: "bash", input: {} },
+  ]);
+  assert.deepEqual((await loadSubject()).splitFinalAssistantBlocks(withPiWork).answerBlocks, []);
 });
 
 test("drops empty thinking blocks after completion", async () => {
@@ -330,4 +362,64 @@ test("collapses Process details only above an answer with text or an image (#906
     stopReason: "error",
     errorMessage: "Connection closed",
   })), true);
+});
+
+// ---------------------------------------------------------------------------
+// findFinalAssistantIndex: a trailing non-pi tool call's epilogue
+
+function userMsg(text) {
+  return { role: "user", content: text };
+}
+function toolResultMsg() {
+  return { role: "toolResult", content: "Appended to MEMORY.md", toolCallId: "call-m" };
+}
+
+test("the reply after a trailing memory_write is an epilogue, not the answer", async () => {
+  const { findFinalAssistantIndex } = await loadSubject();
+  // The reported shape (session 2026-11-12): summary + memory_write in one
+  // message, then a short confirmation.
+  const messages = [
+    userMsg("clone hrms"),
+    assistant([
+      { type: "thinking", thinking: "wrap up" },
+      { type: "text", text: "克隆成功 ✅ 根因与修复……" },
+      { type: "toolCall", toolCallId: "call-m", toolName: "memory_write", input: {} },
+    ]),
+    toolResultMsg(),
+    assistant([{ type: "text", text: "已记入长期记忆。仓库已克隆到 D:/tmp/hrms。" }]),
+  ];
+  assert.equal(findFinalAssistantIndex(messages, 0, messages.length), 1);
+});
+
+test("a pi tool call between text and the reply keeps the reply the answer", async () => {
+  const { findFinalAssistantIndex } = await loadSubject();
+  const messages = [
+    userMsg("run the tests"),
+    assistant([
+      { type: "text", text: "Running the suite." },
+      { type: "toolCall", toolCallId: "call-1", toolName: "bash", input: {} },
+    ]),
+    { role: "toolResult", content: "3 passed", toolCallId: "call-1" },
+    assistant([{ type: "text", text: "All green: 3 passed." }]),
+  ];
+  assert.equal(findFinalAssistantIndex(messages, 0, messages.length), 3);
+});
+
+test("the epilogue walk chains across consecutive exempted calls and skips empty tails", async () => {
+  const { findFinalAssistantIndex } = await loadSubject();
+  const messages = [
+    userMsg("finish up"),
+    assistant([
+      { type: "text", text: "结论与总结。" },
+      { type: "toolCall", toolCallId: "call-m", toolName: "memory_write", input: {} },
+    ]),
+    toolResultMsg(),
+    assistant([
+      { type: "text", text: "补充档案。" },
+      { type: "toolCall", toolCallId: "call-n", toolName: "memory_write", input: {} },
+    ]),
+    { role: "toolResult", content: "Appended again", toolCallId: "call-n" },
+    assistant([{ type: "text", text: "都记好了。" }]),
+  ];
+  assert.equal(findFinalAssistantIndex(messages, 0, messages.length), 1);
 });
