@@ -7,3 +7,6 @@ tests/.artifacts/
 .DS_Store
 *.tsbuildinfo
 *.tmp.mjs
+
+# Upstream-sync trackers keep their census/decisions/issues; run logs stay local
+.scratch/upstream-sync-*/*.log
