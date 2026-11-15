@@ -26,13 +26,17 @@ node .claude/skills/verify-file-authorization/scripts/check.mjs [--seed N] [--ca
 
 Default seed is fixed: the same inputs and verdicts every time (~10 s). Use a new `--seed` to explore; use `--cases 20000` before declaring a fix for KNOWN-FINDING-1.
 
-Exit codes: `0` every property holds · `1` NEW break beyond the documented finding — treat as a real defect until proven otherwise · `3` only KNOWN-FINDING-1 (below) — acceptable steady state.
+Exit codes: `0` every property holds · `1` NEW break beyond the documented finding — treat as a real defect until proven otherwise · `3` the RESOLVED-FINDING-1 class is back — the UNC-kind guard in `isPathWithinRoots` was dropped or changed; treat as a regression.
 
-## KNOWN-FINDING-1 (why exit 3 is the current baseline)
+## RESOLVED-FINDING-1 (fixed; classifier kept as a tripwire)
 
-`isPathWithinRoots` accepts a UNC path (`\\server\share\...`) under a bare `\` root, because every UNC string starts with `\`. The bare root arises when a POSIX root `/` (or `//`) is re-resolved through `path.win32` (family switching) to `\`, the current-drive root; Node itself treats UNC and drive/bare paths as incomparable namespaces (`path.win32.relative` throws across them).
+**The finding (2026-11-15, fixed same day).** `isPathWithinRoots` accepted a UNC path (`\\server\share\...`) under a bare `\` root, because every UNC string starts with `\`. The bare root arose when a POSIX root `/` (or `//`) was re-resolved through `path.win32` (family switching) to `\`, the current-drive root; Node itself treats UNC and drive/bare paths as incomparable namespaces (`path.win32.relative` throws across them).
 
-Reachability as shipped: an allowed root of `/` exists only if a session ran with cwd `/`; UNC targets reach the check only through URL-encoded backslashes in `pifile://local/` segments; and the second gate on the read path (`isExistingFilePathAllowed` at `electron/main/services/files.ts:321`) contains it on every platform — UNC paths fail `statSync` on macOS/Linux, and bare `\` roots cannot arise on Windows (cwds are drive paths). So it is a contract defect in the authorization function, not an exploitable read. Fix suggestion if the user asks: reject when the target resolves to UNC and the root does not (or compare root kinds as the check's oracle does). Do not fix product code unasked.
+**Reachability as shipped was empty** — the second gate on the read path (`isExistingFilePathAllowed` at `electron/main/services/files.ts:321`) contained it on every platform (UNC paths fail `statSync` on macOS/Linux; bare `\` roots cannot arise on Windows) — so it was a contract defect, not an exploitable read.
+
+**The fix.** A one-line guard in `pi-web/src/lib/path-security.ts` `isPathWithinRoots`: under Windows rules, skip the root when exactly one of target/root resolves to UNC (`normalized.startsWith("\\\\")` mismatch). Regression tests: `pi-web/src/lib/path-security.test.mjs` ("UNC paths are never contained by a bare root"). The check moved from exit 3 to exit 0 at seeds 20261115 and 777 (20 000 cases).
+
+The check script still classifies that counterexample shape (`code allows, oracle denies, target kind `unc`, root kind `bare`) and exits `3` when it appears — if it ever does, the guard is gone; restore it rather than re-documenting the finding.
 
 ## Real bug or modeling error?
 
@@ -41,14 +45,14 @@ The oracle (`oracleWithin` in the script) is an independent implementation of th
 - Soundness direction (`code=true oracle=false`, "ALLOWED a path outside the root") — treat as a real defect. Confirm by hand: does the printed target open a location outside the printed root on the platform you care about?
 - Availability direction (`code=false oracle=true`) — check for a family/root-kind subtlety before reporting: the first draft of this check produced 9 such false findings because its oracle lost the UNC-vs-drive-vs-bare distinction; the corrected oracle encodes it. If Node's `path` module considers the two paths incomparable (e.g. `relative()` throws), the disagreement is probably a modeling error — fix the oracle and record why in this section.
 - F4 failures are fs truth — the tree is built on disk in the run; reproduce with the printed paths.
-- KNOWN-FINDING-1 counterexamples are exactly: code allows, oracle denies, target kind `unc`, root kind `bare`. Anything else fails the run.
+- RESOLVED-FINDING-1 counterexamples are exactly: code allows, oracle denies, target kind `unc`, root kind `bare`. They exit `3` — the guard regressed. Anything else fails the run with exit `1`.
 
 ## Coverage record (keep in step with the code)
 
 - Files: `pi-web/src/lib/path-security.ts`, `pi-web/src/lib/paths.ts`
 - Functions: `isPathWithinRoots`, `hasParentDirectorySegment`, `isExistingPathWithinRoots`, `filePathFromApiSegments` (plus `isWindowsAbsolutePath`/`toSlashPath` as used by the oracle)
 - Callers covered by implication: `pi-web/src/lib/file-access.ts` (`isFilePathAllowed`, `isExistingFilePathAllowed`), `electron/main/services/files.ts` `handleFilesGet` authorization block
-- Sync commit: `85efcd9` — the verification was confirmed to describe the code at this commit (proven: two scratch breaks — dropped segment boundary, disabled `..` guard — were each caught; reverts restored exit 3)
+- Sync commit: `d72bc2a` confirmed the pre-fix code (exit 3 baseline, two scratch breaks caught); the UNC-kind guard landed with commit `fix(files): reject UNC paths under bare roots in isPathWithinRoots` (`git log --grep "UNC paths under bare roots"`), confirmed by the check moving to exit 0 (seeds 20261115 and 777) plus `pi-web/src/lib/path-security.test.mjs`. When the covered code changes, move this record forward only after re-running the check.
 
 When a change touches the covered files: run the check before and after. If your change is an intended behavior change (not a bug), update the oracle and this document to the new spec, confirm both scratch-break classes still fail the check, and move the sync commit forward **only after** confirming the verification describes the code at the new commit.
 

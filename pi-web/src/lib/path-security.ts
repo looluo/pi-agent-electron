@@ -14,6 +14,11 @@ export function isPathWithinRoots(target: string, roots: Set<string>): boolean {
     const sep = useWindowsRules ? "\\" : path.sep;
     const normalized = resolver.resolve(target);
     const normalizedRoot = resolver.resolve(root);
+    // A UNC path (\\server\share\…) lives in its own namespace: it is never
+    // inside a bare "\" root — which is what a posix "/" root re-resolves to
+    // here — even though every UNC string starts with "\". Node's own
+    // win32.relative() refuses to compare the two kinds as well.
+    if (useWindowsRules && normalized.startsWith("\\\\") !== normalizedRoot.startsWith("\\\\")) continue;
     const comparable = useWindowsRules ? normalized.toLowerCase() : normalized;
     const comparableRoot = useWindowsRules ? normalizedRoot.toLowerCase() : normalizedRoot;
     const rootWithSep = comparableRoot.endsWith(sep) ? comparableRoot : comparableRoot + sep;
