@@ -128,8 +128,10 @@ async function allowOutsideLink(linkPath: string, target: string): Promise<void>
   if (!res.ok) throw await responseError(res, "Failed to allow the linked folder");
 }
 
-async function fetchGitStatus(cwd: string): Promise<GitStatusResponse> {
-  const params = new URLSearchParams({ cwd });
+async function fetchGitStatus(cwd: string, signal: AbortSignal): Promise<GitStatusResponse> {
+  // Fork transport: pi:git:status IPC has no HTTP request whose closing could
+  // stop the scan; lib/git-changes bounds the untracked tail upstream #1609.
+  void signal;
   const result = await window.pi.gitStatus(cwd);
   if (result.status !== 200 || !result.body) throw new Error(`Failed to load Git status (HTTP ${result.status})`);
   return result.body as unknown as GitStatusResponse;
@@ -1236,7 +1238,9 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
 
   useEffect(() => {
     let cancelled = false;
-    fetchGitStatus(cwd)
+    // Aborting a replaced request also stops its scan on the server (#1584).
+    const controller = new AbortController();
+    fetchGitStatus(cwd, controller.signal)
       .then((status) => {
         if (!cancelled) {
           setGitFiles(status.isGitRepository ? status.files : []);
@@ -1251,7 +1255,10 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
           setGitLineStats({ additions: 0, deletions: 0 });
         }
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [cwd, refreshKey, treeRefreshKey]);
 
   useEffect(() => {

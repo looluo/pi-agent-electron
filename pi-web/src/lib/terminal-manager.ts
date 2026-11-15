@@ -52,7 +52,9 @@ function registry(): Map<string, TerminalRecord> {
 function shellEnvironment(): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined) env[key] = value;
+    // The browser login password guards this server, not the shells it starts.
+    const comparableKey = process.platform === "win32" ? key.toUpperCase() : key;
+    if (value !== undefined && comparableKey !== "PI_WEB_PASSWORD") env[key] = value;
   }
   env.TERM = "xterm-256color";
   env.COLORTERM = "truecolor";
@@ -233,9 +235,15 @@ export function killTerminal(id: string, force = false): boolean {
   record.cleanupAt = null;
   registry().delete(id);
   if (!record.exited) {
-    record.pty.kill(force ? "SIGKILL" : undefined);
+    // node-pty on Windows throws for any signal, possibly later in a deferred
+    // callback, and its plain kill() already ends the console's processes.
+    if (process.platform === "win32") {
+      record.pty.kill();
+    } else {
+      record.pty.kill(force ? "SIGKILL" : undefined);
+    }
     // A shell may trap SIGHUP; explicit close and lease expiry must still finish.
-    if (!force) {
+    if (!force && process.platform !== "win32") {
       record.cleanupTimer = setTimeout(() => {
         if (!record.exited) record.pty.kill("SIGKILL");
       }, 2000);

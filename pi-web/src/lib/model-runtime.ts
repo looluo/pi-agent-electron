@@ -7,6 +7,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { rememberProviderModels } from "./deferred-provider-models";
 import { serializeByKey } from "./key-serializer";
+import { llamaCppExtension } from "./pi-sdk-internals";
 
 /**
  * ModelRuntime that also includes providers registered by extensions (an
@@ -23,13 +24,16 @@ import { serializeByKey } from "./key-serializer";
  */
 export async function createModelRuntimeWithExtensions(): Promise<ModelRuntime> {
   const agentDir = getAgentDir();
-  const services = await createAgentSessionServices({ cwd: agentDir, agentDir });
+  const services = await createAgentSessionServices({
+    cwd: agentDir,
+    agentDir,
+    resourceLoaderOptions: { extensionFactories: [llamaCppExtension] },
+  });
   installSettingsManager = services.settingsManager;
   await rememberProviderModels(services.modelRuntime);
   return services.modelRuntime;
 }
 
-/**
 /**
  * The settings manager of the last runtime build, or its own services when
  * none was built yet: login needs the installation's device ID (#OpenAI

@@ -74,9 +74,9 @@ export async function sessionsSearch(query: string) {
   }
   try {
     const sessions = trimmed ? await listAllSessions() : [];
-    // A side chat copies its parent's whole text and never opens as the main chat.
-    const searchable = sessions.filter((session) => session.relation?.kind !== "side");
-    return { status: 200 as const, body: await searchSessionContents(searchable, trimmed) };
+    // Side chats stay in the search: lib/session-search.ts only reads what follows
+    // their boundary message, so inherited history is not duplicated from the parent.
+    return { status: 200 as const, body: await searchSessionContents(sessions, trimmed) };
   } catch (error) {
     return { status: 500 as const, body: { error: String(error) } };
   }
@@ -216,16 +216,18 @@ export async function sessionsContext(
   const before = options.before ?? undefined;
 
   const sm = liveRpc?.inner.sessionManager ?? openSessionManager(filePath!);
+  // Without a leaf, pi's own, as the full read walks from: the reply names it.
+  const branchLeafId = options.leafId ?? sm.getLeafId();
   // `before` is the oldest entry already on the client; fetch its ancestors
   // only (excludeLeaf) so prepending the page does not duplicate `before`.
-  const context = buildSessionContext(sm.getEntries() as never, before ?? options.leafId, {
+  const context = buildSessionContext(sm.getEntries() as never, before ?? branchLeafId, {
     deferThinking: options.deferThinking,
     deferToolResultImages: options.deferMedia,
     tail,
     excludeLeaf: Boolean(before),
     sessionId: id,
   });
-  return { context, tail, before: before ?? null };
+  return { context, tail, before: before ?? null, leafId: branchLeafId };
 }
 
 /** Port of app/api/sessions/[id] (PATCH) — rename. */

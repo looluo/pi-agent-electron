@@ -5,7 +5,7 @@
  */
 import { randomUUID } from "crypto";
 import { execFile } from "child_process";
-import { existsSync, mkdirSync, rmSync } from "fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from "fs";
 import { tmpdir } from "os";
 import { basename, dirname, join } from "path";
 import { promisify } from "util";
@@ -117,8 +117,21 @@ export async function sessionExport(id: string): Promise<{ status: number; body:
       return { status: 404, body: { error: "Session not found" } };
     }
 
-    const tempDir = join(tmpdir(), "pi-web-export");
-    mkdirSync(tempDir, { recursive: true });
+    // Per-request private directory. A fixed /tmp/pi-web-export is created by
+    // whichever OS user runs the first process; other users on the same host
+    // then cannot write into it and history export fails.
+    const tempDir = mkdtempSync(join(tmpdir(), "pi-web-export-"));
+
+    // Best-effort sweep: opened exports are never read again; drop dirs older
+    // than an hour so per-request directories do not accumulate.
+    try {
+      const now = Date.now();
+      for (const entry of readdirSync(tmpdir())) {
+        if (!entry.startsWith("pi-web-export-")) continue;
+        const dir = join(tmpdir(), entry);
+        if (now - statSync(dir).mtimeMs > 3_600_000) rmSync(dir, { recursive: true, force: true });
+      }
+    } catch { /* best effort */ }
 
     const sessionBase = basename(filePath, ".jsonl");
     const fileName = `pi-session-${sessionBase}.html`;

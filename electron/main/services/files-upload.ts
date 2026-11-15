@@ -16,7 +16,7 @@ import {
  * by an IPC payload of typed byte arrays; size limits are enforced identically.
  */
 
-const MAX_UPLOAD_FILE_BYTES = 25 * 1024 * 1024;
+// One limit for a request's files together; a single file may use all of it.
 const MAX_UPLOAD_TOTAL_BYTES = 100 * 1024 * 1024;
 
 async function getUploadDirectory(directory: string): Promise<
@@ -83,9 +83,6 @@ export async function filesUpload(
   if (!strategy) {
     return { status: 400, body: { error: "Invalid conflict strategy" } };
   }
-  if (files.some((file) => file.bytes.byteLength > MAX_UPLOAD_FILE_BYTES)) {
-    return { status: 413, body: { error: "Each upload must be 25MB or smaller" } };
-  }
   if (files.reduce((total, file) => total + file.bytes.byteLength, 0) > MAX_UPLOAD_TOTAL_BYTES) {
     return { status: 413, body: { error: "Uploads must total 100MB or less" } };
   }
@@ -137,9 +134,11 @@ export async function filesUpload(
       if (conflictSet.has(file.name)) {
         // Keep the old entry intact until its complete replacement can be renamed over it
         // (a failed write must not lose the previous file).
-        replaceUploadFile(destination, Buffer.from(file.bytes));
+        // Async writes: a 100MB file written synchronously would stall the main
+        // process's IPC and every watcher until the disk catches up.
+        await replaceUploadFile(destination, Buffer.from(file.bytes));
       } else {
-        fs.writeFileSync(destination, file.bytes, { flag: "wx" });
+        await fs.promises.writeFile(destination, file.bytes, { flag: "wx" });
       }
       uploaded.push(file.name);
     } catch (error) {

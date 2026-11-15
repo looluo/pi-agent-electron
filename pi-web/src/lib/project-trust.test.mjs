@@ -274,8 +274,11 @@ test("all project resource loaders and reloads enforce project trust", async () 
   // Electron fork: the routes live in main-process services.
   const modelsSource = await readFile(new URL("../../../electron/main/services/models-auth.ts", import.meta.url), "utf8");
   const skillsSource = await readFile(new URL("./skills-service.ts", import.meta.url), "utf8");
+  // Fork: the routes live in electron/main/services (typed IPC), not app/api.
   const skillsInstallSource = skillsSource;
   const pluginsSource = await readFile(new URL("../../../electron/main/services/plugins.ts", import.meta.url), "utf8");
+  const enabledModelsSource = await readFile(new URL("../../../electron/main/services/models-enabled.ts", import.meta.url), "utf8");
+  const enabledModelsRuntimeSource = await readFile(new URL("./enabled-models-runtime.ts", import.meta.url), "utf8");
 
   assert.match(rpcSource, /const sessionCwd = sessionManager\.getCwd\(\)/);
   assert.match(rpcSource, /projectTrustReloadOptions\(sessionCwd, agentDir\)/);
@@ -298,6 +301,9 @@ test("all project resource loaders and reloads enforce project trust", async () 
     2,
   );
   assert.match(pluginsSource, /scope === "project" && !projectTrust\.trusted/);
+  assert.match(enabledModelsSource, /createEnabledModelsSettingsManager\(cwd, agentDir\)/);
+  assert.doesNotMatch(enabledModelsSource, /SettingsManager\.create\(/);
+  assert.match(enabledModelsRuntimeSource, /projectTrusted: getProjectTrustStatus\(cwd, agentDir\)\.trusted/);
 });
 
 // ---------------------------------------------------------------------------

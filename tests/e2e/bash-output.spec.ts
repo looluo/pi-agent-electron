@@ -45,15 +45,15 @@ test("view full output loads the truncated bash log over IPC", async () => {
   await row.click();
 
   // The full-output link is localized (d97b8fd); the app under test runs zh-CN.
-  const viewFull = page.getByRole("button", { name: "查看完整输出" });
-  await expect(viewFull).toBeVisible({ timeout: 20_000 });
-  await viewFull.click();
-
-  // The full log replaces the preview inside the (collapsed) tool-call pane —
-  // expand the bash block to expose it.
+  // Upstream's footer redesign draws it inside the bash card, under the result,
+  // so the card must be expanded first.
   const bashHeader = page.getByRole("button", { name: /bash echo fixture-long-output/ });
   await expect(bashHeader).toBeVisible({ timeout: 10_000 });
   await bashHeader.click();
+
+  const viewFull = page.getByRole("button", { name: "查看完整输出" });
+  await expect(viewFull).toBeVisible({ timeout: 20_000 });
+  await viewFull.click();
 
   // Full log must arrive; the dead-fetch symptom must not appear.
   await expect(page.getByText(new RegExp(FULL_MARKER))).toBeVisible({ timeout: 10_000 });

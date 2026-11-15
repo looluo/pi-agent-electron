@@ -1,7 +1,10 @@
 import {
+  readBuiltinTools,
   readPowerShellToolEnabled,
+  writeBuiltinTools,
   writePowerShellToolEnabled,
 } from "@/lib/powershell-settings";
+import { SETTINGS_BUILTIN_TOOLS } from "@/lib/tool-presets";
 import {
   CODEMODE_INLINE_BUDGET_MAX,
   isCodemodeInlineBudget,
@@ -28,6 +31,7 @@ export async function toolsSettingsGet(): Promise<StatusBody> {
       body: {
         isWindows: process.platform === "win32",
         powerShellEnabled: await readPowerShellToolEnabled(),
+        builtinTools: await readBuiltinTools(),
         codemode: await readCodemodePreference(),
         codemodeMode,
         codemodeInlineBudget,
@@ -43,19 +47,34 @@ export async function toolsSettingsGet(): Promise<StatusBody> {
  *  (ADR 0006, chosen in Settings › MCP) both edit it. Settings › MCP saves the
  *  global `codemode.inlineBudget` here too, under the same lock.
  *  request-security checks are HTTP concerns; the typed IPC channel is only
- *  reachable from the renderer. Send exactly one of { enabled }, { codemode }
- *  or { codemodeInlineBudget }. */
-const CHANGES = ["enabled", "codemode", "codemodeMode", "codemodeInlineBudget"] as const;
+ *  reachable from the renderer. Send exactly one of { enabled },
+ *  { builtinTools }, { codemode } or { codemodeInlineBudget }. */
+const CHANGES = ["enabled", "builtinTools", "codemode", "codemodeMode", "codemodeInlineBudget"] as const;
 
 export async function toolsSettingsPut(changes: {
   enabled?: unknown;
+  builtinTools?: unknown;
   codemode?: unknown;
   codemodeMode?: unknown;
   codemodeInlineBudget?: unknown;
 }): Promise<StatusBody> {
   const body = changes && typeof changes === "object" ? changes : {};
   if (CHANGES.filter((key) => key in body).length !== 1) {
-    return { status: 400, body: { error: "Send one of enabled (PowerShell), codemode, codemodeMode or codemodeInlineBudget" } };
+    return { status: 400, body: { error: "Send one of enabled (PowerShell), builtinTools, codemode, codemodeMode or codemodeInlineBudget" } };
+  }
+
+  if ("builtinTools" in body) {
+    // The built-in tools new sessions start with; every other defaultTools entry is kept.
+    const tools = body.builtinTools;
+    if (!Array.isArray(tools) || !tools.every((name) => SETTINGS_BUILTIN_TOOLS.includes(name))) {
+      return { status: 400, body: { error: `builtinTools must list names from ${SETTINGS_BUILTIN_TOOLS.join(", ")}` } };
+    }
+    try {
+      await writeBuiltinTools(tools);
+      return await toolsSettingsGet();
+    } catch (error) {
+      return { status: 500, body: { error: String(error) } };
+    }
   }
 
   if ("codemodeMode" in body) {

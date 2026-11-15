@@ -300,7 +300,6 @@ export async function skillsInstall(body: Record<string, unknown>): Promise<Stat
     const { stdout, stderr } = await runNpx(args, {
       timeout: 60000,
       cwd: !isGlobal && cwd ? cwd : undefined,
-      env: { ...process.env, FORCE_COLOR: "0" },
     });
 
     const output = (stdout + stderr).replace(ANSI_RE, "");
@@ -332,8 +331,7 @@ export async function skillsSearch(query: string, rawLimit: unknown): Promise<St
     } catch {
       const { stdout, stderr } = await runNpx(["skills", "find", query.trim()], {
         timeout: 20000,
-        env: { ...process.env, FORCE_COLOR: "0" },
-      });
+        });
 
       const results = parseSearchOutput(stdout + stderr).slice(0, limit);
       return { status: 200, body: { results } };
@@ -377,7 +375,6 @@ export async function skillsUpdate(body: Record<string, unknown>): Promise<Statu
     const { stdout, stderr } = await runNpx(buildSkillUpdateArgs(skill.install), {
       timeout: 60_000,
       cwd: scope === "project" ? cwd : undefined,
-      env: { ...process.env, FORCE_COLOR: "0" },
     });
 
     const refreshed = await loadSkillsWithInstallInfo(cwd);

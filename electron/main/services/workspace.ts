@@ -252,7 +252,8 @@ export async function worktreesDelete(body: { cwd?: string; path?: string; force
 
 /** GET /api/git/status?cwd= */
 export async function gitStatus(cwd: string | null) {
-  const trimmed = cwd?.trim() ?? "";
+  // No trim: filesystem paths may carry meaningful trailing spaces (#1667).
+  const trimmed = cwd ?? "";
   if (!trimmed || (!trimmed.startsWith("/") && !isWindowsAbsolutePath(trimmed))) {
     return { status: 400, body: { error: "cwd must be an absolute path" } };
   }
@@ -295,8 +296,9 @@ function isDiffPathAllowed(filePath: string, allowedRoots: Set<string>): boolean
 }
 
 export async function gitDiff(cwd: string | null, filePath: string | null) {
-  const trimmedCwd = cwd?.trim() ?? "";
-  const trimmedPath = filePath?.trim() ?? "";
+  // No trim: filesystem paths may carry meaningful trailing spaces (#1667).
+  const trimmedCwd = cwd ?? "";
+  const trimmedPath = filePath ?? "";
   if (!trimmedCwd || (!trimmedCwd.startsWith("/") && !isWindowsAbsolutePath(trimmedCwd))) {
     return { status: 400, body: { error: "cwd must be an absolute path" } };
   }
@@ -404,7 +406,8 @@ function listWithWalk(cwd: string): FileListing {
 
 /** GET /api/file-index?cwd=&q= */
 export async function fileIndex(cwd: string | null, query: string | null): Promise<{ status: number; body: Record<string, unknown> }> {
-  const trimmedCwd = cwd?.trim() ?? "";
+  // No trim: filesystem paths may carry meaningful trailing spaces (#1667).
+  const trimmedCwd = cwd ?? "";
   if (!trimmedCwd || (!trimmedCwd.startsWith("/") && !isWindowsAbsolutePath(trimmedCwd))) {
     return { status: 400, body: { error: "cwd must be an absolute path" } };
   }

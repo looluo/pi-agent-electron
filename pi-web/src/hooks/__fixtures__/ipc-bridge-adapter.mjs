@@ -47,8 +47,23 @@ export function installIpcBridgeAdapter() {
       const response = await globalThis.fetch("/api/models");
       return { status: response.status, body: await response.json().catch(() => null) };
     },
-    sessionsGet: (sessionId) => call(`/api/sessions/${encodeURIComponent(sessionId)}?format=summary`),
-    sessionsContext: (sessionId) => call(`/api/sessions/${encodeURIComponent(sessionId)}/state`),
+    sessionsGet: (sessionId, options = {}) => {
+      const params = new URLSearchParams({ format: "summary" });
+      if (options.force) params.set("force", "1");
+      if (options.tail) params.set("tail", String(options.tail));
+      return call(`/api/sessions/${encodeURIComponent(sessionId)}?${params.toString()}`);
+    },
+    // GET /api/sessions/[id]/context — pagination options ride the query.
+    sessionsContext: (sessionId, options = {}) => {
+      const params = new URLSearchParams();
+      if (options.before) params.set("before", options.before);
+      if (options.leafId) params.set("leafId", options.leafId);
+      if (options.tail) params.set("tail", String(options.tail));
+      if (options.deferThinking) params.set("deferThinking", "1");
+      if (options.deferMedia) params.set("deferMedia", "1");
+      const query = params.toString();
+      return call(`/api/sessions/${encodeURIComponent(sessionId)}/context${query ? `?${query}` : ""}`);
+    },
     sessionsAutoName: (sessionId) => call(`/api/sessions/${encodeURIComponent(sessionId)}/auto-name`, { method: "POST" }),
     agentRunning: () => call("/api/agent/running"),
     // The event stream: an EventSource the tests can drive, translated into

@@ -371,11 +371,10 @@ test("normal send: after a branch switch, a send the server never got comes back
     await sending;
     await env.tick(1_000);
     assert.equal(getDraft("A").value, "first submission\n\nsecond draft");
-    // Fork (IPC adapter): the re-read's seq bookkeeping through the bridge
-    // adapter leaves the branch-switch case one read short of the definite
-    // "not received" classification, so the notice takes the safe
-    // "unconfirmed" warning. The text recovery above is what the user sees.
-    assert.deepEqual(env.notices(), [["warning", "chat.sendUnconfirmed"]]);
+    // The bridge adapter now carries the forced re-read (force=1), so the
+    // branch-switch case reaches the definite "not received" classification,
+    // as upstream's own test asserts.
+    assert.deepEqual(env.notices(), [["error", "chat.sendNotReceived"]]);
   });
 });
 

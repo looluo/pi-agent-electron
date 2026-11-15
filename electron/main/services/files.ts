@@ -10,6 +10,7 @@ import {
 } from "@/lib/file-access";
 import { checkLinkedDirectoryApproval, withOutsideLinkTargets } from "@/lib/linked-directory";
 import { hasParentDirectorySegment } from "@/lib/path-security";
+import { FILE_WATCH_HEARTBEAT_MS } from "@/lib/file-version";
 import {
   DOCX_PREVIEW_MAX_BYTES,
   IMAGE_PREVIEW_MAX_BYTES,
@@ -149,7 +150,8 @@ function streamFile(filePath: string, stat: fs.Stats, contentType: string, range
   }
 
   const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
-  if (!match) {
+  // "bytes=-" names no byte at all; treat it like any other unsatisfiable range.
+  if (!match || (!match[1] && !match[2])) {
     return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${stat.size}` } });
   }
 
@@ -454,6 +456,7 @@ export function openFileWatch(
   }
 
   let watcher: fs.FSWatcher | null = null;
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
   let lastMtimeMs = stat?.mtimeMs ?? 0;
   let lastCtimeMs = stat?.ctimeMs ?? 0;
   let lastIno = stat?.ino ?? 0;
@@ -494,6 +497,10 @@ export function openFileWatch(
     // The client snapshots only after this event, so emit it after the
     // watcher exists to avoid dropping changes between those steps.
     onEvent("connected", { filePath });
+    // Heartbeat: a watcher whose push channel went quiet (half-open IPC, a
+    // renderer that never got the unsubscribe through) is re-opened by the
+    // client's supervisor once the pings stop arriving.
+    heartbeat = setInterval(() => onEvent("ping", {}), FILE_WATCH_HEARTBEAT_MS);
   } catch {
     onEvent("error", { message: "Failed to watch file" });
     onClosed();
@@ -501,12 +508,14 @@ export function openFileWatch(
   }
 
   function close() {
+    clearInterval(heartbeat);
     try { watcher?.close(); } catch { /* ignore */ }
     watcher = null;
     onClosed();
   }
 
   return () => {
+    clearInterval(heartbeat);
     try { watcher?.close(); } catch { /* ignore */ }
     watcher = null;
   };

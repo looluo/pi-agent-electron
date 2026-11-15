@@ -8,6 +8,7 @@ import { getCompletionNotificationSuppressedRpcSessionIds, getRpcSession, getRun
 import { hasUnsettledSubagentRun } from "@/lib/subagent-runtime";
 import { getSessionUiStateRevision } from "@/lib/session-ui-state";
 import { getSessionListVersion, invalidateSessionListCache, resolveSessionPath } from "@/lib/session-reader";
+import { EXTENSION_REPORTED_CODE } from "@/lib/wire-codes";
 import {
   MAX_INLINE_BASH_OUTPUT_BYTES,
   openRegularFileNoFollow,
@@ -173,6 +174,7 @@ export async function agentCommand(
       return {
         ok: false,
         error: error instanceof Error ? error.message : String(error),
+        ...((error as { code?: unknown } | null)?.code === EXTENSION_REPORTED_CODE ? { code: EXTENSION_REPORTED_CODE } : {}),
         ...(commandType === "prompt" ? { code: "prompt_rejected", accepted: false } : {}),
       };
     }
@@ -196,6 +198,7 @@ export async function agentCommand(
     return {
       ok: false,
       error: error instanceof Error ? error.message : String(error),
+      ...((error as { code?: unknown } | null)?.code === EXTENSION_REPORTED_CODE ? { code: EXTENSION_REPORTED_CODE } : {}),
       ...(commandType === "prompt" ? { code: "prompt_rejected", accepted: false } : {}),
     };
   }
@@ -233,7 +236,7 @@ export function agentLease(sessionId: string): { running: boolean; awaitingInput
 }
 
 /** Port of app/api/agent/running (GET). */
-export function agentRunningIds(): { sessionListVersion: number; runningSessionIds: string[]; completionNotificationSuppressedSessionIds?: string[]; sessionUiStateRevision: number | null } {
+export function agentRunningIds(): { sessionListVersion: number; runningSessionIds: string[]; completionNotificationSuppressedSessionIds?: string[]; sessionUiStateRevision: number | null; serverNow: number } {
   return {
     sessionListVersion: getSessionListVersion(),
     runningSessionIds: getRunningRpcSessionIds(),
@@ -241,6 +244,9 @@ export function agentRunningIds(): { sessionListVersion: number; runningSessionI
     // sessionUiStateRevision (null when unreadable) tells the sidebar its pins and
     // archive changed elsewhere; it costs one stat while the file is unchanged.
     sessionUiStateRevision: getSessionUiStateRevision(),
+    // This process's clock, which stamps reads (`readAt`); the renderer dates
+    // its unread markers on it (lib/unread-markers.ts), never on its own.
+    serverNow: Date.now(),
   };
 }
 

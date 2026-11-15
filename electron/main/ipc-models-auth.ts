@@ -46,7 +46,7 @@ function registerModelsAuthHandlers(): void {
   ipcMain.handle("pi:auth:all-providers", () => authAllProviders());
   ipcMain.handle("pi:auth:api-key:get", (_e, provider: string) => apiKeyStatus(provider));
   ipcMain.handle("pi:provider-usage:query", (_e, providerId: unknown) => providerUsageQuery(providerId));
-  ipcMain.handle("pi:auth:api-key:set", (_e, provider: string, apiKey: unknown) => apiKeySet(provider, apiKey));
+  ipcMain.handle("pi:auth:api-key:set", (_e, provider: string, apiKey: unknown, serverUrl?: unknown) => apiKeySet(provider, apiKey, serverUrl));
   ipcMain.handle("pi:auth:api-key:delete", (_e, provider: string) => apiKeyDelete(provider));
   ipcMain.handle("pi:auth:logout", (_e, provider: string) => authLogout(provider));
   ipcMain.handle("pi:auth:login:code", (_e, provider: string, token: string, code: string) =>

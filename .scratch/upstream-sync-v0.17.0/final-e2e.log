@@ -1,0 +1,170 @@
+
+> pi-agent-desktop@0.17.0 test:e2e
+> electron-vite build && playwright test
+
+vite v7.3.6 building ssr environment for production...
+(node:27358) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+transforming...
+✓ 1001 modules transformed.
+rendering chunks...
+out/main/main.mjs                     987.56 kB
+out/main/chunks/index-Co0723FD.mjs  1,054.86 kB
+✓ built in 1.72s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 1 modules transformed.
+rendering chunks...
+out/preload/preload.js  11.09 kB
+✓ built in 11ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 3084 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) /Users/looluo/Code/pi-agent-electron/pi-web/src/lib/tool-presets.ts is dynamically imported by /Users/looluo/Code/pi-agent-electron/pi-web/src/hooks/useAgentSession.ts but also statically imported by /Users/looluo/Code/pi-agent-electron/pi-web/src/components/AppShell.tsx, /Users/looluo/Code/pi-agent-electron/pi-web/src/components/SettingsPanel.tsx, /Users/looluo/Code/pi-agent-electron/pi-web/src/hooks/useAgentSession.ts, /Users/looluo/Code/pi-agent-electron/pi-web/src/lib/tool-preset-preference.ts, dynamic import will not move module into another chunk.
+
+../out/renderer/index.html                                           1.00 kB
+../out/renderer/assets/KaTeX_Size3-Regular-CTq5MqoE.woff             4.42 kB
+../out/renderer/assets/KaTeX_Size4-Regular-Dl5lxZxV.woff2            4.93 kB
+../out/renderer/assets/KaTeX_Size2-Regular-Dy4dx90m.woff2            5.21 kB
+../out/renderer/assets/KaTeX_Size1-Regular-mCD8mA8B.woff2            5.47 kB
+../out/renderer/assets/KaTeX_Size4-Regular-BF-4gkZK.woff             5.98 kB
+../out/renderer/assets/KaTeX_Size2-Regular-oD1tc_U0.woff             6.19 kB
+../out/renderer/assets/KaTeX_Size1-Regular-C195tn64.woff             6.50 kB
+../out/renderer/assets/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2      6.91 kB
+../out/renderer/assets/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2         6.91 kB
+../out/renderer/assets/KaTeX_Size3-Regular-DgpXs0kz.ttf              7.59 kB
+../out/renderer/assets/KaTeX_Caligraphic-Regular-CTRA-rTL.woff       7.66 kB
+../out/renderer/assets/KaTeX_Caligraphic-Bold-BEiXGLvX.woff          7.72 kB
+../out/renderer/assets/KaTeX_Script-Regular-D3wIWfF6.woff2           9.64 kB
+../out/renderer/assets/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2       10.34 kB
+../out/renderer/assets/KaTeX_Size4-Regular-DWFBv043.ttf             10.36 kB
+../out/renderer/assets/KaTeX_Script-Regular-D5yQViql.woff           10.59 kB
+../out/renderer/assets/KaTeX_Fraktur-Regular-CTYiF6lA.woff2         11.32 kB
+../out/renderer/assets/KaTeX_Fraktur-Bold-CL6g_b3V.woff2            11.35 kB
+../out/renderer/assets/KaTeX_Size2-Regular-B7gKUWhC.ttf             11.51 kB
+../out/renderer/assets/KaTeX_SansSerif-Italic-C3H0VqGB.woff2        12.03 kB
+../out/renderer/assets/KaTeX_SansSerif-Bold-D1sUS0GD.woff2          12.22 kB
+../out/renderer/assets/KaTeX_Size1-Regular-Dbsnue_I.ttf             12.23 kB
+../out/renderer/assets/KaTeX_SansSerif-Regular-CS6fqUqJ.woff        12.32 kB
+../out/renderer/assets/KaTeX_Caligraphic-Regular-wX97UBjC.ttf       12.34 kB
+../out/renderer/assets/KaTeX_Caligraphic-Bold-ATXxdsX0.ttf          12.37 kB
+../out/renderer/assets/KaTeX_Fraktur-Regular-Dxdc4cR9.woff          13.21 kB
+../out/renderer/assets/KaTeX_Fraktur-Bold-BsDP51OF.woff             13.30 kB
+../out/renderer/assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2      13.57 kB
+../out/renderer/assets/KaTeX_SansSerif-Italic-DN2j7dab.woff         14.11 kB
+../out/renderer/assets/KaTeX_SansSerif-Bold-DbIhKOiC.woff           14.41 kB
+../out/renderer/assets/KaTeX_Typewriter-Regular-C0xS9mPB.woff       16.03 kB
+../out/renderer/assets/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2         16.40 kB
+../out/renderer/assets/KaTeX_Math-Italic-t53AETM-.woff2             16.44 kB
+../out/renderer/assets/KaTeX_Script-Regular-C5JkGWo-.ttf            16.65 kB
+../out/renderer/assets/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2         16.78 kB
+../out/renderer/assets/KaTeX_Main-Italic-NWA7e6Wa.woff2             16.99 kB
+../out/renderer/assets/KaTeX_Math-BoldItalic-iY-2wyZ7.woff          18.67 kB
+../out/renderer/assets/KaTeX_Math-Italic-DA0__PXp.woff              18.75 kB
+../out/renderer/assets/KaTeX_Main-BoldItalic-SpSLRI95.woff          19.41 kB
+../out/renderer/assets/KaTeX_SansSerif-Regular-BNo7hRIc.ttf         19.44 kB
+../out/renderer/assets/KaTeX_Fraktur-Regular-CB_wures.ttf           19.57 kB
+../out/renderer/assets/KaTeX_Fraktur-Bold-BdnERNNW.ttf              19.58 kB
+../out/renderer/assets/KaTeX_Main-Italic-BMLOBm91.woff              19.68 kB
+../out/renderer/assets/KaTeX_SansSerif-Italic-YYjJ1zSn.ttf          22.36 kB
+../out/renderer/assets/KaTeX_SansSerif-Bold-CFMepnvq.ttf            24.50 kB
+../out/renderer/assets/KaTeX_Main-Bold-Cx986IdX.woff2               25.32 kB
+../out/renderer/assets/KaTeX_Main-Regular-B22Nviop.woff2            26.27 kB
+../out/renderer/assets/KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf        27.56 kB
+../out/renderer/assets/KaTeX_AMS-Regular-BQhdFMY1.woff2             28.08 kB
+../out/renderer/assets/KaTeX_Main-Bold-Jm3AIy58.woff                29.91 kB
+../out/renderer/assets/KaTeX_Main-Regular-Dr94JaBh.woff             30.77 kB
+../out/renderer/assets/KaTeX_Math-BoldItalic-B3XSjfu4.ttf           31.20 kB
+../out/renderer/assets/KaTeX_Math-Italic-flOr_0UB.ttf               31.31 kB
+../out/renderer/assets/KaTeX_Main-BoldItalic-DzxPMmG6.ttf           32.97 kB
+../out/renderer/assets/KaTeX_AMS-Regular-DMm9YOAa.woff              33.52 kB
+../out/renderer/assets/KaTeX_Main-Italic-3WenGoN9.ttf               33.58 kB
+../out/renderer/assets/KaTeX_Main-Bold-waoOVXN0.ttf                 51.34 kB
+../out/renderer/assets/KaTeX_Main-Regular-ypZvNtVU.ttf              53.58 kB
+../out/renderer/assets/KaTeX_AMS-Regular-DRggAlZN.ttf               63.63 kB
+../out/renderer/assets/index-RBMG_mtf.css                          230.91 kB
+../out/renderer/assets/channel-CRw96YW1.js                           0.20 kB
+../out/renderer/assets/init-ZxktEp_H.js                              0.26 kB
+../out/renderer/assets/chunk-JWPE2WC7-CHz6JjPT.js                    0.37 kB
+../out/renderer/assets/chunk-2Q5K7J3B-3flHrtjD.js                    0.38 kB
+../out/renderer/assets/chunk-5VM5RSS4-CQ6IAL1T.js                    0.43 kB
+../out/renderer/assets/chunk-XXDRQBXY-2AdBhff2.js                    0.48 kB
+../out/renderer/assets/stateDiagram-v2-UEYNNEHI-BtxH7Zn-.js          0.71 kB
+../out/renderer/assets/classDiagram-JCYQIIEL-D_T1dmGm.js             0.75 kB
+../out/renderer/assets/classDiagram-v2-OCEON4UE-D_T1dmGm.js          0.75 kB
+../out/renderer/assets/swimlanesDiagram-ULZ7WXOC-mBZyEu_g.js         0.75 kB
+../out/renderer/assets/infoDiagram-6WML65LV-DcrehTHo.js              0.99 kB
+../out/renderer/assets/chunk-KBJHAD2P-s7CeDh3I.js                    1.07 kB
+../out/renderer/assets/sizeCapture-X5ZJPWSS-DrwyfWSe.js              1.78 kB
+../out/renderer/assets/ordinal-CxptdPJm.js                           2.20 kB
+../out/renderer/assets/railroadDiagram-AXF67PYL-ByubXZZg.js          2.82 kB
+../out/renderer/assets/abnfDiagram-N423BO3Z-PQ1KO-Hd.js              3.45 kB
+../out/renderer/assets/pegDiagram-VL7TDLO6-D00vHx1q.js               3.69 kB
+../out/renderer/assets/chunk-2GRJ4B5K-DH8zzmLM.js                    3.75 kB
+../out/renderer/assets/ebnfDiagram-BXEA7PRR-B1S4DMR4.js              3.86 kB
+../out/renderer/assets/arc-4cvt2d2f.js                               6.95 kB
+../out/renderer/assets/diagram-LBJQPF4R-akzWsGOG.js                  7.35 kB
+../out/renderer/assets/defaultLocale-B2RvLBDe.js                     9.37 kB
+../out/renderer/assets/linear-B7E1ei-U.js                           11.25 kB
+../out/renderer/assets/diagram-UB23O5K3-Cs-xuF9U.js                 11.42 kB
+../out/renderer/assets/map-BEO0Bu8q.js                              11.82 kB
+../out/renderer/assets/pieDiagram-7S7Q4E2Y-CKiqxZ7N.js              12.54 kB
+../out/renderer/assets/chunk-RYQCIY6F-pF9fmWi_.js                   15.40 kB
+../out/renderer/assets/diagram-7IWD3JNH-DfkkFhqc.js                 16.30 kB
+../out/renderer/assets/dagre-VZM6K2ZE-BbfGElWK.js                   18.30 kB
+../out/renderer/assets/cynefinDiagram-MW4NZA55-Brx01HsU.js          18.33 kB
+../out/renderer/assets/stateDiagram-OKZ733FA-D1XGnThi.js            19.10 kB
+../out/renderer/assets/diagram-B4RE2ZJO-CqV8dR5Y.js                 21.57 kB
+../out/renderer/assets/chunk-6Q2QTUOP-D0oVp2dw.js                   30.85 kB
+../out/renderer/assets/diagram-Q27KOJAE-1vo_vUiT.js                 32.35 kB
+../out/renderer/assets/ishikawaDiagram-WSZJBQD7-CZd_uLCE.js         35.07 kB
+../out/renderer/assets/kanban-definition-27J2QSJJ-Drxo0mgc.js       38.11 kB
+../out/renderer/assets/mindmap-definition-FAOFIHXS-etUF7YwA.js      43.69 kB
+../out/renderer/assets/wardleyDiagram-T6FBY63Y-DLnxmP6d.js          44.51 kB
+../out/renderer/assets/journeyDiagram-NVQOT4AX-C9RKxy__.js          45.28 kB
+../out/renderer/assets/sankeyDiagram-W5VNT64P-D7lQnzB-.js           46.14 kB
+../out/renderer/assets/erDiagram-JOGREHBK-6-MOkINu.js               48.83 kB
+../out/renderer/assets/requirementDiagram-LRYGKXZP-CsxDSkZE.js      52.56 kB
+../out/renderer/assets/gitGraphDiagram-DS77QQ5N-CFSJth5j.js         57.47 kB
+../out/renderer/assets/timeline-definition-Z64GVDOM-DJfozimZ.js     60.48 kB
+../out/renderer/assets/quadrantDiagram-CIZ2JOQS-C2Tn4Kpu.js         61.63 kB
+../out/renderer/assets/graph-BMLV0goG.js                            66.30 kB
+../out/renderer/assets/layout-BNmRhaUB.js                           68.74 kB
+../out/renderer/assets/chunk-5RXB4S5H-OuoPHLtj.js                   72.91 kB
+../out/renderer/assets/xychartDiagram-ELKLHX3M-DD0GXS0s.js          78.02 kB
+../out/renderer/assets/chunk-GF5L2VYU-B3St4K--.js                   84.46 kB
+../out/renderer/assets/vennDiagram-T6HMQDX7-D26801Gt.js             88.83 kB
+../out/renderer/assets/flowDiagram-UKHOOZJN-CZp3tnuD.js            102.81 kB
+../out/renderer/assets/c4Diagram-5PPSVZJV-BrCnwhVU.js              118.48 kB
+../out/renderer/assets/ganttDiagram-PKOTCBZU-DDcVZOT-.js           133.57 kB
+../out/renderer/assets/blockDiagram-VBNYF7ZC-BGZ09rQS.js           140.06 kB
+../out/renderer/assets/sequenceDiagram-SI44F4Z6-D7PJG2sE.js        201.65 kB
+../out/renderer/assets/cose-bilkent-JH36ORCC-EWKxp1rr.js           214.53 kB
+../out/renderer/assets/swimlanes-SLNWSIFB-Cn2-ikI9.js              304.47 kB
+../out/renderer/assets/architectureDiagram-T3A2C74G-DQJDCBtR.js    423.23 kB
+../out/renderer/assets/all-BjKzGqkL.js                             861.01 kB
+../out/renderer/assets/cytoscape.esm-CO2efQV0.js                   958.25 kB
+../out/renderer/assets/mermaid.core-D0Mn_Zx_.js                  1,079.48 kB
+../out/renderer/assets/cynefin-VYW2F7L2-DDLtgk9h.js              1,304.45 kB
+../out/renderer/assets/index-BAFwHlBe.js                         5,119.45 kB
+✓ built in 7.29s
+
+Running 13 tests using 1 worker
+
+  ✓   1 tests/e2e/auth.spec.ts:4:5 › auth settings surface: provider lists and api-key status work (3.3s)
+  ✓   2 tests/e2e/bash-output.spec.ts:17:5 › view full output loads the truncated bash log over IPC (2.2s)
+  ✓   3 tests/e2e/fork.spec.ts:4:5 › fork: branches at an entry and yields a new session id (10.2s)
+  ✓   4 tests/e2e/launch.spec.ts:4:5 › launch: window opens with the app shell and a live bridge (1.6s)
+  ✓   5 tests/e2e/markdown-image.spec.ts:21:5 › markdown local image loads via pifile protocol (1.7s)
+  ✓   6 tests/e2e/monospace-font.spec.ts:7:5 › code font renders equal-width Latin glyphs in light and dark themes (1.3s)
+  ✓   7 tests/e2e/plugin-install-path.spec.ts:22:5 › plugin install survives a launchd-like minimal PATH (2.1s)
+  ✓   8 tests/e2e/prompt.spec.ts:4:5 › prompt → reply round trip through the real UI contract (4.8s)
+  ✓   9 tests/e2e/sessions.spec.ts:4:5 › session list returns sessions and switching loads context (1.5s)
+  ✓  10 tests/e2e/terminal.spec.ts:9:5 › terminal: workspace PTY round-trips over typed IPC (1.7s)
+  ✓  11 tests/e2e/thinking.spec.ts:37:5 › expanding deferred thinking loads full content over IPC (1.7s)
+  ✓  12 tests/e2e/tool-call.spec.ts:4:5 › a real tool call round-trips and is retrievable (11.1s)
+  ✓  13 tests/e2e/window-close.spec.ts:4:5 › window close kills the app process (Q4: close = stop) (1.6s)
+
+  13 passed (50.8s)

@@ -1,12 +1,14 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { nodeCliInvocation, type NodeCliName } from "./node-cli";
+import { sanitizeProjectCommandEnvironment } from "./project-command-env";
 
 const execFileAsync = promisify(execFile);
 
 export interface RunNpxOptions {
   timeout?: number;
   cwd?: string;
+  /** Fork: plugin-update callers layer proxy settings onto the host env; the scrub below still applies. */
   env?: NodeJS.ProcessEnv;
 }
 
@@ -16,7 +18,17 @@ export interface RunNpxResult {
 }
 
 /**
- * Run one of npm's bundled CLI scripts (`npm`/`npx`) without ever using a
+ * What an `npx` child inherits: the host's environment without what belongs to
+ * this server (`PORT`, `NODE_ENV`, `NEXT_*` and the `PI_WEB_PASSWORD` login
+ * secret, as for project commands in ADR 0001). The package it runs is
+ * third-party code fetched from npm. Colors are off: the output is parsed.
+ */
+export function npxEnvironment(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return { ...sanitizeProjectCommandEnvironment(base), FORCE_COLOR: "0" };
+}
+
+/**
+ * Cross-platform wrapper for invoking `npx <args>` without ever using a
  * shell, so user-controlled arguments are never interpreted as shell syntax.
  * See `lib/node-cli.ts` for why the bundled `<name>-cli.js` is preferred over
  * the `npm`/`npx` (or `.cmd`) shims on PATH.
@@ -36,7 +48,7 @@ async function runNodeCli(
   return execFileAsync(command, commandArgs, {
     timeout: opts.timeout,
     cwd: opts.cwd,
-    env,
+    env: npxEnvironment(env),
   });
 }
 

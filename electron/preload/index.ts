@@ -144,7 +144,7 @@ contextBridge.exposeInMainWorld("pi", {
   authAllProviders: () => ipcRenderer.invoke("pi:auth:all-providers"),
   apiKeyStatus: (provider: string) => ipcRenderer.invoke("pi:auth:api-key:get", provider),
   providerUsageQuery: (providerId: string) => ipcRenderer.invoke("pi:provider-usage:query", providerId),
-  apiKeySet: (provider: string, apiKey: string) => ipcRenderer.invoke("pi:auth:api-key:set", provider, apiKey),
+  apiKeySet: (provider: string, apiKey: string, serverUrl?: string) => ipcRenderer.invoke("pi:auth:api-key:set", provider, apiKey, serverUrl),
   apiKeyDelete: (provider: string) => ipcRenderer.invoke("pi:auth:api-key:delete", provider),
   authLogout: (provider: string) => ipcRenderer.invoke("pi:auth:logout", provider),
   authLoginCode: (provider: string, token: string, code: string) => ipcRenderer.invoke("pi:auth:login:code", provider, token, code),
@@ -201,7 +201,7 @@ contextBridge.exposeInMainWorld("pi", {
 
   // tools settings
   toolsSettingsGet: () => ipcRenderer.invoke("pi:tools:settings:get"),
-  toolsSettingsPut: (changes: { enabled?: boolean; codemode?: "automatic" | "always" }) =>
+  toolsSettingsPut: (changes: { enabled?: boolean; builtinTools?: string[]; codemode?: "automatic" | "always" }) =>
     ipcRenderer.invoke("pi:tools:settings:put", changes),
   cacheMissNoticesGet: (): Promise<{ status: number; body: { enabled?: boolean; error?: string } }> =>
     ipcRenderer.invoke("pi:settings:cache-miss-notices:get"),

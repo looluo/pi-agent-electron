@@ -115,5 +115,5 @@ test("generated titles refresh the sidebar without the manual naming status", ()
   assert.doesNotMatch(titleSource, /setAutoNameStatus/);
   assert.match(appShellSource, /onTitleGenerated=\{handleTitleGenerated\}/);
   assert.match(chatWindowSource, /onTitleGenerated, onAttentionNeeded/);
-  assert.match(chatWindowSource, /onAgentEnd: wrappedOnAgentEnd, onTitleGenerated/);
+  assert.match(chatWindowSource, /onAgentEnd: wrappedOnAgentEnd, onSessionEnded, onToolEnd, onTitleGenerated/);
 });

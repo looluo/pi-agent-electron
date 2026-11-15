@@ -114,7 +114,7 @@ export interface PiBridge {
   authAllProviders(): Promise<{ providers?: unknown[] }>;
   apiKeyStatus(provider: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   providerUsageQuery(providerId: string): Promise<unknown>;
-  apiKeySet(provider: string, apiKey: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  apiKeySet(provider: string, apiKey: string, serverUrl?: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   apiKeyDelete(provider: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   authLogout(provider: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   authLoginCode(provider: string, token: string, code: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
@@ -148,7 +148,7 @@ export interface PiBridge {
   mcpSignInPaste(flowId: string, redirectUrl: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   mcpSignInCancel(flowId: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   toolsSettingsGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
-  toolsSettingsPut(changes: { enabled?: boolean; codemode?: "automatic" | "always"; codemodeInlineBudget?: number | null }): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  toolsSettingsPut(changes: { enabled?: boolean; builtinTools?: string[]; codemode?: "automatic" | "always"; codemodeInlineBudget?: number | null }): Promise<{ status: number; body: Record<string, unknown> | null }>;
   cacheMissNoticesGet(): Promise<{ status: number; body: { enabled?: boolean; error?: string } }>;
   cacheMissNoticesPut(enabled: boolean): Promise<{ status: number; body: { enabled?: boolean; error?: string } }>;
   sessionExport(id: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
@@ -198,6 +198,9 @@ export class IpcAuthLoginSource {
 /** EventSource-shaped adapter over the file-watch push channel. */
 export class IpcFileWatchSource {
   onerror: ((event: unknown) => void) | null = null;
+  // Always CLOSED: the push channel's only error state is "closed", so a
+  // supervisor checking readyState === EventSource.CLOSED reopens on error.
+  readonly readyState = 2;
   private listeners = new Map<string, Set<(event: { data: string }) => void>>();
   private unsubscribe: (() => void) | null = null;
 

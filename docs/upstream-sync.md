@@ -134,6 +134,39 @@ asserts computed styles, so only eyes on the UI caught it. Fixed by stripping th
 `release-v2/win-unpacked` (running v0.9.0 instances lock `release/win-unpacked`) and
 `release/Pi-Agent-App-0.9.0-portable.zip` replaced (145MB).
 
+## v0.15.0 → v0.17.0 (`9416a058..174bff96`) — synced 2026-11
+
+106 non-merge commits; census: `.scratch/upstream-sync-v0.17.0/commit-census.md`.
+**SDK 1.5.0 → 1.5.2** (all eight `@earendil-works/*` exact-pinned; the pi-packages
+guard stays green). Executed as a file-level three-way merge (base 9416a058): 93
+wholesale, 62 three-way (22 files, 55 conflict hunks by hand), 53 new, 29 app/api
+re-homes. Helper scripts: `scripts-dev/sync-classify.sh` / `sync-apply.sh` /
+`pick-hunks.py` (the merge is now re-runnable, not hand-per-patch).
+
+| Theme | Status | Notes |
+|---|---|---|
+| llama.cpp built-in provider (47db4ef1) + Test model as chat (7d6b4a16) | ported | `pi:auth:api-key:set` gains `serverUrl` + catalog reply; models services load the SDK's llama extension factory; integration + probe tests re-homed onto the services |
+| built-in tools one-by-one (4ce18f38), provider display-name editing (08989e75/#1608, 1c2ccec2) | ported | `pi:tools:settings:put` gains `builtinTools`; ModelsConfig rides upstream's lifted editingName/applyProviderRename (fork's renames-ref bookkeeping retired) |
+| Agents strip under the toolbar (25eec16a/#1681, 1eb21f78) | ported | AgentMiniStrip + agent-strip-lock new; AppShell keeps no DebugPanel (fork never carried the panel) |
+| session_start dialogs (#1678/#1682), slash-commands generation/stream holding | ported | rpc-manager waitForStateRead; useAgentSession requestSlashCommands; bridge-adapter test fixture gained sessionsContext/sessionsGet option pass-through |
+| side-chat search (4cc85eb9/#1689), multi-term search (5f4cc884), unread markers (bcf4f2ef/#1618) | ported | sessionsSearch drops the side filter; `pi:agent:running` answers `serverNow` |
+| chat cluster: stopped-reply marking, live `!` output, elapsed cards, queued-restore, emoji/token-width/scroll/copy fixes | ported | turn-views at upstream state; fork `isProcessToolCall` now accepts the raw AI-sdk `name` tool-call shape |
+| markdown/files cluster (~20 fixes: MIME, UTF-16 BOM, ranges, literal git paths, trailing spaces, watch heartbeat, previews) | ported | pifile:// byte-range 416; openFileWatch heartbeats (`ping`) and IpcFileWatchSource gained `readyState` so the recovery hook re-opens IPC watches |
+| uploads: one 100MB limit (bae035ee), async writes + umask perms (e1df9241) | ported | files-upload service; limit tests re-homed |
+| npx env scrub (e00f359b), export private tempdir (4c476d4d), skills/settings/i18n fixes | ported | npxEnvironment = project-command-env + FORCE_COLOR; fork keeps RunNpxOptions.env (plugin-update proxies) through the scrub |
+| web push, SSE auth guard, CLI, docs/demo/CI, releases | n/a | IPC push already covers the SSE guard's semantics; form factor |
+
+**Boundary lesson re-learned**: moving `EXTENSION_REPORTED_CODE` into rpc-manager
+(agent-client re-exporting it) silently pulled the whole main-side subtree
+(session-reader → fs, npx → child_process) into the renderer bundle — only the
+vite build catches this. The constant now lives in `lib/wire-codes.ts`, imported
+by both sides.
+
+Verification: typecheck clean (renderer + electron); `npm test` 2971 =
+**2964 pass / 0 fail** / 7 skip (4 Node-version-sensitive fixture connections,
+2 win32 Electron CLI, 1 no PowerShell on macOS — all environmental); `npm run
+test:e2e` **13/13**; pi packages verified at 1.5.2. Local version aligned 0.17.0.
+
 ## v0.14.1 → v0.15.0 (`v0.14.1..v0.15.0`) — synced 2026-11
 
 28 non-merge commits; census: `.scratch/upstream-sync-v0.15.0/commit-census.md`. **SDK 1.4.0 → 1.5.0**

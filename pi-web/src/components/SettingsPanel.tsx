@@ -18,6 +18,7 @@ import { useEnterSendMode, setEnterSendMode } from "@/hooks/useEnterSendMode";
 import { useFilesPlacement, setFilesPlacement } from "@/hooks/useFilesPlacement";
 import { sendAgentCommand } from "@/lib/agent-client";
 import type { ProjectTrustStatus, ToolSettingsResponse } from "@/lib/api-types";
+import { SETTINGS_BUILTIN_TOOLS } from "@/lib/tool-presets";
 import {
   setLastSettingsSection,
   settingsSectionRequiresProject,
@@ -85,12 +86,12 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
   const [shellSettings, setShellSettings] = useState<ToolSettingsResponse | null>(null);
   const [shellSaving, setShellSaving] = useState(false);
   const [shellError, setShellError] = useState<string | null>(null);
+  const [builtinToolsSaving, setBuiltinToolsSaving] = useState(false);
+  const [builtinToolsError, setBuiltinToolsError] = useState<string | null>(null);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const [cacheMissNotices, setCacheMissNotices] = useState<boolean | null>(null);
   const [cacheMissNoticesSaving, setCacheMissNoticesSaving] = useState(false);
   const [cacheMissNoticesError, setCacheMissNoticesError] = useState<string | null>(null);
-  const [pushRegistering, setPushRegistering] = useState(false);
-  const [pushStatus, setPushStatus] = useState<{ kind: "ok" | "error"; message: string } | null>(null);
   const [webAuthEnabled, setWebAuthEnabled] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
@@ -183,6 +184,24 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
     }
   };
 
+  // The global defaultTools the configured preset follows: new sessions only.
+  const toggleBuiltinTool = async (name: string, enabled: boolean) => {
+    if (!shellSettings) return;
+    setBuiltinToolsSaving(true);
+    setBuiltinToolsError(null);
+    try {
+      const builtinTools = enabled ? [...shellSettings.builtinTools, name] : shellSettings.builtinTools.filter((tool) => tool !== name);
+      // Fork transport: pi:tools:settings:put IPC carries the route's PUT body.
+      const response = await window.pi.toolsSettingsPut({ builtinTools });
+      const data = (response.body ?? {}) as unknown as ToolSettingsResponse & { error?: string };
+      if (response.status !== 200 || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
+      setShellSettings(data);
+    } catch (cause) {
+      setBuiltinToolsError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBuiltinToolsSaving(false);
+    }
+  };
 
   return (
     <div className="settings-general">
@@ -395,6 +414,28 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
         <p id="settings-files-placement-description" className="settings-general-description">{t("settings.filesPlacementDescription")}</p>
       </section>
 
+      {shellSettings && (
+        <section className="settings-general-section">
+          <h3 className="settings-general-heading">{t("settings.builtinTools")}</h3>
+          <p id="settings-builtin-tools-description" className="settings-general-description">{t("settings.builtinToolsDescription")}</p>
+          <div className="settings-send-mode-options settings-builtin-tools" role="group" aria-label={t("settings.builtinTools")} aria-describedby="settings-builtin-tools-description">
+            {SETTINGS_BUILTIN_TOOLS.map((name) => (
+              <label key={name} className="settings-send-mode-option">
+                <input
+                  type="checkbox"
+                  checked={shellSettings.builtinTools.includes(name)}
+                  disabled={builtinToolsSaving}
+                  onChange={(event) => void toggleBuiltinTool(name, event.target.checked)}
+                  className="sr-only"
+                />
+                <span className="settings-send-mode-label">{name === "bash" && shellSettings.powerShellEnabled ? "powershell" : name}</span>
+              </label>
+            ))}
+          </div>
+          {builtinToolsError && <p role="alert" className="settings-general-error">{builtinToolsError}</p>}
+        </section>
+      )}
+
       {shellSettings?.isWindows && (
         <section className="settings-general-section">
           <h3 className="settings-general-heading">{t("settings.shellTool")}</h3>
@@ -568,6 +609,7 @@ export function SettingsPanel({
   const phone = usePhoneSettingsLevel(isPhone, openAtHome);
   const { dropHistory, enter: enterPhoneLevel, goUp: goUpPhoneLevel, levelRef: phoneLevelRef } = phone;
   const headerRef = useRef<HTMLDivElement>(null);
+  const backdropPressRef = useRef(false);
   const mainRef = useRef<HTMLElement>(null);
   const shownPhoneLevelRef = useRef(phone.level);
   // Before paint, so the new level never shows in place first.
@@ -648,7 +690,15 @@ export function SettingsPanel({
       aria-modal="true"
       aria-label={t("settings.title")}
       tabIndex={-1}
-      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+      onPointerDown={(event) => {
+        backdropPressRef.current = event.target === event.currentTarget;
+      }}
+      onPointerCancel={() => { backdropPressRef.current = false; }}
+      onClick={(event) => {
+        const pressedBackdrop = backdropPressRef.current;
+        backdropPressRef.current = false;
+        if (pressedBackdrop && event.target === event.currentTarget) onClose();
+      }}
       className="settings-dialog-backdrop"
     >
       <div className="settings-dialog-surface">

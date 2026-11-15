@@ -2,11 +2,12 @@ import { stat } from "fs/promises";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
+import { randomUUID } from "crypto";
 import { app } from "electron";
 import type { AssistantMessage } from "@earendil-works/pi-ai/compat";
-import { completeSimple } from "@earendil-works/pi-ai/compat";
 import { createAgentSessionServices, getAgentDir, ModelRuntime, type SettingsManager } from "@earendil-works/pi-coding-agent";
 import { createLoginOptions, createModelRuntimeWithExtensions } from "@/lib/model-runtime";
+import { llamaCppExtension } from "@/lib/pi-sdk-internals";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import {
   loadModelsWithCache,
@@ -19,7 +20,8 @@ import { providerDisplayNames, rememberProviderModels, withDeferredProviderModel
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import { projectTrustReloadOptions } from "@/lib/project-trust";
 import { readModelsConfig, writeModelsConfig } from "@/lib/models-config-store";
-import { buildApiKeyProviderList, buildOAuthProviderList } from "@/lib/provider-listing";
+import { buildApiKeyProviderList, buildOAuthProviderList, LLAMA_CPP_PROVIDER_ID } from "@/lib/provider-listing";
+import { refreshModelCatalogs } from "@/lib/model-catalog-refresh";
 import { collectProviderListingInputs } from "@/lib/provider-listing-runtime";
 import { invalidateModelsCache } from "@/lib/models-cache";
 import { removeStoredCredentialIfType, storeProviderCredential } from "@/lib/provider-credential-store";
@@ -53,6 +55,7 @@ async function loadModels(cwd: string, scopeAll = false): Promise<ModelsData> {
   const services = await createAgentSessionServices({
     cwd,
     agentDir,
+    resourceLoaderOptions: { extensionFactories: [llamaCppExtension] },
     ...(trustReloadOptions ? { resourceLoaderReloadOptions: trustReloadOptions } : {}),
   });
   const modelError = services.modelRuntime.getError();
@@ -233,8 +236,8 @@ export async function modelsTest(body: Record<string, unknown>): Promise<StatusB
     const model = modelRuntime.getModel(providerName, modelId);
     if (!model) return { status: 200, body: { ok: false, error: `Model not found: ${providerName}/${modelId}` } };
 
-    const resolved = await modelRuntime.getAuth(model);
-    if (!resolved?.auth.apiKey) {
+    // A status check, not getAuth(): the request resolves auth itself, so a `!command` key runs once.
+    if (!modelRuntime.getProviderAuthStatus(providerName).configured) {
       return { status: 200, body: { ok: false, error: `No API key found for "${providerName}"` } };
     }
 
@@ -244,15 +247,16 @@ export async function modelsTest(body: Record<string, unknown>): Promise<StatusB
     const startedAt = Date.now();
 
     try {
-      const message = await completeSimple(model, {
+      // The runtime adds the auth, models.json and session headers a chat request gets
+      // (opencode.ai refuses a request without x-opencode-session). One fresh id per probe.
+      const message = await modelRuntime.completeSimple(model, {
         messages: [{
           role: "user",
           content: "Reply with OK only.",
           timestamp: Date.now(),
         }],
       }, {
-        apiKey: resolved.auth.apiKey,
-        headers: resolved.auth.headers,
+        sessionId: randomUUID(),
         maxTokens: 16,
         timeoutMs: TEST_TIMEOUT_MS,
         maxRetries: 0,
@@ -476,11 +480,16 @@ export async function apiKeyStatus(provider: string): Promise<StatusBody> {
   return { status: 200, body: { provider, displayName, configured: status.configured, source: status.source, models } };
 }
 
-/** POST /api/auth/api-key/[provider] { apiKey } */
-export async function apiKeySet(provider: string, apiKey: unknown): Promise<StatusBody> {
+/** POST /api/auth/api-key/[provider] { apiKey, serverUrl? } — serverUrl is the llama.cpp router URL. */
+export async function apiKeySet(provider: string, apiKey: unknown, serverUrl?: unknown): Promise<StatusBody> {
   try {
-    if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) {
+    const llama = provider === LLAMA_CPP_PROVIDER_ID;
+    if (typeof apiKey !== "string" || (!llama && !apiKey.trim())) {
       return { status: 400, body: { error: "apiKey is required" } };
+    }
+    const routerUrl = llama && typeof serverUrl === "string" ? URL.parse(serverUrl) : null;
+    if (llama && (!routerUrl || !["http:", "https:"].includes(routerUrl.protocol))) {
+      return { status: 400, body: { error: "Enter an http or https llama.cpp router URL" } };
     }
     const modelRuntime = await createModelRuntimeWithExtensions();
     const apiKeyAuth = modelRuntime.getProvider(provider)?.auth.apiKey;
@@ -492,6 +501,7 @@ export async function apiKeySet(provider: string, apiKey: unknown): Promise<Stat
       signal: new AbortController().signal,
       notify: () => {},
       prompt: async (prompt) => {
+        if (routerUrl && prompt.type === "text") return routerUrl.href;
         if (prompt.type === "select") {
           const keyOption = prompt.options.find((option) => option.id === "api-key" || option.id === "bearer-token");
           if (keyOption) return keyOption.id;
@@ -499,13 +509,17 @@ export async function apiKeySet(provider: string, apiKey: unknown): Promise<Stat
         }
         if (!keySubmitted && prompt.type === "secret") {
           keySubmitted = true;
-          return apiKey.trim();
+          return llama ? apiKey : apiKey.trim();
         }
         throw new Error(`${provider} requires additional authentication settings`);
       },
     });
     await storeProviderCredential(provider, credential);
     invalidateModelsCache();
+    if (llama) {
+      const catalog = await refreshModelCatalogs({ providers: [provider] });
+      return { status: 200, body: { success: true, catalog } };
+    }
     return { status: 200, body: { success: true } };
   } catch (error) {
     return { status: 500, body: { error: String(error) } };
