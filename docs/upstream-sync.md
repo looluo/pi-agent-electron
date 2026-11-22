@@ -12,127 +12,20 @@ Mechanics for each port (helper: `scripts-dev/port-patch.sh`):
 - transport: every `fetch('/api/…')` / SSE assumption is rewritten to `window.pi.*` / push channel
 - upstream diffs computed against their own history may reference commits we skipped — resolve by
   taking the semantic change, not the literal hunk
+- full-range syncs run as a file-level three-way merge via `scripts-dev/sync-classify.sh` /
+  `sync-apply.sh` / `pick-hunks.py` (re-runnable, not hand-per-patch)
 
 Status vocabulary: **ported** (in this repo, adapted), **n/a** (web/HTTP form factor we dropped,
-ADR-0003), **deferred** (ticketed under `.scratch/archive/upstream-sync-v0.8.11/issues/`).
+ADR-0003), **deferred** (ticketed in that sync's tracker at the time).
+
+Standing n/a, every sync: web push + its SSE auth guards (IPC push covers the semantics), web
+password login, PWA/iOS/mobile-web, the pi-web CLI, Next.js/docker/CI/docs/demo.
 
 Fork-local re-homes to remember when porting: `hasFinalAssistantAnswer` and
 `findFinalAssistantIndex` live in `lib/message-display.ts` (moved out of ChatWindow.tsx,
 2026-11) with an epilogue walk over trailing non-pi tool calls — port upstream changes
 to ChatWindow's copies into the lib versions, and keep `splitFinalAssistantBlocks`'
 trailing-run exemption for extension/MCP tools in mind.
-
-## v0.8.9 → v0.8.11 (`2a6e537..28bab3c`) — synced 2026-08
-
-| Upstream | Subject | Status | Notes |
-|---|---|---|---|
-| `5014aaf` | perf(files): skip highlighting long sources (#469) | ported | FileViewer lightweight source view |
-| `73008d5` | feat: Pi Web version check opt-out (#485) | n/a | upstream self-update notice; our app-update check is own code (electron `services/models-auth.ts`) |
-| `64ae8d7` | feat: session completion via Web Push (#496) | n/a | no web push in Electron; desktop notifications already exist |
-| `fd1593c` | feat(i18n): Traditional Chinese locale (#512) | ported | incl. localized session timestamps |
-| `70c871b` | feat: render tool-result images inline (#499) | ported | lazy URL served via `pifile://session/…` (files-protocol → `sessionToolResultImage`) |
-| `e44639f`+`b80ed3d` | fix: same-origin proxy relaxation | n/a | HTTP request security; no server |
-| `546dc5d` | fix: improve built-in slash command dispatch | ported | |
-| `d5ec3bc` | fix: preserve slash command input behavior | ported | |
-| `36f01a3` | fix: report why the Next.js child stopped (#597) | n/a | no Next.js child process |
-| `7c74e93` | feat: add web clone command (#518) | ported | `/clone` builtin + session-replacement guards in rpc-manager |
-| `9db0cce` | fix(files): block script execution for SVG documents (#520) | ported | CSP + nosniff headers in `pifile://` `streamFile` |
-| `70d3896` | fix(skills): explicit-false SKILL.md corruption (#519) | ported | shared `lib/skill-frontmatter.ts` used by skills service |
-| `1906134` | perf: resolve session paths without catalogue scans (#526) | ported | session-reader cache |
-| `1218381` | fix: allow LAN access to the dev server (#532) | n/a | LAN deliberately dropped (ADR-0003) |
-| `9a103fb` | fix: one-line extension widgets expandable (#539) | ported | |
-| `ff57028` | fix: wrap multiline extension status text (#535) | ported | |
-| `ed52b61` | fix: fill iOS standalone viewport (#547) | n/a | PWA/iOS |
-| `a5630c1` | feat(sidebar): remember last custom cwd | ported | |
-| `460da47` | fix: toolbar actions in narrow sidebars (#549) | ported | |
-| `04abe1c` | chore: remove unused Bun lockfile | n/a | no `pi-web/bun.lock` here |
-| `93633c8` | fix: monotonic token/cost counters across compaction (#557) | ported | `lib/session-stats.ts` + `stats` in sessionsGet |
-| `a5fccdc` | feat(cli): `--help` for startup options (#574) | n/a | no pi-web CLI |
-| `7ee7818` | feat(notice): full toast text, top-right, hover-pause (#558) | ported | |
-| `d728526` | fix: emit session_shutdown on every dispose path (#575) | ported | rpc-manager from upstream d728526, web-push coupling stripped |
-| `68cd261` | fix: bound session history to a tail window (#587) | ported | `tail`/`before` pagination over IPC; iterative BranchNavigator |
-| `5f74a19` | test: fix component-test harness dual React (#588) | n/a | our harness (jiti, relative imports) has no dual-React issue |
-| `5f35d6f` | fix: model-emitted bracketed math blocks (#595) | ported | |
-| `9d7cd52` | fix(images): compress oversized attachments (#590) | ported | |
-| `b24ecad` | feat(web): file search in explorer sidebar (#591) | ported | rides `window.pi.fileIndex` IPC |
-| `fe684c8` | feat: extension widget ANSI colors (#601) | ported | `ansi_up` dependency added |
-| `353757b` | feat: Project Info (git branch/worktree) in session panel (#605) | ported | via `attachSessionProjectInfo` in sessionsGet |
-| `20a47a2`+`f748f52` | system panel: tool definitions + split panels | ported | SystemPromptPanel + ToolDefinitionsPanel |
-| `29b2d3e` | fix: restore preferred tools for idle sessions | ported | rpc-manager + agent service |
-| `626f327` | fix: hide branch controls for linear sessions | ported | `hasSessionBranches` |
-| `ac7ccbc`+`cbb464d` | fonts: system font stack (reverted upstream) | n/a | net zero upstream |
-| `03dad64` | fix: scrollable extension select dialog (#609) | ported | |
-| `a3bbdee` | fix: iOS status bar modal offset (#604) | n/a | PWA/iOS |
-| `baa600b`…`96c643a` | built-in subagents cluster (~25 commits) | ported | issue 01 resolved; ships dark (default off); pulled SettingsUi/settings-navigation/ModelSelector/settings.css + ChatInput ModelSelector hunk (4903dcb) and chat-only/session-tool-selection/powershell-settings libs as deps |
-| `b6416c5`…`c8de95e`+`081c5b1` | settings unification cluster (SettingsPanel etc.) | ported | issue 02 resolved — SettingsPanel rollout + merged auth providers (602b1b6) + tools-settings IPC; AgentsConfig stays unmounted per upstream 96c643a |
-| `a5738cf` | feat: persisted chat-only sessions | ported | issue 03 resolved — lib layer came with 01; UI preset + set_tools recreation dispatch + top-level toolNames wiring closed here |
-| `602b1b6` | refactor: trim unused frontend infrastructure | ported | residue completed in issue 04: AnsiText switch in ExtensionStatusBar/ChatWindow custom panel, hand-rolled ansi parser deleted; merged auth-providers + ProviderIcon came with issue 02 |
-| `024be0b` | refactor: remove unused running sessions SSE | ported | broadcaster (notifyRunningChange/subscribeRunningSessions) deleted in issue 04 after audit: our poll channel `pi:agent:running` is alive and kept |
-| `55164b5` | chore: upgrade pi dependencies to 0.84.3 | ported | issue 05 resolved; pinned `@earendil-works/pi-*` to 0.84.3, no source changes needed |
-| `a91c830` | docs: dev server troubleshooting | n/a | no Next dev server |
-| `28bab3c` | Release v0.8.11 | n/a | we version independently (`pi-agent-desktop`) |
-
-Verification for this sync: `npm run typecheck` clean, `npm test` 643/645 (1 pre-existing Windows
-PATH-separator failure, 1 skipped), `npm run test:e2e` 7/7.
-
-2026-08 follow-up: pi SDK deps upgraded to 0.84.3 (issue 05 resolved — same verification gate);
-subagents cluster (issue 01) unblocked.
-
-2026-08 follow-up 2: subagents cluster ported (issue 01 resolved — same gate; 744 tests, 11 skipped
-of which 10 await issue 02's cross-component rollout). rpc-manager now tracks upstream at
-`ec98e1c` (web-push still stripped). New IPC surface: `pi:subagents:*` (8 channels) +
-`pifile://` unchanged. chat-only libs landed early as rpc-manager deps (issue 03 UI still open).
-
-2026-08 follow-up 3: settings cluster ported (issue 02 resolved — same gate). SettingsPanel is the
-single config surface (models/skills shortcuts + settings button); Models/Skills/Plugins at
-28bab3c on typed IPC; auth providers merged (602b1b6); `pi:tools:settings:*` added; AgentsConfig
-unmounted + `isBuiltInSubagentsEnabled()` hard-false (upstream release gate).
-
-2026-08 follow-up 4: chat-only UI closed (issue 03 resolved — same gate). ChatInput `chat-only` preset, agent
-service set_tools -> setRpcSessionTools interception (boundary-crossing session recreation), and a
-real fix: sessionsGet `toolNames` promoted to the response top level where the renderer reads it.
-
-2026-08 follow-up 5 (final): issue 04 resolved — rpc-manager realigned to 28bab3c (picking up the
-081c5b1 PowerShell hunks issue 02 had missed: without them the shell-tool toggle was inert at
-runtime), dead running-broadcaster deleted after audit, ansi parser replaced by AnsiText in both
-remaining call sites. **All five tickets resolved; v0.8.11 sync complete.**
-
-Packaged build (v0.9.0, post-sync): `npm run package:zip` → `release/win-unpacked/` (361MB) +
-`Pi-Agent-App-0.9.0-portable.zip` (139MB). Packaged-exe smoke via `scripts-dev/packaged-probe.mjs`
-(CDP): 9/9 — bridge, sessionsList, subagents settings (release gate off), tools settings (win32),
-merged auth providers, home, provider sprite + catppuccin icons load under file://, Models panel
-renders provider icons.
-
-Hotfix (manual test catch): provider icons vanished in the packaged app — upstream's ProviderIcon
-(602b1b6) used an absolute `/provider-icons.svg#sym`, which under the file://-loaded renderer
-resolves to the filesystem root and silently fails (dev/E2E never saw it — they run on
-http://localhost). Same latent bug existed for `/icons/catppuccin/...` in FileIcons since the
-original fork (file-explorer icons were broken in every packaged build). Both now document-relative;
-regression-guarded by `components/asset-paths.test.mjs` + two probe checks.
-
-Hotfix 3 (manual test catch, supersedes the FileIcons half of the hotfix above): file-explorer
-icons were STILL blank in every packaged build. Chromium resolves a `url()` token substituted
-from a custom property against the stylesheet that CONSUMES the `var()` — the built CSS under
-`assets/` — not the inline style that defines it, so the "document-relative" `icons/catppuccin/...`
-computed to the 404-ing `assets/icons/...` and the empty mask made every icon fully transparent.
-Upstream never sees this (HTTP origin + Next.js CSS paths line up); dev never sees it (Vite injects
-CSS via `<style>`, base = document). The 964635c probe check was a false positive: it Image()-
-loaded the raw inline var re-resolved against the document — which loads — instead of the
-computed mask URL — which 404s. Fixed by pre-resolving the icons root with `document.baseURI` in
-`FileIcons.tsx` (SSR/node-test guarded); `asset-paths.test.mjs` and `packaged-probe.mjs` check 8
-now assert the runtime pre-resolution and load the COMPUTED `mask-image` URL; verified 10/10 on the
-repackaged mac app with a clip-screenshot pixel check (one-off `icon-probe.mjs`, since removed).
-
-Hotfix 2 (manual inspection catch): code rendered in a proportional font everywhere — file panel
-source view, chat code blocks, `pre`/`code`, ChatInput, minimap. `--font-mono`'s first stack entry
-`var(--font-noto-mono)` references a variable only upstream defines (`next/font` in
-`app/layout.tsx`, deleted by Slice 5 `648e953`); per CSS custom-property substitution rules one
-dangling `var()` invalidates the entire declaration, so every `font-family: var(--font-mono)` site
-computed to the inherited sans stack instead of falling through to `Consolas`/`monospace`. No test
-asserts computed styles, so only eyes on the UI caught it. Fixed by stripping the entry in
-`pi-web/src/globals.css`; equal-glyph-width verified in Chromium. Repackaged to
-`release-v2/win-unpacked` (running v0.9.0 instances lock `release/win-unpacked`) and
-`release/Pi-Agent-App-0.9.0-portable.zip` replaced (145MB).
 
 ## v0.17.0 → v0.18.0 (`174bff96..2daa0d13`) — synced 2026-11
 
@@ -159,28 +52,28 @@ Verification: typecheck clean (renderer + electron); `npm test` 3060 =
 `npm run test:e2e` **13/13**; file-authorization check HOLDS (seeds 20261115,
 777×20k); app-drive journeys on the built app: shell, session-history,
 prompt-reply (live LLM on SDK 1.6.0) **PASS**; the terminal and
-bash-full-output journeys are red identically on pre-sync HEAD (journey
-defects, ticketed at `.scratch/upstream-sync-v0.18.0/issues/01`; their paths
-pass in the spec suite on the same build). Post-sync cross-model review
-(1 P1 / 3 P2 / 1 P3, all confirmed): the fork-into-cwd flow had kept
-upstream's `/api/sessions/[id]/fork` fetch and was dead under file:// —
-re-homed onto `window.pi.sessionsFork(sid, { cwd })` with a transport-guard
-test (`useAgentSession.test.mjs`, no bare `/api` fetch in `forkIntoCwd`);
-draft clearing gated on the IPC's real `{ ok: true }` (sidebar) and
-`deleteSideChat` no longer treats the guard's `{ error }` as success; the
+bash-full-output journeys were red identically on pre-sync HEAD (journey
+defects, ticketed at `.scratch/upstream-sync-v0.18.0/issues/01`, since
+resolved by 433cf777; their paths pass in the spec suite on the same build).
+Post-sync cross-model review (1 P1 / 3 P2 / 1 P3, all confirmed): the
+fork-into-cwd flow had kept upstream's `/api/sessions/[id]/fork` fetch and was
+dead under file:// — re-homed onto `window.pi.sessionsFork(sid, { cwd })` with
+a transport-guard test (`useAgentSession.test.mjs`, no bare `/api` fetch in
+`forkIntoCwd`); draft clearing gated on the IPC's real `{ ok: true }` (sidebar)
+and `deleteSideChat` no longer treats the guard's `{ error }` as success; the
 electron single-delete's hand-ported re-parent body (plain `writeFileSync`)
 replaced by delegation to `deleteSessions([id])`, upstream's own route shape
 (atomic child rewrites, surviving-parent walk); the P3 (cross-directory fork
 copies keep a dangling `parentSession` when the source is deleted) is
-upstream-identical dir-scoped scanning — ticketed as issue 02, not diverged.
+upstream-identical dir-scoped scanning — ticketed as
+`.scratch/upstream-sync-v0.18.0/issues/02` (open), not diverged.
 `npm run package:mac` + packaged probe **13/13** (incl. terminal IPC round
-trip in the packaged app). Local version aligned 0.18.0. One more in-the-wild
-bug from this tree: the Plugins panel's per-package switch had been 400'ing
-with "packages must be a list of {source, scope}" since the v0.9.3 bulk port —
-the service gated the bulk form on the action instead of on `packages` being
-present (upstream's gate), leaving the single-package enable/disable branches
-unreachable; regated to upstream's shape, service tests added
-(`plugins-route.test.mjs`).
+trip in the packaged app). One more in-the-wild bug from this tree: the
+Plugins panel's per-package switch had been 400'ing with "packages must be a
+list of {source, scope}" since the v0.9.3 bulk port — the service gated the
+bulk form on the action instead of on `packages` being present (upstream's
+gate), leaving the single-package enable/disable branches unreachable;
+regated to upstream's shape, service tests added (`plugins-route.test.mjs`).
 
 ## v0.15.0 → v0.17.0 (`9416a058..174bff96`) — synced 2026-11
 
@@ -189,20 +82,21 @@ unreachable; regated to upstream's shape, service tests added
 guard stays green). Executed as a file-level three-way merge (base 9416a058): 93
 wholesale, 62 three-way (22 files, 55 conflict hunks by hand), 53 new, 29 app/api
 re-homes. Helper scripts: `scripts-dev/sync-classify.sh` / `sync-apply.sh` /
-`pick-hunks.py` (the merge is now re-runnable, not hand-per-patch).
+`pick-hunks.py`.
 
 | Theme | Status | Notes |
 |---|---|---|
-| llama.cpp built-in provider (47db4ef1) + Test model as chat (7d6b4a16) | ported | `pi:auth:api-key:set` gains `serverUrl` + catalog reply; models services load the SDK's llama extension factory; integration + probe tests re-homed onto the services |
-| built-in tools one-by-one (4ce18f38), provider display-name editing (08989e75/#1608, 1c2ccec2) | ported | `pi:tools:settings:put` gains `builtinTools`; ModelsConfig rides upstream's lifted editingName/applyProviderRename (fork's renames-ref bookkeeping retired) |
-| Agents strip under the toolbar (25eec16a/#1681, 1eb21f78) | ported | AgentMiniStrip + agent-strip-lock new; AppShell keeps no DebugPanel (fork never carried the panel) |
-| session_start dialogs (#1678/#1682), slash-commands generation/stream holding | ported | rpc-manager waitForStateRead; useAgentSession requestSlashCommands; bridge-adapter test fixture gained sessionsContext/sessionsGet option pass-through |
+| SDK 1.5.2 (e911f7bc) | ported | mcp-sign-in, pi-sdk-internals (llamaCppExtension), transcript-notices-server adapted |
+| llama.cpp built-in provider (47db4ef1) + Test model as chat (7d6b4a16) | ported | `pi:auth:api-key:set` gains serverUrl + catalog refresh; models services load the SDK's llama extension factory; integration + probe tests re-homed onto the services |
+| built-in tools one-by-one (4ce18f38), provider display-name editing (08989e75/#1608, 1c2ccec2) | ported | `pi:tools:settings:put` gains `builtinTools`; ModelsConfig rides upstream's lifted editingName/applyProviderRename |
+| Agents strip under the toolbar (25eec16a/#1681, 1eb21f78) | ported | AgentMiniStrip + agent-strip-lock new |
+| session_start dialogs (#1678/#1682), slash-commands generation/stream holding | ported | rpc-manager waitForStateRead; useAgentSession requestSlashCommands |
 | side-chat search (4cc85eb9/#1689), multi-term search (5f4cc884), unread markers (bcf4f2ef/#1618) | ported | sessionsSearch drops the side filter; `pi:agent:running` answers `serverNow` |
-| chat cluster: stopped-reply marking, live `!` output, elapsed cards, queued-restore, emoji/token-width/scroll/copy fixes | ported | turn-views at upstream state; fork `isProcessToolCall` now accepts the raw AI-sdk `name` tool-call shape |
-| markdown/files cluster (~20 fixes: MIME, UTF-16 BOM, ranges, literal git paths, trailing spaces, watch heartbeat, previews) | ported | pifile:// byte-range 416; openFileWatch heartbeats (`ping`) and IpcFileWatchSource gained `readyState` so the recovery hook re-opens IPC watches |
-| uploads: one 100MB limit (bae035ee), async writes + umask perms (e1df9241) | ported | files-upload service; limit tests re-homed |
-| npx env scrub (e00f359b), export private tempdir (4c476d4d), skills/settings/i18n fixes | ported | npxEnvironment = project-command-env + FORCE_COLOR; fork keeps RunNpxOptions.env (plugin-update proxies) through the scrub |
-| web push, SSE auth guard, CLI, docs/demo/CI, releases | n/a | IPC push already covers the SSE guard's semantics; form factor |
+| chat cluster: stopped-reply marking, live `!` output, elapsed cards, queued-restore, emoji/token-width/scroll/copy fixes | ported | turn-views at upstream state; fork `isProcessToolCall` accepts the raw AI-sdk `name` shape |
+| markdown/files cluster (~20 fixes: MIME, UTF-16 BOM, ranges, literal git paths, trailing spaces, watch heartbeat, previews) | ported | pifile:// byte-range 416; openFileWatch `ping` + IpcFileWatchSource `readyState` |
+| uploads: one 100MB limit (bae035ee), async writes + umask perms (e1df9241) | ported | files-upload service |
+| npx env scrub (e00f359b), export private tempdir (4c476d4d), skills/settings/i18n fixes | ported | npxEnvironment via project-command-env; fork keeps RunNpxOptions.env through the scrub |
+| web push, SSE auth guard, CLI, docs/demo/CI, releases | n/a | IPC push already covers the guard's semantics; form factor |
 
 **Boundary lesson re-learned**: moving `EXTENSION_REPORTED_CODE` into rpc-manager
 (agent-client re-exporting it) silently pulled the whole main-side subtree
@@ -210,149 +104,86 @@ re-homes. Helper scripts: `scripts-dev/sync-classify.sh` / `sync-apply.sh` /
 vite build catches this. The constant now lives in `lib/wire-codes.ts`, imported
 by both sides.
 
-Verification: typecheck clean (renderer + electron); `npm test` 2971 =
-**2964 pass / 0 fail** / 7 skip (4 Node-version-sensitive fixture connections,
-2 win32 Electron CLI, 1 no PowerShell on macOS — all environmental); `npm run
-test:e2e` **13/13**; pi packages verified at 1.5.2. Local version aligned 0.17.0.
+Verification: typecheck clean; `npm test` 2971 = **2964 pass / 0 fail** / 7 skip;
+`npm run test:e2e` **13/13**; pi packages verified at 1.5.2. Local version
+aligned 0.17.0. Open ticket from the review:
+`.scratch/upstream-sync-v0.17.0/issues/01` (star-save of the default model has
+no IPC home — pre-existing at v0.15.0, still needs-triage).
 
-## v0.14.1 → v0.15.0 (`v0.14.1..v0.15.0`) — synced 2026-11
+## Earlier syncs (v0.8.9 → v0.15.0)
 
-28 non-merge commits; census: `.scratch/upstream-sync-v0.15.0/commit-census.md`. **SDK 1.4.0 → 1.5.0**
-(all eight `@earendil-works/*` exact-pinned, new `pi-schema`). File-level three-way merge
-(base v0.14.1): 32 wholesale, 32 three-way (27 hunks), 9 new files; mcp-import* wholesale
-after a partially-resolved 3-way proved lossy.
+Compact index; the per-commit tables and tracker dirs were removed 2026-11
+(derivable from this repo's git history; each sync's commit message carries its
+headline decisions). Census pointers removed with them.
 
-| Theme | Status | Notes |
-|---|---|---|
-| SDK 1.5.0 wave (ff8de361) | ported | mcp-import* clientRegistration/cimd validation, OAuth metadata URL; pi-sdk-internals; project-trust; subagent-extension |
-| models feature run: drag/Alt+arrows/A–Z reorder, provider names not ids, scoped-vs-all selector, signed-out enabledModels, mid-run model switch | ported | `pi:models` IPC gains `scope:"all"`; loadModels ports providerName/isScoped; authProviders answers `providerNames` |
-| side sessions: tabs restore with main session, delete from Agents switcher | ported | side-tab-state new; deleteSideChat → `pi:sessions:delete` IPC; upstream tab-session/SSR restore effect dropped (web multi-tab) |
-| chat: streaming token/speed indicators, paste race fix | ported | stripAnsi in ChatWindow |
-| auth device ID (797d94b9) | ported | upstream's `createLoginOptions` supersedes our v0.14.1 device-id port; models-auth login switched |
-| files: right-panel tab drag reorder | ported | panel-tab-order new |
-| extensions: pi palette theme; notifications: one alert per completion | ported | extension-ui-theme new |
-| terminal: PowerShell before cmd on Windows; export: drop pi-1.5-obsolete HTML patch; sidebar archive label | ported | export.ts patchExportHtml deleted |
-| mobile/settings cluster | ported | top-bar height var adopted; phone Agents-icon hunk dropped (fork file-panel icons kept) |
-| Next.js 16 + undici, docker, CI, docs | n/a | web/infra form factor |
-
-**Local-test adaptations** (win32/fork): extension-ui-theme pathToFileURL + CRLF normalize,
-css paths, side-tabs vm stub, terminal-manager piSdkStub, model-loading bridge kept,
-side-chat-client IPC rewrite, ModelSelector.test wholesale.
-
-Verification: typecheck clean; `npm test` 2680 = **2645 pass / 0 fail** / 35 skip;
-version aligned 0.15.0.
-
-## v0.13.0 → v0.14.1 (`d128bae..v0.14.1`) — synced 2026-11
-
-23 non-merge commits; pi SDK stays 1.4.0. Census: `.scratch/upstream-sync-v0.14.1/commit-census.md`.
-Executed as a file-level three-way merge (base d128bae): 22 zero-drift wholesale, 24 three-way
-(19 conflict hunks), 10 new files, SubagentViewer + subagent-viewer-state deleted.
-
-| Theme | Status | Notes |
-|---|---|---|
-| side sessions `/side` (3bad742d, ADR 0007) | ported | SessionChatPanel + side tabs; **transport re-homed**: createSideChat → `window.pi.sessionsFork(id, {side, name})`, panel loads via sessionsGet; sessionsGet/search/fork services carry sideOwnEntries/readSideRelation/createSideSession semantics |
-| favicon attention badge (0b1eeffa) | ported+adapted | favicon-badge lib wholesale; badge dataURL → new `pi:window:set-taskbar-badge` IPC → `BrowserWindow.setOverlayIcon` (the desktop analog of a browser tab badge) |
-| quote-selected-as-blockquote (6d0946b1), custom-message layout (b25fa0aa), narrow-phone action labels (cb3cebef), skill-search dormancy ranking (7b5cd68d) | ported | ChatInput/ChatWindow/MessageView/MarkdownBody/markdown.ts three-way; quote-caret test keeps the no-demo/ fork guard |
-| git-changes Tree/List view (2251c3fa), prose wrap default (f07f3682), sandboxed HTML preview storage (5269cb0d), DirectoryPicker fixes (c2ef9a5d/2621aa10) | ported | FileExplorer/sidebar-prefs/file-viewer-state/html-sandbox-polyfill wholesale |
-| tool-order carry (c319c850), subagent turn-settle (98ad3908), missing-id subagent list (6fbb36b5) | ported | rpc-manager three-way; settleDirectTurn wiring kept, **notifySessionComplete web-push stripped** |
-| models: IME-Escape picker (c6789c5d), 1h shared runtime (15c52bbb), auth-feedback + selector i18n (4bb6d2f8/62650652) | ported | authLoginCode IPC keeps transport; errors localized with result.status |
-| sidebar pin on empty project group (2b7c4033) | ported | sidebar.css wholesale |
-| docker (e97d00b1), PWA manifest (b54a63d9) | n/a | web form factor |
-
-**Latent v0.13.0 bug fixed en route**: AgentSessionPanel's `fetch("/api/sessions/stats")` never
-worked under file:// — the agent switcher's usage numbers silently never loaded. The stats route
-is now `pi:sessions:stats` (services/session-stats.ts, WeakMap summary cache incl. sideOwnEntries).
-
-Verification: typecheck clean (renderer + electron); `npm test` 2572 = **2537 pass / 0 fail** /
-35 skip; local version aligned 0.14.1. Local-test adaptations: MessageView css path, side-chat-client
-IPC mock, zh enterSendMode dedup.
-
-## v0.12.2 → v0.13.0 (`b017cd4..upstream/main`) — synced 2026-10
-
-99 non-merge commits; census: `.scratch/upstream-sync-v0.13.0/commit-census.md`.
-SDK 1.2.0 → **1.4.0** (all seven packages exact-pinned). Executed as a
-file-level three-way merge (base b017cd4): 82 zero-drift files taken
-wholesale, 55 three-way merged (63 conflict hunks resolved), 31 new files
-landed.
-
-**Debug-cluster decision**: the read-only Debug panel + SSE observability
-wave (#1443 anchor, 45 files) is web form factor — **not adopted**; salvaged
-`usePageHidden`, `file-version`, `debug-types` (pure types) and a local
-inert **`lib/page-debug.ts` shim** (upstream signatures, no-op bodies) so
-merged component code typechecks unchanged. `terminal-extra-keys` taken
-wholesale (phone/Termux keys).
-
-| Theme | Status | Notes |
-|---|---|---|
-| SDK 1.4.0 (`5c033d2`) | ported | adapter sweep (deferred-provider-models, enabled-models-runtime, model-scope, pi-types) rode the wholesale batch |
-| chat: queued-compaction (#1426), send-recovery (#1457), slash filter (#1414), flat tool args (#1324), HTML-as-text (#1444), stats-line SVG (#1449/4), shell text (#1396), attachments uncompressed (#1442 — **reverts our v0.8.11 compression port**) | ported | ChatInput/ChatWindow/useAgentSession/rpc-manager three-way; `promptDoneEvent()` semantics carried into our admission chain |
-| models: base-URL override (#1288), adaptive thinking (#1331), image-size limit (ec9f38a), provider check (78a9f7c), deferred-cache fix (f78c672), searches (df163cd), rename-tracking cleanup (3edded3) | ported | `modelsCatalog` IPC gains 4th `baseUrl` param (preload+service wired); deleteProviderEntry/applyProviderRename landed |
-| subagents: wait budgets (#1448), completion-after-last-report (#1434/#1437), report-wait prompt text (#1384) | ported | `hasUnsettledSubagentRun` gates completion notify + `withSubagentsActive` marker |
-| session/liveness: hidden-page stream release (#1328/#1445), status-slimming (#1306), rename-via-AgentSession (#1451), active-time merge (#1340), tool-order restore (#1405) | ported | **lease IPC re-shaped**: `pi:agent:lease` answers `{running, awaitingInput, subagentsActive}` (route port in services/agent.ts); requestLease over IPC with timeout→`unanswered` classification; all `agentStatusUrl` fetch reads re-homed to `window.pi.agentState` |
-| files/markdown: svg fence preview (#1455), math copy (#1380), fragment links (#1323), code wrap (#1369), hunk ellipsis (#1304), symlink changes (#1387), binary download notice (#1401), audio/video inline (#1280) | ported | media srcs stay `pifile://local/…` |
-| worktrees: branch-holder name (#1456), transient-failure cache (#1339) | ported | failure mapping adapted onto worktreesPost IPC |
-| terminal: font-follow (#1329), extra keys | ported | xterm + globals.css |
-| misc: Ctrl+Alt+N macOS (#1337), skills.sh grouping (42909b6), settings css, i18n runs (#1382/#1383/#1378/#1379) | ported | 3-locale both-sides merge + 206 dup keys deduped per locale |
-| debug panel, SSE page registry, stream-client, file-watch-registry, demo/bin/e2e/docs/CI | n/a | web form factor / upstream-internal |
-
-**Fork transport adaptations** (all recorded in-code): `ipc-bridge-adapter.mjs`
-test fixture (hooks/__fixtures__) maps the ported VM-scripted tests' fetch+
-EventSource harness onto `window.pi` + `subscribeAgentEvents` frames; known
-deviation annotated in send-recovery.test (branch-switch notice takes the safe
-"unconfirmed" severity through the adapter; draft recovery asserted and green);
-IPC lease has no HTTP status (debug-reader assertions adapted).
-
-Local-test updates: TabBar layout regex (className="tabbar-scroll" final
-contract), TabBar.test globals.css path, maximize-guard regex (debug-aware
-setActiveTopPanel), auto-title regex tolerates subagentsActive spread,
-bash-output e2e uses the zh-CN "查看完整输出" label (d97b8fd localized it).
-Electron boot now calls `applyCodemodeWorkerDefault()` (#837/#1444).
-
-Verification: typecheck clean (renderer + electron); `npm test` 2521 =
-**2515 pass / 0 fail** / 6 skip (pre-existing); `npm run test:e2e` 13 pass /
-0 fail (thinking + markdown-image fixture specs now green on this wave's
-session-reader/message changes); preload→main channel diff clean. Local
-version aligned 0.13.0.
-
-## v0.12.1 → v0.12.2 (`f83b1a5..b017cd4`) — synced 2026-10
-
-37 non-merge commits; pi SDK stays 1.2.0. The theme system grows from 5 to 14
-palettes (swatch picker, terminal follows light/dark, scroll-edge fades,
-grayscale dark-theme smoothing), chat gains cache/cost notices, per-turn
-durations and a leaner fold summary, the agent switcher shows time/tokens/cost
-and toggles subagent tabs, subagent worktree lifecycles get answers (worktree
-destination told to the parent, resume refused when the folder is gone, input
-files sized by the child's context window), sessions scan only the appended
-tail of growing files and omit provider signatures from payloads, file tabs
-survive overflow inline, uploads drag-drop into precise subdirectories, and
-models-config learns editable context windows plus a deferred-default fix.
-33 ported, 3 n/a (browser-tab projects, Termux keys stay out), release n/a.
-
-Transport re-homes: `pi:skills:content` gains upstream f17a73a's `document`
-param (relative Markdown links inside the skill folder, with the route's
-refusal shapes); upload-check targets the drop's directory; models-config
-saves the normalized draft. ProcessDetailsGroup merges upstream's new
-signature (durationMs, cache misses, notice-only turns, messageKeys) with our
-persistence re-land. `proxyTunnel: true` (4c0077b) landed with the merge.
-
-Windows notes: skills-service.integration skips ×3 — DefaultResourceLoader
-merges the real user skills tree even with PI_CODING_AGENT_DIR/HOME/USERPROFILE
-pointed at the temp root (upstream CI runs HOME-isolated linux); the boot
-theme script test now asserts full equality with THEME_INIT_SCRIPT (the inline
-index.html copy is regenerated each theme wave); upstream #1211 formalized the
-Windows jiti alias fix our SessionSidebar.tabs.test had already worked around
-(six-spelling hack replaced by upstream's normalized single key).
-
-Verification: typecheck clean (renderer + electron); `npm test` 2233 = 2203
-pass / 0 fail / 30 skip (27 pre-existing + 3 win32 skills-isolation); e2e 9
-pass / 3 pre-existing red (the 2de8638 fixture trio) / 1 skip.
+- **v0.14.1 → v0.15.0** (93ec18be, 2026-11; SDK 1.4.0 → 1.5.0, new `pi-schema`):
+  models drag/Alt+arrows reorder + scoped-vs-all selector, side tabs restore with
+  main session, streaming token/speed indicators, auth device-id (superseded our
+  v0.14.1 port), file-panel tab drag, pi palette theme, PowerShell before cmd,
+  top-bar height var. SubagentViewer + subagent-viewer-state deleted (upstream
+  side-session redesign superseded them at v0.14.1).
+- **v0.13.0 → v0.14.1** (85efcd93, 2026-11; SDK stays 1.4.0): side sessions
+  `/side` (ADR 0007; createSideChat → `window.pi.sessionsFork(id, {side, name})`),
+  taskbar attention badge → `pi:window:set-taskbar-badge` + setOverlayIcon,
+  quote-selected-as-blockquote, git-changes Tree/List view, sandboxed HTML
+  preview, tool-order carry, IME-Escape picker, 1h shared runtime. Latent fix en
+  route: the agent switcher's stats route never worked under file:// →
+  `pi:sessions:stats` (services/session-stats.ts).
+- **v0.12.2 → v0.13.0** (490cd9d8, 2026-10; SDK 1.2.0 → 1.4.0): the read-only
+  Debug panel + SSE observability wave **not adopted** (web form factor;
+  `page-debug.ts` shim kept so merged code typechecks); queued-compaction,
+  send-recovery (IPC lease re-shape `{running, awaitingInput, subagentsActive}`),
+  models base-URL override + adaptive thinking, subagent wait budgets, the
+  files/markdown fix cluster, worktree timeouts. Test transport re-homes onto
+  the ipc-bridge-adapter fixture.
+- **v0.12.1 → v0.12.2** (1203c615, 2026-10): 14-palette theme system, cache/cost
+  notices, per-turn durations, agent switcher time/tokens/cost, subagent
+  worktree lifecycles, tail-window session scan, precise-subdirectory uploads.
+- **v0.12.0 → v0.12.1** (52e1fbd4, 2026-10; SDK 1.1.0 → 1.2.0): every
+  `@earendil-works/*` exact-pinned + the `pi-packages.test.mjs` guard (the
+  caret-pairing hazard); MCP resources-listing semantics.
+- **v0.11.0 → v0.12.0** (3a78600b, 2026-10; SDK stays 1.1.0): bash fix batch,
+  workspace file-tab parking (PR #548 superseded by `file-tab-state`),
+  sessions/sidebar cluster, subagents right-panel viewer, perf wave
+  (turn-views, markdown-blocks push, deferred highlighting), sidebar restyle
+  v0.11.1. Backfills: mcpToolLabel rendering, renameProviderEntry,
+  mcp fixtures.
+- **v0.10.0 → v0.11.0** (2026-10; SDK 1.0.0 → 1.1.0): the sidebar redesign chain
+  (Sessions|Files, groups/pins/archive, ui-state store; new
+  `pi:sessions:ui-state:*` + `pi:open-in-explorer:*` IPC), fork row menu
+  (`pi:sessions:fork`), MCP project overrides, drag-drop uploads, CJK emphasis,
+  custom font families. Backfills: 70470ca dialog/panel queues, DismissButton.
+- **v0.9.3 → v0.10.0** (eb37814e, 2026-10; pi 1.0.0): MCP settings wave 2
+  (add-pane flows, per-server exposure, catalog links), codemode takeover of
+  built-in tools, tool descriptions on the wire. Fork divergence kept:
+  `resolvedSdkPackageDir` resolves from the module location first (packaged
+  Electron runs with cwd "/").
+- **post-v0.9.1 → 0ff1138** (2026-09): themes + THEME_INIT_SCRIPT boot script,
+  `pi:agent:lease` IPC, UTF-8 terminal locale, rich-text paste links,
+  markdown-link rendering fixes, active-tool-events replay.
+- **v0.9.0 waves** (2026-09; SDK 0.85.1 → 0.99.1): session search + windowed
+  list + metadata cache (`sessionListVersion`), workspace terminal tabs
+  (`pi:terminal:*`, node-pty in main), plugin update checks, Mermaid preview,
+  chat width/font size, thinking-expand default; the MCP wave (ADR 0006,
+  `pi:mcp:*`, 7 channels). Hotfixes found by manual testing: provider icons and
+  catppuccin file icons under file:// (see Known upstream-compat notes).
+- **v0.9.1** (2026-09): subagents P0 cluster (queue/resume/worktrees/profiles),
+  provider usage quotas (`pi:provider-usage:query`), cascade delete, theme and
+  language controls in Settings.
+- **v0.8.9 → v0.8.11** (2026-08; SDK 0.84.3): FileViewer long-source perf,
+  zh-TW locale, inline tool-result images over `pifile://`, `/clone` builtin,
+  SVG CSP, session-reader cache + tail pagination, monotonic token counters,
+  the built-in subagents cluster (ships dark, `isBuiltInSubagentsEnabled()`
+  hard-false release gate) and the settings unification (SettingsPanel rollout,
+  merged auth providers).
 
 ## External PR ports (not in upstream)
 
 Changes pi-web never accepted, carried in this fork. Recorded here so drift against upstream stays
 visible.
 
-- **pi-web PR #548** — maximized file panel layout (commit `71baeed`).
+- **pi-web PR #548** — maximized file panel layout (commit `71baeed`). Later
+  superseded by upstream's own `file-tab-state` parking at v0.12.0.
 - **pi-web PR #45** — automatic session titles. Upstream rejected the PR and later shipped manual
   naming (`auto-name`) instead; this port keeps the PR's client-side trigger but **shares the
   manual path**: `sessionsAutoName` gained a `skipIfNamed` option (guard before `startRpcSession`),
@@ -365,445 +196,35 @@ visible.
 
 ## Known upstream-compat notes
 
+- Asset paths must stay document-relative under `file://`: upstream's
+  `/provider-icons.svg#sym` and `/icons/catppuccin/...` resolve to the
+  filesystem root in the packaged renderer (dev/e2e never saw it — they run on
+  http://localhost). `FileIcons` pre-resolves the icons root with
+  `document.baseURI`; guarded by `components/asset-paths.test.mjs` + packaged
+  probes.
+- `globals.css` `--font-mono` must not carry `var(--font-noto-mono)`. Upstream defines that variable
+  via `next/font/google` in `app/layout.tsx`; that file died with the Next.js retirement (Slice 5),
+  and a dangling `var()` invalidates the whole declaration. After every `globals.css` port, run
+  `grep -c font-noto-mono pi-web/src/globals.css` and require 0.
 - Upstream's own zh-TW locale is incomplete for the tools-panel keys; we completed ours and the
   registry test enforces parity — keep new keys translated in all three locales when porting.
-- `rpc-manager.ts` was byte-identical to upstream v0.8.9 before this sync; it now tracks upstream
-  at `d728526` **minus** `web-push.ts` (import and `notifySessionComplete` call site removed; the
-  optional completion-callback constructor parameter is kept for API compat).
-- `globals.css` `--font-mono` must not carry `var(--font-noto-mono)`. Upstream defines that variable
-  via `next/font/google` (`Noto_Sans_Mono`, `variable: "--font-noto-mono"`) on `<html>` in
-  `app/layout.tsx`; that file died with the Next.js retirement (Slice 5, `648e953`), and a dangling
-  `var()` invalidates the whole custom property — see Hotfix 2 above. The line is correct in
-  upstream's form factor and will never be "fixed" there: after every `globals.css` port, run
-  `grep -c font-noto-mono pi-web/src/globals.css` and require 0 (strip the entry if the port
-  reintroduced it).
+- `rpc-manager.ts` tracks upstream minus `web-push.ts` (import and
+  `notifySessionComplete` call site removed; the optional completion-callback
+  constructor parameter is kept for API compat). `EXTENSION_REPORTED_CODE` lives
+  in `lib/wire-codes.ts` so the renderer graph never reaches the main-side
+  subtree.
 
-## v0.8.11 → v0.9.0+ (`28bab3c..ce18006`) — synced 2026-09 (branch `sync/pi-web-v0.9.0`)
+## Lessons
 
-48 non-merge commits; tracker: `.scratch/archive/upstream-sync-v0.9.0/` (issues 01–11, all resolved).
-
-| Upstream | Subject | Status | Notes |
-|---|---|---|---|
-| `50b7f79` | feat: plugin update check + bulk update (#611) | ported | issue 08; `pi:plugins:check` IPC + semver dep |
-| `7c5f4e6` | fix: ext request dialog collapsible (#612) | ported | + `rpc-manager-extension-ui.test.mjs` (deferred 06ed14f hunk applied with it) |
-| `2cae813` | ci: checks + isolated session history E2E | n/a | Next E2E CI; our Playwright Electron suite covers |
-| `5de2d9a` | fix: relative router.replace for sub-path deployments | n/a | no sub-path deployments under file:// |
-| `cd6032b` | fix: session history across compaction pagination | ported | session-reader raw-order pages; tests realigned to final upstream state |
-| `5f8f47b` | perf: windowed session list (#626) | ported | issue 03 |
-| `1cbd96f` | feat: session search + cross-window sync | ported | issue 06; `pi:sessions:search` IPC; `sessionListVersion` on agentRunning+sessionsList |
-| `8cbafdd` | perf: session metadata cache (#625) | ported | issue 05; lib/session-list-scanner |
-| `6d7c5e0` | fix: warn images to non-vision model (#636) | ported | issue 03; ChatInput.test draft import switched to `@/lib/draft-store` (jiti instance identity) |
-| `0ddb21f` | fix: minimap after compaction (#643) | ported | issue 03 |
-| `07dd093` | fix: wide markdown tables scroll (#650) | ported | globals.css remap |
-| `8aec7a1` | feat: thinking-expand-default setting (#639) | ported | issue 03 (pulled into fix batch — 80a44a5 builds on it) |
-| `67d65a5` | fix: process grouping + thinking controls | ported | issue 03; ThinkingIcon |
-| `7047460` | style: drop redundant settings descriptions | ported | issue 03 |
-| `55485b9` | fix: cache highlight tree (#653) | ported | issue 03 |
-| `9dceb23` | feat: inline video preview (#655) | ported | issue 09; IpcFileWatchSource adaptation; electron files service video MIME |
-| `9cf8d4d` | fix: delete sessions with missing parent (#659) | ported | issue 05; sessionsDelete guard |
-| `2e1c402` | fix: widget trigger area shrink (#670) | ported | globals.css remap |
-| `6ac72b2` | fix(i18n): localize tooltips/aria (#668) | ported | issue 03 |
-| `cc1394d` | fix: scroll long ext labels (#675) | ported | globals.css remap |
-| `2356904` | fix: ext dialog keyboard nav + countdown | ported | issue 03 |
-| `ff63346` | fix(skills): frontmatter fence variants (#690) | ported | shared lib; electron skills service benefits |
-| `edf574a` | fix: renotify repeated notifications (#701) | ported | issue 10; renderer Notification renotify |
-| `e9f954a` | feat: idle timeout via env (#665) | ported | issue 10; env resolves in main process |
-| `abb74bf` | feat(input): Alt+Enter follow-up (#657) | ported | issue 03 |
-| `bf4713c` | test: notification expectations | ported | with edf574a |
-| `f3925bf` | feat: Mermaid preview (#693) | ported | issue 03 |
-| `80a44a5` | fix: thinking block borders | ported | issue 03 |
-| `0c525c8` | fix: Windows drive roots in file routes (#703) | ported | issue 09; `filePathFromApiSegments` |
-| `f57b565` | fix: preserve sessions with extension work (#705) | ported | issue 05; session-liveness registry (web-push import stripped per convention) |
-| `b315bd3` | fix: opaque PWA icons (#718) | n/a | PWA |
-| `9290c27` | feat: workspace terminal tabs (#695) | ported | issue 11; node-pty in main, `pi:terminal:*` IPC replaces HTTP/SSE; xterm.js renderer |
-| `5f8056d` | fix: Ctrl/Cmd-click local file links (#708) | ported | issue 09 |
-| `8c18f21` | fix: transparent icon backgrounds | n/a | favicon/PWA icons only |
-| `18923e6` | fix: model selector visible on load fail (#711) | ported | issue 03; loadModels retry adapted to `window.pi.models` |
-| `be428cf` | fix(mobile): streaming scroll follow (#715) | n/a | mobile-web |
-| `039e843` | feat: chat width + font size (#704) | ported | issue 04 |
-| `77ffe3c` | fix(chat): preserve unsent drafts (#720) | ported | issue 03; parked-draft keys |
-| `430fe4d` | fix(chat): per-session reading positions (#723) | ported | issue 03; loadContext `{tail,signal}`+return over IPC |
-| `092b5d4` | feat(settings): appearance simplification + resets | ported | issue 04 |
-| `06ed14f` | chore(deps): pi packages 0.85.1 | ported | issue 01; PlainTextTheme muted/text keys |
-| `c0abfc2` | feat: branch from selected text (#698) | ported | issue 07; ChatWindow keeps fork-only onTitleGenerated |
-| `237d0ca` | feat: enable built-in subagents | ported | issue 02; + v0.8.11-sync drift fix (child-session robot glyph in SessionSidebar) |
-| `b8d0043`+`8463025` | style: chat display grouping | ported | issue 04 (with 039e843; depends on c0abfc2 keys) |
-| `0d1df12` | Release v0.9.0 | n/a | independent version |
-| `edf0deb` | fix: delete unpersisted runtime sessions (#440) | ported | issue 05; ENOENT-tolerant delete |
-| `ce18006` | fix: Linux terminal prebuilds + load-failure reporting (#734) | ported | issue 11; manager diagnostics |
-
-Verification: `npm run typecheck` clean; `npm test` 859/864 (1 pre-existing Windows
-PATH baseline failure; win32-only skips incl. ConPTY pid/mock-timer quirks);
-`npm run test:e2e` 7/7; `package:dir` + packaged-probe 9/9 (node-pty + ConPTY
-unpacked, subagents default-off gate reworded).
-
-Non-mainline upstream refs (recorded, not tracked): `v0.10.5`/@axello hard fork
-from v0.8.7 (socket.io reverse-proxy terminal, background service); `v0.9.0-fork`
-(e48ba2e) display-only session folders — external-port candidate.
-
-New IPC surface this sync: `pi:sessions:search`, `pi:plugins:check`,
-`pi:terminal:*` (6 channels + per-subscription push). `agentRunning`/`sessionsList`
-responses now carry `sessionListVersion`.
-
-## v0.9.0+ → `0ff1138` — synced 2026-09 (batch on `main`)
-
-16 non-merge commits; tracker: `.scratch/archive/upstream-sync-v0.9.1/` (issues 01–07, all
-resolved). Landed together with a local fix: the issue-11 terminal-tabs port had
-reshaped the panel-close paths to call `setRightPanelOpen(false)` directly, dropping
-the PR #548 `rightPanelMaximized` reset — all close paths (last file tab, last
-terminal, project switch, session switch) exit through `handleRightPanelClose()`
-again while keeping the terminal-aware conditions.
-
-| Upstream | Subject | Status | Notes |
-|---|---|---|---|
-| `2e914db` | fix: terminal shells default to UTF-8 locale (#751) | ported | issue 06; lib shared with electron terminal service |
-| `e685cac` | feat: browser password login (#505) | n/a | HTTP form factor (login page, /api/web-auth, session cookie); web-login CSS from the same hunk dropped |
-| `5173f6a` | fix: preserve links from rich-text paste (#537) | ported | issue 01 |
-| `0e71201` | feat: paginate large text file previews | ported | issue 04; `offset` query on `pifile://` read replaces the 413 |
-| `448e146` | feat: readable themes + toolbar theme selector | ported | issue 02; index.html gains THEME_INIT_SCRIPT boot script (fork gap); PWA standalone block n/a |
-| `a26cc68` | fix: escaped backticks in inline code | ported | issue 01 |
-| `ed840ed` | fix: restore/display session models accurately | ported | issue 03; transport stays window.pi.agentState |
-| `b1a7296` | test: model fallback e2e expectation | n/a | upstream's own Next e2e harness; our Playwright suite has no such assertion |
-| `ef51ffd` | fix: show top-level extensions in plugin settings | ported | issue 05; re-homed into electron plugins service |
-| `d10988d` | fix: prevent duplicate built-in command submissions | ported | issue 01 |
-| `585d56c` | fix: support first-message session forks | ported | issue 03; onTitleGenerated (issue-07 v0.9.0 port) kept |
-| `f4a700d` | fix: render extension prompts as markdown (#699) | ported | issue 01 |
-| `def1478` | fix: preserve shell output across reconnects | ported | issue 03; rpc-manager activeToolEvents replay; shutdown tests imported |
-| `09383ae` | perf(sessions): gzip large JSON responses (#731) | n/a | HTTP transport only; IPC uses structured clone |
-| `3e9fcfa` | fix(push): iOS background delivery (#728) | n/a | web push stripped per convention |
-| `0ff1138` | feat: keep selected sessions alive | ported | issue 07; HTTP lease route → new `pi:agent:lease` IPC; `sessionRunning` prop removed end-to-end |
-
-Verification: `npm run typecheck` clean; `npm test` 886/890 (1 pre-existing Windows
-PATH baseline failure; 3 win32 skips). New IPC surface: `pi:agent:lease`.
-
-#lesson: `git apply --3way` over a multi-file patch set is atomic — one file that
-can't apply (“does not match index”) rolls the whole batch back, and the per-file
-“cleanly applied” messages printed before the failure are misleading. Port
-commit-by-commit and file-by-file when the batch touches files the fork reshaped.
-
-## v0.9.1 (`0ff1138..8366762`) — synced 2026-09 (batch on `main`)
-
-24 non-merge commits; tracker: `.scratch/archive/upstream-sync-v0.9.1/` (issues 01–11 across
-both post-v0.9.0 batches). Local version bumped 0.9.0 → 0.9.1 to match the upstream
-release.
-
-| Upstream | Subject | Status | Notes |
-|---|---|---|---|
-| `b77a25f` | feat(subagents): queue concurrent runs | ported | issue 08; settings IPC gains maxConcurrent |
-| `a31d5c5` | feat(subagents): resume persisted sessions | ported | issue 08 |
-| `bbe2f7d` | feat(subagents): support tintinweb profiles | ported | issue 08 |
-| `2661247` | feat(subagents): isolate agents in worktrees | ported | issue 08 |
-| `e3fbbf6` | feat(subagents): honor extension tool selectors | ported | issue 08 |
-| `b5b52f0` | fix(ui): compact subagent settings | ported | issue 08; settings.css remap |
-| `f106531` | merge: subagent P0 features | ported | issue 08; via constituents, lib byte-identical to 8366762 |
-| `55df7d7` | fix(e2e): tolerate live session metadata | n/a | upstream e2e harness |
-| `fad65c9`/`17ad5c5` | docs(agents) | n/a | upstream AGENTS.md |
-| `dab9850` | fix: @ picker keyboard selection wrap (#769) | ported | issue 09 |
-| `1b88ec7` | fix: @ picker within visible area (#768) | ported | issue 09 |
-| `e83f4b5` | feat(sessions): delete subagent descendants with parent | ported | issue 11; sessionsDelete cascade + rpc-manager includeTransient |
-| `4787a14` | fix(ui): preserve streaming output on open | ported | issue 09 |
-| `f607816` | fix: hide leftover enabledModels warnings (#770) | ported | issue 09 |
-| `a74aef8` | feat: sidebar=collapsed query param (#712) | ported | issue 09 |
-| `c8c63a1`/`0ff32dd` | docs(cli)/docs(i18n) | n/a | upstream docs |
-| `effa464` | ci: pin Node.js 22.19.0 | n/a | upstream CI; our README already requires ≥22.19 |
-| `2eb95b9` | fix: keep theme and language controls in settings (#772) | ported | issue 10; removes the 448e146 toolbar selector, palettes/settings group stay |
-| `894c735` | fix(i18n): clarify main worktree labels | ported | issue 09 |
-| `6d53fd5` | feat(models): show provider usage quotas | ported | issue 11; new `pi:provider-usage:query` IPC, ProviderUsageSummary rides window.pi |
-| `553f2d7` | fix(subagents): keep agent profile fields (#794) | ported | issue 08; frontmatter passthrough |
-| `8366762` | Release v0.9.1 | n/a | local version bumped to 0.9.1 to match |
-
-Verification: `npm run typecheck` clean; `npm test` 917/921 (1 pre-existing Windows
-PATH baseline failure; 3 win32 skips). New IPC surface: `pi:provider-usage:query`;
-`pi:subagents:settings:put` gained a `maxConcurrent` parameter.
-
-## post-v0.9.1 (`8366762..3f07a5f`) — synced 2026-09
-
-13 non-merge commits off `main` after the v0.9.1 tag (no new upstream release;
-local version stays 0.9.2); tracker: `.scratch/archive/upstream-sync-v0.9.2/` (issues 01–07).
-`3f07a5f` is a squash-PR whose constituent fixes were ported separately first.
-
-| Upstream | Subject | Status | Notes |
-|---|---|---|---|
-| `3f07a5f` | feat: show reasoning level of the running turn (#777) | ported | issue 06; `app/api/models` `defaultThinkingLevel` re-homed onto `pi:models` IPC; auto = uncommitted default |
-| `d2056b6` | feat: preview image attachments in chat composer (#735) | ported | issue 05 |
-| `e70c367` | feat: render apply_patch tool calls as split diffs (#744) | ported | issue 04 (after 07 — MessageView import order) |
-| `b42d3f4` | fix: keep user-opened tools expanded across streaming (#743) | ported | issue 07; coexists with local default-collapse (26be91e) |
-| `860698a` | feat: extension widget font size setting (#733) | ported | issue 01; globals.css |
-| `744ee93` | feat(worktree): raised git timeouts + remote-tip start (#732) | ported | issue 03; implicit fetch dropped upstream |
-| `ed0eea9` | fix: extension select scroller edge | ported | issue 01 |
-| `fcd94bf` | fix: preserve newlines in extension dialog titles | ported | issue 01 |
-| `c04bab7` | fix: preserve UNC roots in file API paths | ported | issue 02; matters for our Windows build (pifile:// segments) |
-| `20ad98b` | fix(auth): throttle web password failures | n/a | web password login (HTTP form factor) |
-| `c1e544b` | fix(auth): SameSite=Lax session cookie (#818) | n/a | web-auth |
-| `e5a2434` | fix(deps): Next.js 16.3.5 | n/a | we are Vite |
-| `135517b` | align new-session branding with chat input | n/a | `next/image` + upstream logo; our branding diverged at fork |
-
-Verification: `npm run typecheck` clean; `npm test` 962/964 (2 win32 skips,
-1 first-launch flake re-run green); `npm run test:e2e` 12/12. No new IPC
-channels; `pi:models` response body gained `defaultThinkingLevel`.
-
-#lesson: `git apply --3way` can silently drop hunks when our context drifted
-(indentation artifacts from earlier syncs) while still reporting success — the
-port is only proven by the feature's own source-assertion tests landing in the
-same batch. Port tests with the code, and re-check any hunk list against the
-upstream diff for files our fork reshaped (ChatInput especially).
-
-## drift inventory: `3f07a5f..040fadd` (upstream v0.9.2) — 2026-09-23, pending
-
-47 non-merge commits after our last sync point (`3f07a5f`). Nothing ported yet; statuses below
-are the inventory classification, not sync results. Suggested port order: base → naming →
-models → subagents → chat/ui → session perf → plugins (each batch behind its own gate).
-
-| Upstream | Subject | Status | Notes |
-|---|---|---|---|
-| **base** | | | |
-| `da1b28b` | chore(deps): upgrade pi to 0.87.0 (#931) | **ported** (r2 issue 01) | 0.85.1→0.87.0; 12-file adapter sweep (agent-event-wire, exact-system-prompt, project-tree, session-list-scanner, session-reader, session-stats, session-title, subagent-runtime, rpc-manager, BranchNavigator, pi-types, useAgentSession) — later batches depend on its types |
-| **naming** | | | |
-| `974c8bb` | Name sessions from a bounded transcript (#807) | **ported** (r2 issue 02; measured 19,666 → 149 input tokens on a comparable session) | local `session-title.ts` is byte-identical to pre-#807 upstream → clean file swap; `generateSessionTitle` semantics change (no shadow Agent, no idle wait, standalone stream) touches `services/sessions.ts` auto-name call sites (manual button + PR #45 auto path share it); no-idle also lets auto-name fire earlier than `agent_settled` if we want |
-| **models panel** | | | |
-| `50f6cce` | enabledModels switches in Settings → Models (#930) | **ported** (r2 issue 03) | new `lib/enabled-models{,-runtime}.ts` + EnabledModelsSection; re-home `app/api/models/enabled` onto `pi:models` IPC |
-| `058341d` | manual "Refresh catalog" button (#914) (#938) | **ported** (r2 issue 03) | new `lib/model-catalog-refresh.ts`; rides existing models IPC |
-| `8b084d3` | relative time when usage quota stale | **ported** (r2 issue 03) | ProviderUsageSummary small |
-| `6e95fba` | OpenCode Go provider usage quota (#844) | **ported** (r2 issue 03) | provider-usage-ids table entry |
-| `79894b9` | extension-registered providers in settings/auth (#833) | **ported** (r2 issue 03; six auth sites in models-auth service) | re-home 4 auth routes onto ipc-models-auth surface |
-| **subagents** | | | |
-| `f07d4a2` | switch individual built-in sub-agents off (#874) | **ported** (r2 issue 04) | subagent-settings + AgentsConfig; release gate stays off locally |
-| `54aa49c` | mark background results as non-user messages (#875) | **ported** (r2 issue 04) | subagent-runtime/extension |
-| `12d3599` | drop notification for already collected result (#889) | **ported** (r2 issue 04) | |
-| `20a2579` | session ID in foreground completion text (#847) | **ported** (r2 issue 04) | |
-| `9d282da` | report provider stream errors as failed runs (#886) | **ported** (r2 issue 04) | |
-| **chat / ui** | | | |
-| `1eb5e66` | scroll to latest button (#845) | **ported** (r2 issue 05) | ChatWindow + chat-lazy-load |
-| `5933184` | grabbable scrollbars, one in chat (#873/#788) | **ported** (r2 issue 05) | globals.css (conflicts with local panel styles — 3-way care) |
-| `ed50d88` | resizable conversation/file panes in sidebar (#825) | **ported** (r2 issue 05) | local sidebar already two-pane (sessions+FileExplorer); new `useResizablePanel` |
-| `1bd40e4` | minimap per-turn tool-call hover (#939) | **ported** (r2 issue 05) | ChatMinimap |
-| `c844973` | surface output-limit truncation (#830) | **ported** (r2 issue 05) | message-display |
-| `002400d` | stop duplicating first streamed chunk (#835) | **ported** (r2 issue 05) | streaming-message lib (not the hook — contained) |
-| `0611857` | keep earlier replies visible after subagent notification (#891) | **ported** (r2 issue 05) | message-display |
-| `f3a4ff6` | selection toolbar above sidebar (#855) | **ported** (r2 issue 05) | z-index one-liner |
-| `0b307d5` | reopen event stream under Strict Mode re-runs (#933) | **ported** (r2 issue 05) | local main.tsx runs StrictMode; hook-level 3-way (see risks) |
-| `8df5132` | preserve extension widget order on updates (#839) | **ported** (r2 issue 05) | new `lib/extension-widgets.ts` + hook hunk |
-| `be38e5d` | mention button + middle-ellipsis in changed-file rows (#853) | **ported** (r2 issue 05) | FileExplorer |
-| `5e9b997` | honor #page= in PDF links (#841) | **ported** (r2 issue 05) | file-links/FileViewer |
-| `d11d344` | tool-result images while card collapsed (#826) | **ported** (r2 issue 05) | MessageView/ImagePreview |
-| `f2d600b` | /auto-compact slash command (#828) | **ported** (r2 issue 05) | ChatInput + hook builtin (3-way care) |
-| `03a9f5d` | stop overriding settings.json defaultTools (#700/#936) | **ported** (r2 issue 05) | tool-presets + rpc-manager + hook |
-| **session / perf** | | | |
-| `234e19e` | perf: session view cache + revisions, #928+#912 (#940) | **ported** (r2 issue 06; view-cache + summary listings behind IPC options) |
-| `50a2fd4` | count only visible messages toward tail budget (#810) | **ported** (r2 issue 01; session-reader half — anchor-rollback divergence recorded in its tests) |
-| `b44017a` | see sessions written by another pi process (#796) | **ported** (r2 issue 06; external-write eviction via sessionsGet force) |
-| `ef1de89` | remember open session per browser tab (#887) | n/a | covered: local workspace-memory already restores last open session per project; Electron has one window |
-| **plugins** | | | |
-| `38cba2b` | package description in Plugins panel (#868) | **ported** (r2 issue 07) | route re-homed onto `services/plugins.ts` (readPackageMetadata gains description); route test ported as `lib/plugins-route.test.mjs` |
-| `fce666a` | normalize relativePath separators, Windows (#827) | **ported** (r2 issue 07) | applied on the Electron service side (`services/plugins.ts` getRelativePath), verified by ported route test on Windows |
-| `afd2575` | npm update checks without npm.cmd shim, Windows (#837) | **ported** (r2 issue 07) | new `lib/node-cli.ts` keeps upstream API but adds PATH scan for packaged Electron; npx.ts becomes thin wrapper keeping runNpm + win32 strictness |
-| **web/server-only — dropped** | | | |
-| `ffb2daf` | full-width file panel toggle (#790) | n/a | local PR #548 maximized panel is a superset (fullscreen + focus transfer); maximized-close already fixed in d8e3b85; optionally borrow its inert-sidebar/dropdown-dismiss hardening if missing |
-| `31f0505` | Next.js proxy body buffer (#846) | n/a | no server |
-| `1f79174` | close SSE streams on shutdown (#809) | n/a | no Next drain; verify equivalent teardown exists on window-close (ipc push channels) opportunistically |
-| `b4a4539` | PWA bounded fetches (#879) | n/a | PWA |
-| `404923e` | CLI: Wasm on RISC-V (#823) | n/a | no pi-web CLI |
-| `a84093e` | shutdown hook out of Edge instrumentation | n/a | Next server |
-| `47a0bb2` | crypto randomUUID handshake tokens (#811) | n/a | web auth route |
-| `58c1a21` | ignore .agents/ + skills-lock.json | n/a | our .gitignore already diverged |
-| `040fadd` | Release v0.9.2 | n/a | we version independently (local 0.9.2 already) |
-| `eac6f14` / `ed7a4d7` / `6edbecb` / `5b96a9d` | e2e fixture + docs | n/a | |
-
-Three-way risk callouts (per the earlier #lesson — port each with its source-assertion tests):
-
-- `hooks/useAgentSession.ts` — upstream touched it 8× in this window (234e19e, 03a9f5d, f2d600b,
-  8df5132, 1eb5e66, b44017a, 0b307d5, da1b28b); ours carries the PR #45 auto-title trigger and the
-  local settle/event-stream flow. Highest-conflict file; port batch-by-batch, never wholesale.
-- `components/ChatInput.tsx` (03a9f5d, f2d600b) — previously bitten by silently-dropped hunks.
-- `app/globals.css` (5933184, 1eb5e66, ed50d88) — local PR #548 panel styles live here.
-- `974c8bb` depends on `da1b28b`'s session-title adapter changes — order enforced (base first).
-
-## v0.9.3 (`040fadd..5d4c0b5`) — synced 2026-10
-
-100 non-merge commits; tracker: `.scratch/archive/upstream-sync-v0.9.3/` (issues 01–09).
-SDK jumped 0.87.0 → 0.99.1; the MCP wave (ADR 0006) is the dominant theme.
-Every upstream commit in the range is accounted for below or in the tracker's
-issue docs; `b908729`/`2bb48f5` (SDK upgrades) landed as issue 01.
-
-| Upstream | Subject | Status | Notes |
-|---|---|---|---|
-| `3f07a5f` | reasoning level of the running turn (#777) | ported | v0.9.2 wave; superseded by d0bf6be mid-run change |
-| `d2056b6`…`c04bab7` | v0.9.2 wave (8 commits) | ported | issues recorded in `.scratch/archive/upstream-sync-v0.9.2/` |
-| `2bb48f5` | pi SDK 0.99.1 | ported | issue 01; pi-types taken from upstream verbatim |
-| `b3c7255`/`687af27`/`82d1f54` | security: untrusted tool results, `..` escape, links, worktree real-path | ported | issue 02; allow-link POST rides pifile:// |
-| chat cluster (16 commits) | fork-while-running, edit drafts/branch-on-send, dialog queue, composer text, compaction reporting, worktree force, process-details | ported | issue 03; onNavigate retired for edit-then-branch |
-| settings cluster (5) | shared blocks, group switches, enable/disable-all, send key | ported | issue 04; bulk toggles = new IPC + service ports |
-| session cluster (15) | shutdown races, coalescing/backpressure, git tree hiding, scroll, keyboard, folder picker, Finder, pi-cwd | ported | issue 05; SSE backpressure adapted to IPC |
-| models cluster (5) | models.json like pi, catalog discovery, provider name, #871 | ported | issue 06 |
-| subagents/tools (7) | ext: selectors, run reports, control tools model-only, resolveActiveToolNames | ported | issue 07 |
-| codemode (3) | tools-settings writer, CodemodeToolView, builtins | ported | issue 08 |
-| MCP wave (~35) | per-session host, Settings › MCP, OAuth, trust, security hardening | ported | issue 09; routes → 7 IPC channels, bridge-fetch seam |
-| `4857da3`/`96966e5` | GitHub Pages demo | n/a | no demo site |
-| `f52fd84` | Safari/iOS 16.2 | n/a | Electron |
-| `6ad18cd`/`beb32a9`/`3e1f436` | web password auth | n/a | no HTTP surface |
-| `79c2a44` | Next/semver/undici bumps | n/a | Vite |
-| `a91c830`-era docs | — | n/a | |
-
-Verification: `npm run typecheck` clean; `npm test` 1704/1710 (2 win32 skips,
-4 Node-26 stdio-fixture skips documented in-file); `test:e2e` 12/12; packaged
-probes and dmg smoke green on the final build. New IPC surface: `pi:mcp:*` (7
-channels), `pi:skills:bulk-toggle`; `pi:tools:settings:put` takes
-{enabled} XOR {codemode}; `pi:plugins:action` gains the packages-array bulk
-form; `pi:models` body gained `defaultThinkingLevel`/`savedDefaultThinkingLevel`;
-`pi:project-trust:get` answers the MCP listing.
-
-#lesson: the renderer graph is a security boundary of its own — a helper
-imported by a component must not pull node-only SDK modules (projectTrustReloadKey
-belongs in settings-ui-helpers, not lib/project-trust; the vite build catches
-it, the test runner does not).
-
-## v0.9.3 → v0.10.0 (`5d4c0b5..6fcd7d4`) — synced 2026-10
-
-Scope note: the v0.9.3 wave had already landed everything through upstream
-`5d4c0b5`, so this sync is the last 21 commits. Census:
-`.scratch/archive/upstream-sync-v0.10.0/commit-census.md`.
-
-| Upstream | Subject | Status | Notes |
-|---|---|---|---|
-| de91212→c8fc3c0 | Add pane value boxes + paste-format examples | ported | i18n 3-locale manual merge (our locales are a curated subset) |
-| 3eb8a9d | scope chooser in every add pane | ported | pulled ahead of b183176 (its real parent); ConfigSaveTarget shared block |
-| b183176 | name asked right after the paste | ported | McpAddServer state machine |
-| cfcf2a1 / 82e5539 | light-theme code border / codemode script in any tool box | ported | `.tool-codemode-script` css block did not exist here (n/a hunk) |
-| 8800b5a | models switch refusal text | ported | our ModelsConfig keeps local editingName (fork divergence); semantics only; its docs/adr/0004 hunk n/a |
-| 6c599e9 | codemode tool list budget | ported | `pi:tools:settings:put` payload + `codemodeInlineBudget`; test's SDK-relative URL re-based to our node_modules root |
-| 834b6b8 | tool descriptions the model is sent | ported | pi-types + rpc-manager |
-| d702bc6 | per-server exposure in Settings | ported | `set-exposure` action re-homed onto `pi:mcp:action` |
-| dba11f4 / e851b03 / 4e1edd8 | add-pane catalogs + registry label | ported | catalogHref structure |
-| 0b2d4fa | codemode takes over built-in tools | ported | `codemodeMode` on tools-settings IPC |
-| 9d5b077 / 7b3df71 | shorten codemode pane / tools panel under `only` | ported | |
-| e77a4e5 | pi 1.0.0 | ported | deps 0.99.1→1.0.0; OAuth key `mcp__<name>|<url>`; `codemode-deferred` alias; provider-auth entries; importer description/oauth rules; route auth/name refusals ride the same libs |
-| dda61b2 | Node 22 test fixes | ported | only the 2 test files this repo carries |
-| 9f8447a / 279e228 | docs(agents) | n/a | comment-only code hunks not taken |
-| 4857da3 / 96966e5 / f52fd84 | demo / Safari compat | n/a | (listed in the v0.9.3 range but restated here) |
-| 6fcd7d4 | Release v0.10.0 | n/a | version aligned locally: app 0.10.0 |
-
-Local divergence kept: `resolvedSdkPackageDir` resolves from the module
-location first (packaged Electron runs with cwd "/", commit a72c538); e77a4e5
-does not touch that path.
-
-Verification: `npm run typecheck` clean; `npm test` 1759/1765 (same 6 known
-skips); packaged mac build smoke-tested (Settings › MCP renders on SDK 1.0.0).
-
-## v0.11.0 → v0.12.0 (`c9e1513..894e1a2`) — synced 2026-10
-
-68 non-merge commits (includes the v0.11.1 batch). pi SDK stays 1.1.0 — the
-wave is renderer work plus one main-process transport fix. Local version
-aligned 0.12.0. Executed as a file-level three-way merge (base c9e1513, ours,
-theirs 894e1a2) with per-file conflict resolution; 54 source commits ported,
-12 n/a, 2 release n/a.
-
-| Upstream | Subject | Status | Notes |
-|---|---|---|---|
-| 650d7a3 | fix(http): apply settings' httpIdleTimeoutMs to the Web UI | ported | main called `configureHttpDispatcher()` bare — same bug; `readHttpIdleTimeoutMs()` + `defaultAgentDir()` now read the global settings before startup |
-| 8347ea5…f0bc371 | chat fix batch: list-number clipping, notice centring, compaction dismiss/collapse, custom-message collapse, Process-details-on-error, Stop-slot, QR notices, desktop-app links, display:false + subagents anchor, minimap numbering + lock | ported | new libs `notice-text`, `minimap-preview-lock`, `stream-token-rate` |
-| 5af2e04/47d8b9a | markdown desktop-app links, compaction summary collapse | ported | |
-| 20b688c | deleted-project errors + Chat-only extension models | ported | rpc-manager `chatOnlyExtensionModelError`; transport re-homed onto agentNew result |
-| f87afbb/93b3aba/4ad8aa3/d69b33e | files: CSV/TSV table, >256KB HTML preview, tree reload on run writes, **workspace file-tab parking** | ported | **PR #548 superseded**: upstream formalized per-project panel parking into `file-tab-state` (`changeFileWorkspace`); our hand-rolled `switchProjectFileTabs` retired, its test deleted (superseded by `file-tab-state.test` 13/13) |
-| a3a158a/1a56053/b6318be | models: pi's /model order, Kimi quota, Fetch-model capability metadata | ported | |
-| ae34240 | skills: full instructions in settings | ported | |
-| d1529d0/7a416ce | audio chime context lifecycle | ported | |
-| 8e602ca/e83280e/51dda7c/89d7141/c8182b1/ee78105/5fd1e67/e493310/d474ce2/e7d0fda | sessions/sidebar: external discovery, gone-session links, delete-all, awaiting-input, project rename, retry/context window after switches, list rebuild-once, first-prompt-after-switch | ported | session-membership integration re-homed onto `sessionsList` service; new-session-switch test re-homed onto the window.pi bridge |
-| 311a901 + 7 follow-ups | subagents right-panel viewer + profile spawn params, mcp.json connect (mcp:on), codemode opt-in, thinking model:level, removed-worktree answers, session_start tools | ported | SubagentViewer + subagent-viewer-state; `subagents.ts` gains `extensions`/`codemode`/`mcp` profile fields + `profileNameList` rename |
-| e8b0236 | mcp detail pane: say each fact once | ported | i18n wording realigned to upstream for all shared keys |
-| 0699107/b73fdeb/a952ed5/b2b6a45/046bc67/e8d91ef | perf: turn-views, list-rebuild-once, markdown-blocks/streaming push, image + relation caches + deferred highlighting, Prism on demand, streaming-selector re-render | ported | web-push/SSE halves n/a |
-| 3fe257f…cae6201 + e2fe4fb | sidebar restyle (v0.11.1): files-below-sessions, section headers, 28px rows, fold motion, brand row (PiWebTitle), new-session brand | ported | files-placement default "below"; tabs layout kept behind pref |
-| f364bc3 | test: drop source-text assertions | ported | |
-| 6742182 | Tailwind `.claude` scan exclusion | partial | globals.css hunks landed; `@source not` lines stay dropped (Vite has no webpack snapshot issue) |
-| f98c088/5abdee3/6425d0d/30af3b4 | CLI commands/exit, server SDK preload, release docs | n/a | no CLI/HTTP server |
-| 2adb185/d9adb38/6835326/3ff7e1d | PWA runtime name, open-in-new-tab, Termux keys, phone-keyboard terminal | n/a | form factor; `lib/session-links` + `TabOpen` kept as local parity types for the gone-session fix |
-| e783721/894e1a2 | Release v0.11.1 / v0.12.0 | n/a | local version aligned 0.12.0 |
-
-Backfills beyond this range (found by the wave's tests): **mcpToolLabel**
-(v0.10.0 sync imported it but never used it — the `server/tool` MCP call label
-now renders), **`renameProviderEntry`** + 50 lines of `models-config-helpers`
-(never ported), **`lib/__fixtures__/mcp-*.mjs`** (from 6695979's test-connection
-feature).
-
-Windows notes from this sync: jiti aliases need every path spelling (the
-files-placement fixture alias carries six forms — backslash/forward/.ts/file-URL);
-dynamic imports of absolute paths still need `pathToFileURL`; the e2e fixture
-helper now derives the sessions directory from `SessionManager` itself (the
-`:`-in-dirname encoding broke on win32). **subagent-mcp.integration (11 tests)
-skips on win32**: the child-MCP flow verifies green outside the runner (same
-setup as a bare script), but under node:test the process hangs after the test
-body, before after-hooks — runner interaction still to be understood. The three
-fixture-era e2e specs (thinking/bash-output/markdown-image, 2de8638) stay
-pre-existing-red on Windows (fixture session never becomes visible on a fresh
-profile); verified red before this sync.
-
-Verification: typecheck clean (renderer + electron); `npm test` 2096 = 2069
-pass / 0 fail / 27 skip (16 pre-existing + 11 win32 mcp); `npm run test:e2e` 9
-pass / 3 pre-existing red / 1 skip; main↔preload channel diff empty.
-
-## v0.12.0 → v0.12.1 (`894e1a2..f83b1a5`) — synced 2026-10
-
-2 non-merge commits: pi SDK 1.1.0 → 1.2.0 with every `@earendil-works/*`
-package exact-pinned, plus the MCP-resources adaptation (pi 1.2 lists
-resources only when a resource tool asks, never while connecting).
-
-| Upstream | Subject | Status | Notes |
-|---|---|---|---|
-| `35067b6` | chore(deps): pi 1.2.0 + pin every pi package | ported | root package.json switched `^1.1.0` carets → exact `1.2.0` for the SDK four **plus new direct pins** `pi-codemode`/`pi-mcp`/`pi-telemetry` (our carets were the exact pairing hazard upstream fixed — `npm ci` after pi 1.2.0 would have paired pi-coding-agent 1.1.0 with pi-codemode 1.2.0, which no longer exports `MCP_TYPESCRIPT_PREAMBLE`); `McpTestResult.resources` becomes a `true` flag (`resourceTemplates` gone); mcp-host `LIST_METHODS` = tools only (a resources-only server no longer holds every prompt for the 10 s wait); `pi-sdk-internals` drops `McpResource`/`McpResourceTemplate`/`McpContentAnnotations` and the `resources`/`resourceTemplates` connection fields; McpConfig test status says "Offers resources."; `mcp-env-server` fixture gains `PI_WEB_FIXTURE_RESOURCES_ONLY`; new guard `pi-web/src/lib/pi-packages.test.mjs` (paths adapted: reads root `package.json`/lockfile, 3 levels up); AGENTS.md gains "Upgrading pi" |
-| `f83b1a5` | Release v0.12.1 | n/a | local version aligned 0.12.1 |
-
-Not carried: upstream `lib/mcp-test.test.mjs` and `lib/mcp-host.integration.test.mjs`
-(never imported by this fork — this wave's coverage rides the ported `mcp-host.test.mjs`
-resources case + `McpConfig.test.mjs`); upstream `docs/agents/mcp-test-sign-in.md`
-hunk (that doc is not carried).
-
-Verification: typecheck clean (renderer + electron); `npm test` 2099 = 2091 pass /
-2 fail (the pre-existing `subagent-mcp.integration` child-process pair, red before
-this sync on pi 1.1.0 as well) / 6 skip; `npm run test:e2e` 10 pass / 3 pre-existing
-red (the documented 2de8638 fixture trio) / 0 skip. All seven pi packages verified
-at 1.2.0 in node_modules and the lockfile.
-
-## v0.10.0 → v0.11.0 (`6fcd7d4..c9e1513`) — synced 2026-10
-
-47 non-merge commits (44 with source; e2e/docs/release excluded); census:
-`.scratch/archive/upstream-sync-v0.11.0/commit-census.md`. SDK 1.0.0 → 1.1.0.
-The dominant theme is the sidebar redesign (17-commit chain).
-
-| Upstream | Subject | Status | Notes |
-|---|---|---|---|
-| 6f2b4f0/038057f/1333c80 | subagent resume validation, write() file text, status-bar command buttons | ported | 1333c80 css re-unified at 5px (local guard) |
-| 981e270 | widenable extension dialogs | ported | exposed a v0.9.3-wave gap: 70470ca (dialog/panel queues) backfilled first |
-| 1ddaf11 | failed-upload preservation + git-diff junction authorization | ported | re-homed onto files-upload service + workspace gitDiff |
-| 7aaeff9 | models-only provider catalog protocol | ported | |
-| 5d5a69e/17bbadb/496611c | subagent profile skills/extensions, SDK turn limits | ported | |
-| 81e5b03/e2ea7da | markdown table wrap, code backgrounds | ported | |
-| 9182fdf | context-usage refresh between calls | ported | VM tests scripted onto the agentState IPC |
-| fdeea87 | desktop sidebar after mobile resize | ported | keeps PR #548 panel reset; VM stubs follow |
-| c3c5c6f | drag-drop uploads + mentions | ported | file-upload-client backed by the upload IPC |
-| a136267/6d4d6b5 | extension providers, CJK emphasis | ported | remark-cjk-friendly dep |
-| a096af3/012e805 | delete navigation, undoable mentions | ported | delete keeps cwd query per upstream |
-| 86d94e2 | custom font families/weights | ported | --font-mono-default keeps the CJK-safe stack; font-noto-mono stays 0 |
-| **2e87ddb** | sidebar redesign anchor (Sessions\|Files, groups/pins/archive, ui-state store) | ported | **pi:sessions:ui-state:get/:post** + **pi:open-in-explorer:get/:post** new IPC; agentRunning carries sessionUiStateRevision; sessionsDelete forgets ui-state |
-| fb34df9..76bdc57 (14) | sidebar chain: pagination, fork row menu (+ **pi:sessions:fork**), project order, shared picker, brand row, toolbar flatten | ported | endgame: chain files taken at upstream state + transport re-homed; NewSessionContextBar/fork naming included |
-| 2f6a0a9 | git-ignored files toggle, dimmed with reason | ported | pifile:// ?type=list gains &hidden=1 |
-| **86dea26** | pi SDK 1.1.0 | ported | MCP project overrides (`set-in-project` on pi:mcp:action), sign-in signal, agent_settled.aborted, durationMs tool cards, azure icon; mcp libs at upstream state |
-| f722a5d/0f30627 | settings scroll/title | ported | |
-| 80cd55e | SMIL spinner → CSS | folded | superseded by the redesign chain (files taken at upstream state) |
-| 99b2c3f/2e76e9a/37d4045/cf3ebfb | docs/e2e/sw/preview-secrets | n/a | no HTTP/PWA surface |
-| 1e294b0 | next 16.3.8 + audit fix | partial | next n/a; remark-cjk-friendly covers the shared dep |
-| c9e1513 | Release v0.11.0 | n/a | local version aligned 0.11.0 |
-
-Backfill beyond this range: **70470ca** (extension dialog/panel queues,
-recorded as ported in the v0.9.3 ledger but never landed — its absence
-hung concurrent permission extensions), **a0c00f3-era DismissButton**
-(missed in the v0.10.0 wave).
-
-Verification: typecheck clean (renderer + electron); `npm test` 2144
-tests, 2128 pass, 0 fail (15 skips, 1 known Defender rename flake);
-packaged build probe below.
-
-Windows-specific notes from this sync (see also the two earlier fix
-commits): dynamic `import(absolutePath)` needs pathToFileURL in jiti
-tests; the uiState hook test scripts the IPC transport with upstream's
-error semantics (Response adapters); wholesale-taken test files need
-`app/*.css` paths remapped and `@/hooks/useI18n` imported without the
-`.tsx` extension (jiti dual-instance).
+- `git apply --3way` over a multi-file patch set is atomic — one file that
+  can't apply rolls the whole batch back, and the per-file "cleanly applied"
+  messages printed before the failure are misleading. Port commit-by-commit and
+  file-by-file when the batch touches files the fork reshaped.
+- `git apply --3way` and `git merge-file` can silently drop hunks when our
+  context drifted while still reporting success — the port is only proven by
+  the feature's own source-assertion tests landing in the same batch. Port
+  tests with the code, and diff the merged file against upstream's for files
+  the fork reshaped (ChatInput and rpc-manager especially).
+- The renderer graph is a security boundary of its own — a helper imported by
+  a component must not pull node-only SDK modules into it. The vite build
+  catches this; the test runner does not.

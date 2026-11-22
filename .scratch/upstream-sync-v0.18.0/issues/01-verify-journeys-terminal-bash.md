@@ -1,6 +1,6 @@
 # verify-pi-agent-app: terminal and bash-full-output journeys are red on a clean tree
 
-Status: confirmed
+Status: resolved (commit 433cf777 — the skill's driver now carries the proven fixes: cwdValidate authorization, prompt-before-write, kill boolean; expand-first ordering)
 Found: 2026-11-22, during the v0.18.0 upstream sync's app-drive verification
 
 ## Problem
@@ -34,3 +34,12 @@ running them against a HEAD worktree build):
   twins, so the journeys just need to reach parity with the specs' setup.
 
 ## Comments
+
+2026-11-22: resolved by the verification-skill maintenance pass (433cf777).
+Root causes: the terminal journey skipped the allowed-file-root authorization
+(cwdValidate now gates it) and raced its write past the shell prompt (zsh's
+zle flushes pending input); the kill assertion compared `.status` on the
+channel's plain boolean. The bash journey waited for the view-full button
+before expanding the card that contains it (upstream's v0.17.0 footer
+redesign). All six journeys green on the built app. The scratch proof driver
+(drive-terminal.mjs) was removed; the shipped driver owns the fixes.
