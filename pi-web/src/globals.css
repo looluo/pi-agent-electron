@@ -1179,6 +1179,12 @@ button.extension-widget-trigger:focus-visible {
      glyphs and prevent the final monospace fallback from ever being used. */
   --font-mono-default: 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   --font-ui-default: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* The drawing faces come first so arrows and box drawing take the
+     mono-metric-sized faces above instead of whatever the first text face
+     supplies (fork: no next/font web font, and the noto variable upstream
+     defines there must stay out — a dangling var() would void the whole
+     declaration). */
+  --font-mono-default: "Terminal Drawing", "Terminal Drawing Windows", 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   --font-ui: var(--font-ui-default);
   --font-mono: var(--font-mono-default);
   --font-ui-weight: 400;

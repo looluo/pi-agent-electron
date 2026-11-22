@@ -461,8 +461,14 @@ export async function pluginsAction(body: {
     const source = body.source?.trim();
     const local = scope === "project";
 
-    // Bulk enable/disable (upstream eceac13): one result per package.
-    if (body.action === "enable" || body.action === "disable") {
+    // Bulk enable/disable (upstream eceac13): one result per package. Gated on
+    // `packages` being present, exactly as the route gates: a single
+    // enable/disable arrives as { source, scope } and must reach the
+    // single-package branches below, not this 400.
+    if ((body as { packages?: unknown }).packages !== undefined) {
+      if (body.action !== "enable" && body.action !== "disable") {
+        return { status: 400, body: { error: "packages is only supported by enable and disable" } };
+      }
       const packages = readPackageList((body as { packages?: unknown }).packages);
       if (!packages) return { status: 400, body: { error: "packages must be a list of {source, scope}" } };
       const results = await setPackageListDisabled(

@@ -10,6 +10,7 @@ import {
 import { gt, maxSatisfying, rcompare, valid, validRange } from "semver";
 import type { PluginScope, PluginUpdateResult } from "@/lib/api-types";
 import { runNpm } from "./npx";
+import { sanitizeProjectCommandEnvironment } from "./project-command-env";
 import { getProjectTrustStatus } from "./project-trust";
 
 const execFileAsync = promisify(execFile);
@@ -93,12 +94,27 @@ function result(
   };
 }
 
+/**
+ * The environment of an update check's `npm view` / `git` child: the host's
+ * without `PORT`, `NODE_ENV`, `NEXT_*` and `PI_WEB_PASSWORD` (ADR 0001). npm
+ * runs in the project folder and reads its `.npmrc`, which expands `${VAR}`
+ * from this environment into the registry it names, auth tokens included.
+ */
+export function updateCheckEnvironment(
+  overrides?: NodeJS.ProcessEnv,
+  base: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  return sanitizeProjectCommandEnvironment(overrides ? { ...base, ...overrides } : base);
+}
+
 async function runCommand(
   command: string,
   args: string[],
   options: { cwd: string; env?: NodeJS.ProcessEnv },
 ): Promise<string> {
-  const env = options.env ? { ...process.env, ...options.env } : process.env;
+  // The fork routes npm through runNpm (packaged Electron node-cli path,
+  // see lib/npx.ts); the environment rides upstream's scrub either way.
+  const env = updateCheckEnvironment(options.env);
   if (command === "npm") {
     // A bare `npm` resolves to `npm.cmd` on Windows, which `execFile` cannot
     // spawn (CVE-2024-27980); run the bundled `npm-cli.js` through `node`

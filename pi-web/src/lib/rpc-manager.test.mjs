@@ -245,9 +245,11 @@ test("session replacement rejects active work and clone writes one reopenable ch
     await assert.rejects(modelChange, /Model not found/);
 
     await wrapper.send({ type: "prompt", message: "keep this run active" });
+    // Fork now works mid-run (#1023, upstream re-asserted by
+    // rpc-manager-user-message-entry.integration); clone still refuses.
     await assert.rejects(
-      wrapper.send({ type: "fork", entryId: manager.getLeafId() }),
-      /Cannot fork while the session is running/,
+      wrapper.send({ type: "clone", leafId: cloneLeafId }),
+      /Cannot clone while the session is running/,
     );
     assert.ok(finishPrompt);
     finishPrompt();

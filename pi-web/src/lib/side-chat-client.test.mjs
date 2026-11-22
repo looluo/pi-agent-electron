@@ -49,10 +49,15 @@ test("a side chat is deleted through the sessions:delete IPC, and a refusal is p
   globalThis.window = { pi: { sessionsDelete: async (id) => { calls.push({ id }); return answer; } } };
   t.after(() => { globalThis.window = previous; });
 
-  answer = {};
+  answer = { ok: true };
   assert.equal(await deleteSideChat("a/b"), null);
   assert.deepEqual(calls[0], { id: "a/b" });
 
   answer = { notFound: true };
   assert.deepEqual(await deleteSideChat("a"), { error: "Session not found" });
+
+  // The IPC guard answers a thrown refusal as { error }: not a success, so the
+  // caller keeps the tab and the unsent draft.
+  answer = { error: "refused" };
+  assert.deepEqual(await deleteSideChat("a"), { error: "refused" });
 });

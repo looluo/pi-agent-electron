@@ -1,4 +1,6 @@
+import { stat as statAsync } from "fs/promises";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
+import { cwdMissingBody } from "@/lib/missing-cwd";
 import {
   createTerminal as createManagedTerminal,
   killTerminal,
@@ -40,9 +42,22 @@ export async function terminalCreate(
   cols: number,
   rows: number,
   id?: string,
-): Promise<{ status: number; body: { id?: string; error?: string } }> {
+): Promise<{ status: number; body: { id?: string; error?: string; reason?: string; cwd?: string } }> {
   try {
     if (typeof cwd !== "string" || !cwd) return { status: 400, body: { error: "cwd required" } };
+    let cwdStat;
+    try {
+      cwdStat = await statAsync(cwd);
+    } catch (error) {
+      // A project folder deleted or moved outside the app: the typed refusal
+      // the other routes give, not a 500 with the OS error text (#1422, #1750).
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT" || code === "ENOTDIR") return { status: 400, body: cwdMissingBody(cwd) };
+      throw error;
+    }
+    if (!cwdStat.isDirectory()) {
+      return { status: 400, body: { error: "cwd must be a directory" } };
+    }
     const allowedRoots = await getAllowedFileRoots();
     if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
       return { status: 403, body: { error: "Access denied" } };

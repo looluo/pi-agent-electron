@@ -31,7 +31,10 @@ export async function createSideChat(
 /** Delete one side chat. Answers the failure to show, or null. */
 export async function deleteSideChat(sessionId: string): Promise<{ error: string } | null> {
   // Fork transport: the DELETE /api/sessions/[id] route is the pi:sessions:delete IPC.
-  const res = (await window.pi.sessionsDelete(sessionId)) as { notFound?: boolean } | null;
-  if (!res || !res.notFound) return null;
-  return { error: "Session not found" };
+  // Success answers { ok: true }; a gone session answers { notFound: true }; the
+  // IPC guard turns a thrown refusal into { error } — none of those is success.
+  const res = (await window.pi.sessionsDelete(sessionId)) as { ok?: boolean; notFound?: boolean; error?: string } | null;
+  if (res && res.ok === true) return null;
+  if (res && res.notFound === true) return { error: "Session not found" };
+  return { error: res?.error || "Session not found" };
 }

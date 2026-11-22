@@ -4,9 +4,11 @@
  * File-level work, like rename and delete: never starts, prompts or shuts
  * down an AgentSession.
  */
+import { isAbsolute } from "path";
 import { getRpcSession } from "@/lib/rpc-manager";
 import { sideChatNameFromText } from "@/lib/session-family";
-import { createSideSession, forkSessionBranch, readForkSourceTitle, SessionForkError } from "@/lib/session-fork";
+import { allowFileRoot } from "@/lib/file-access";
+import { createSideSession, forkSessionBranch, forkSessionIntoCwd, readForkSourceTitle, SessionForkError } from "@/lib/session-fork";
 import {
   cacheSessionPath,
   invalidateSessionListCache,
@@ -17,22 +19,43 @@ import {
 } from "@/lib/session-reader";
 import type { SessionInfo } from "@/lib/types";
 
-/** POST /api/sessions/[id]/fork — answers with the new session. Body `{}`, or
- *  `{ side: true, name? }` for a side chat (`/side`, ADR 0007). */
+/** POST /api/sessions/[id]/fork — answers with the new session. Body `{}`,
+ *  `{ side: true, name? }` for a side chat (`/side`, ADR 0007), or `{ cwd }`
+ *  for pi's Fork of a session whose folder is gone (pi 1.5.2): the whole file
+ *  copied into a new session of `cwd`. */
 export async function sessionsFork(
   id: string,
-  options: { side?: boolean; name?: string } = {},
+  options: { side?: boolean; name?: string; cwd?: string } = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const refusal = (status: number, code: string, error: string) => ({ status, body: { error, code } });
 
   try {
     const side = options.side === true;
+    const hasTargetCwd = Object.hasOwn(options, "cwd");
+    const targetCwd = typeof options.cwd === "string" ? options.cwd.trim() : undefined;
+    if (hasTargetCwd && (side || !targetCwd || !isAbsolute(targetCwd))) {
+      return refusal(400, "cwd-invalid", "cwd must be an absolute path");
+    }
     const sideName = typeof options.name === "string" ? sideChatNameFromText(options.name) ?? undefined : undefined;
     const opened = getRpcSession(id);
     const sourcePath = (opened?.isAlive() ? opened.sessionFile : "") || await resolveSessionPath(id);
     if (!sourcePath) {
       invalidateSessionListCache();
       return refusal(404, "not_found", "Session not found");
+    }
+    if (targetCwd !== undefined) {
+      // pi's Fork into another folder: the copy keeps the source's name and
+      // history, so it needs no name of its own.
+      const fork = forkSessionIntoCwd(sourcePath, targetCwd);
+      cacheSessionPath(fork.sessionId, fork.path);
+      invalidateSessionListCache();
+      // The copy's folder is a project the file routes may serve, as a new
+      // session's is (the agentNew service).
+      allowFileRoot(targetCwd);
+      const info = await readSessionInfo(fork.path);
+      if (!info) throw new Error("The forked session could not be read");
+      const session: SessionInfo = { ...info, parentSessionId: id, relation: { kind: "fork", originSessionId: id } };
+      return { status: 200, body: { sessionId: fork.sessionId, session } };
     }
     // The title the sidebar shows for the source, which the copy's name
     // starts with (null: the source has none, the copy stays unnamed). Read
@@ -68,6 +91,7 @@ export async function sessionsFork(
         invalidateSessionListCache();
         return refusal(404, error.code, error.message);
       }
+      if (error.code === "cwd-invalid") return refusal(400, error.code, error.message);
       return refusal(409, error.code, error.message);
     }
     return refusal(500, "failed", error instanceof Error ? error.message : String(error));

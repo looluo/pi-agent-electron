@@ -1,0 +1,128 @@
+status	upstream	dir	fork
+NA-other	AGENTS.md	web-only	
+NA-app-api	app/api/file-index/route.ts	web-only	
+NA-app-api	app/api/files/[...path]/route.ts	web-only	
+NA-app-api	app/api/files/backpressure-route.test.mjs	web-only	
+NA-app-api	app/api/open-in-explorer/route.ts	web-only	
+NA-app-api	app/api/sessions/[id]/export/route.ts	web-only	
+NA-app-api	app/api/sessions/[id]/fork/route.ts	web-only	
+NA-app-api	app/api/sessions/[id]/route.ts	web-only	
+NA-app-api	app/api/sessions/fork-route.test.mjs	web-only	
+NA-app-api	app/api/sessions/route.ts	web-only	
+NA-app-api	app/api/sessions/runtime-route.test.mjs	web-only	
+NA-app-api	app/api/sessions/stats/route.ts	web-only	
+NA-app-api	app/api/terminal/route.test.mjs	web-only	
+NA-app-api	app/api/terminal/route.ts	web-only	
+NA-app-api	app/api/web-auth/route.test.mjs	web-only	
+NA-app-api	app/api/web-auth/route.ts	web-only	
+THREEWAY	app/globals.css	-	pi-web/src/globals.css
+NEW	components/AgentSessionPanel.stats.test.mjs	new	pi-web/src/components/AgentSessionPanel.stats.test.mjs
+THREEWAY	components/AgentSessionPanel.tsx	-	pi-web/src/components/AgentSessionPanel.tsx
+WHOLESALE	components/AppShell.session-delete.test.mjs	-	pi-web/src/components/AppShell.session-delete.test.mjs
+THREEWAY	components/AppShell.tsx	-	pi-web/src/components/AppShell.tsx
+WHOLESALE	components/ChatInput.focus.test.mjs	-	pi-web/src/components/ChatInput.focus.test.mjs
+THREEWAY	components/ChatInput.test.mjs	-	pi-web/src/components/ChatInput.test.mjs
+THREEWAY	components/ChatInput.tsx	-	pi-web/src/components/ChatInput.tsx
+THREEWAY	components/ChatWindow.quote-caret.test.mjs	-	pi-web/src/components/ChatWindow.quote-caret.test.mjs
+WHOLESALE	components/ChatWindow.quoted-branch.test.mjs	-	pi-web/src/components/ChatWindow.quoted-branch.test.mjs
+THREEWAY	components/ChatWindow.tsx	-	pi-web/src/components/ChatWindow.tsx
+THREEWAY	components/FileViewer.tsx	-	pi-web/src/components/FileViewer.tsx
+THREEWAY	components/MarkdownBody.tsx	-	pi-web/src/components/MarkdownBody.tsx
+WHOLESALE	components/MermaidBlock.tsx	-	pi-web/src/components/MermaidBlock.tsx
+THREEWAY	components/MessageView.test.mjs	-	pi-web/src/components/MessageView.test.mjs
+THREEWAY	components/MessageView.tsx	-	pi-web/src/components/MessageView.tsx
+THREEWAY	components/ModelsConfig.tsx	-	pi-web/src/components/ModelsConfig.tsx
+NEW	components/PlantUmlBlock.test.mjs	new	pi-web/src/components/PlantUmlBlock.test.mjs
+NEW	components/PlantUmlBlock.tsx	new	pi-web/src/components/PlantUmlBlock.tsx
+NEW	components/QuoteSelectionPopover.tsx	new	pi-web/src/components/QuoteSelectionPopover.tsx
+THREEWAY	components/SessionSidebar.test.mjs	-	pi-web/src/components/SessionSidebar.test.mjs
+THREEWAY	components/SessionSidebar.tsx	-	pi-web/src/components/SessionSidebar.tsx
+THREEWAY	components/SettingsPanel.test.mjs	-	pi-web/src/components/SettingsPanel.test.mjs
+THREEWAY	components/SettingsPanel.tsx	-	pi-web/src/components/SettingsPanel.tsx
+THREEWAY	components/TerminalPanel.tsx	-	pi-web/src/components/TerminalPanel.tsx
+NA-other	demo/components/MessageView.tsx	web-only	
+NA-other	demo/lib/ansi.ts	web-only	
+NA-other	demo/lib/message-display.ts	web-only	
+NA-other	demo/lib/model-discovery.ts	web-only	
+NA-other	demo/lib/project-tree.ts	web-only	
+NA-other	demo/lib/terminal-input.ts	web-only	
+NA-other	docs/agents/client-platform.md	web-only	
+NA-other	docs/agents/files-and-access.md	web-only	
+NA-other	docs/agents/models.md	web-only	
+NA-other	docs/agents/sessions.md	web-only	
+NA-other	docs/agents/settings-ui.md	web-only	
+NA-other	docs/agents/side-sessions.md	web-only	
+NA-other	docs/agents/subagents.md	web-only	
+NA-other	docs/terminal.md	web-only	
+NA-other	e2e/README.md	web-only	
+NA-other	e2e/missing-cwd-fork.mjs	web-only	
+NA-other	e2e/run.mjs	web-only	
+NA-other	e2e/terminal.mjs	web-only	
+THREEWAY	hooks/context-usage.test.mjs	-	pi-web/src/hooks/context-usage.test.mjs
+NEW	hooks/history-edit-draft.test.mjs	new	pi-web/src/hooks/history-edit-draft.test.mjs
+NEW	hooks/live-user-entry.test.mjs	new	pi-web/src/hooks/live-user-entry.test.mjs
+THREEWAY	hooks/useAgentSession.ts	-	pi-web/src/hooks/useAgentSession.ts
+NEW	hooks/useSkipOffscreenRows.ts	new	pi-web/src/hooks/useSkipOffscreenRows.ts
+WHOLESALE	lib/agent-event-stream.test.mjs	-	pi-web/src/lib/agent-event-stream.test.mjs
+WHOLESALE	lib/agent-event-wire.test.mjs	-	pi-web/src/lib/agent-event-wire.test.mjs
+WHOLESALE	lib/agent-event-wire.ts	-	pi-web/src/lib/agent-event-wire.ts
+WHOLESALE	lib/ansi.ts	-	pi-web/src/lib/ansi.ts
+WHOLESALE	lib/atomic-file.test.mjs	-	pi-web/src/lib/atomic-file.test.mjs
+WHOLESALE	lib/atomic-file.ts	-	pi-web/src/lib/atomic-file.ts
+WHOLESALE	lib/codemode-view.test.mjs	-	pi-web/src/lib/codemode-view.test.mjs
+WHOLESALE	lib/codemode-view.ts	-	pi-web/src/lib/codemode-view.ts
+NEW	lib/draft-store.test.mjs	new	pi-web/src/lib/draft-store.test.mjs
+WHOLESALE	lib/draft-store.ts	-	pi-web/src/lib/draft-store.ts
+WHOLESALE	lib/file-access.test.mjs	-	pi-web/src/lib/file-access.test.mjs
+WHOLESALE	lib/file-tree-visibility.test.mjs	-	pi-web/src/lib/file-tree-visibility.test.mjs
+WHOLESALE	lib/file-tree-visibility.ts	-	pi-web/src/lib/file-tree-visibility.ts
+WHOLESALE	lib/git-changes.test.mjs	-	pi-web/src/lib/git-changes.test.mjs
+WHOLESALE	lib/git-changes.ts	-	pi-web/src/lib/git-changes.ts
+NEW	lib/git-environment.ts	new	pi-web/src/lib/git-environment.ts
+THREEWAY	lib/i18n/messages/en.ts	-	pi-web/src/lib/i18n/messages/en.ts
+THREEWAY	lib/i18n/messages/zh-CN.ts	-	pi-web/src/lib/i18n/messages/zh-CN.ts
+THREEWAY	lib/i18n/messages/zh-TW.ts	-	pi-web/src/lib/i18n/messages/zh-TW.ts
+NA-deleted	lib/json-response.test.mjs	web-only	
+NA-deleted	lib/json-response.ts	web-only	
+THREEWAY	lib/message-display.test.mjs	-	pi-web/src/lib/message-display.test.mjs
+THREEWAY	lib/message-display.ts	-	pi-web/src/lib/message-display.ts
+WHOLESALE	lib/message-keys.test.mjs	-	pi-web/src/lib/message-keys.test.mjs
+WHOLESALE	lib/message-keys.ts	-	pi-web/src/lib/message-keys.ts
+THREEWAY	lib/model-discovery.test.mjs	-	pi-web/src/lib/model-discovery.test.mjs
+WHOLESALE	lib/model-discovery.ts	-	pi-web/src/lib/model-discovery.ts
+FORK-ABSENT	lib/open-in-file-manager.test.mjs	?	pi-web/src/lib/open-in-file-manager.test.mjs
+FORK-ABSENT	lib/open-in-file-manager.ts	?	pi-web/src/lib/open-in-file-manager.ts
+THREEWAY	lib/path-security.ts	-	pi-web/src/lib/path-security.ts
+WHOLESALE	lib/pi-types.ts	-	pi-web/src/lib/pi-types.ts
+NEW	lib/plantuml.test.mjs	new	pi-web/src/lib/plantuml.test.mjs
+NEW	lib/plantuml.ts	new	pi-web/src/lib/plantuml.ts
+WHOLESALE	lib/plugin-updates.test.mjs	-	pi-web/src/lib/plugin-updates.test.mjs
+THREEWAY	lib/plugin-updates.ts	-	pi-web/src/lib/plugin-updates.ts
+WHOLESALE	lib/project-tree.test.mjs	-	pi-web/src/lib/project-tree.test.mjs
+WHOLESALE	lib/project-tree.ts	-	pi-web/src/lib/project-tree.ts
+NEW	lib/rpc-manager-branch-model.integration.test.mjs	new	pi-web/src/lib/rpc-manager-branch-model.integration.test.mjs
+NEW	lib/rpc-manager-extension-timeout.test.mjs	new	pi-web/src/lib/rpc-manager-extension-timeout.test.mjs
+WHOLESALE	lib/rpc-manager-session-start-dialog.test.mjs	-	pi-web/src/lib/rpc-manager-session-start-dialog.test.mjs
+NEW	lib/rpc-manager-user-message-entry.integration.test.mjs	new	pi-web/src/lib/rpc-manager-user-message-entry.integration.test.mjs
+THREEWAY	lib/rpc-manager.ts	-	pi-web/src/lib/rpc-manager.ts
+WHOLESALE	lib/session-delete.ts	-	pi-web/src/lib/session-delete.ts
+WHOLESALE	lib/session-fork.test.mjs	-	pi-web/src/lib/session-fork.test.mjs
+WHOLESALE	lib/session-fork.ts	-	pi-web/src/lib/session-fork.ts
+WHOLESALE	lib/session-list-scanner.test.mjs	-	pi-web/src/lib/session-list-scanner.test.mjs
+WHOLESALE	lib/session-list-scanner.ts	-	pi-web/src/lib/session-list-scanner.ts
+WHOLESALE	lib/session-search.test.mjs	-	pi-web/src/lib/session-search.test.mjs
+WHOLESALE	lib/session-search.ts	-	pi-web/src/lib/session-search.ts
+WHOLESALE	lib/session-stats-format.test.mjs	-	pi-web/src/lib/session-stats-format.test.mjs
+WHOLESALE	lib/session-stats-format.ts	-	pi-web/src/lib/session-stats-format.ts
+WHOLESALE	lib/session-stats.ts	-	pi-web/src/lib/session-stats.ts
+NEW	lib/subagent-model.test.mjs	new	pi-web/src/lib/subagent-model.test.mjs
+WHOLESALE	lib/subagent-parent-completion.integration.test.mjs	-	pi-web/src/lib/subagent-parent-completion.integration.test.mjs
+WHOLESALE	lib/subagent-runtime.integration.test.mjs	-	pi-web/src/lib/subagent-runtime.integration.test.mjs
+WHOLESALE	lib/subagent-runtime.test.mjs	-	pi-web/src/lib/subagent-runtime.test.mjs
+WHOLESALE	lib/subagent-runtime.ts	-	pi-web/src/lib/subagent-runtime.ts
+WHOLESALE	lib/terminal-input.test.mjs	-	pi-web/src/lib/terminal-input.test.mjs
+WHOLESALE	lib/terminal-input.ts	-	pi-web/src/lib/terminal-input.ts
+WHOLESALE	lib/worktree.test.mjs	-	pi-web/src/lib/worktree.test.mjs
+THREEWAY	lib/worktree.ts	-	pi-web/src/lib/worktree.ts
+NA-other	package-lock.json	web-only	
+NA-other	package.json	web-only	

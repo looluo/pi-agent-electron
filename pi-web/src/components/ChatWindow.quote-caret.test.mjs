@@ -6,8 +6,9 @@ import test from "node:test";
 // typed after it. `window.getSelection().removeAllRanges()` clears the
 // focused textarea's selection too and drops the caret to offset 0 (#1319).
 test("quoting a selection into the current chat keeps the caret at the quote's end", async () => {
-  // Fork: no demo/ copy ships here; guard the one component we build.
-  for (const path of ["../components/ChatWindow.tsx"]) {
+  // Fork: the callback lives in QuoteSelectionPopover (upstream moved it out
+  // of ChatWindow); no demo/ copy ships here.
+  for (const path of ["../components/QuoteSelectionPopover.tsx"]) {
     let source;
     try {
       source = await readFile(new URL(path, import.meta.url), "utf8");

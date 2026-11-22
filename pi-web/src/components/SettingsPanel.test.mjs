@@ -19,3 +19,13 @@ test("the cache-miss switch reads and writes over the typed IPC, never a bare /a
   assert.match(source, /window\.pi\.cacheMissNoticesGet\(\)/);
   assert.match(source, /window\.pi\.cacheMissNoticesPut\(enabled\)/);
 });
+
+test("signing out removes the stored drafts once the server signed out", async () => {
+  // The fork carries the web-auth sign-out block inert (webAuthEnabled stays
+  // false under file://); the draft clearing rides it either way.
+  const panelSource = await readFile(new URL("./SettingsPanel.tsx", import.meta.url), "utf8");
+  assert.match(
+    panelSource,
+    /if \(!response\.ok\) throw new Error\([^\n]*\);\n(?:\s*\/\/[^\n]*\n)*\s*clearStoredDrafts\(\);\n\s*window\.location\.replace\("\/login"\);/,
+  );
+});

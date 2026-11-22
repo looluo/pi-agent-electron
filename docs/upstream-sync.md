@@ -134,6 +134,54 @@ asserts computed styles, so only eyes on the UI caught it. Fixed by stripping th
 `release-v2/win-unpacked` (running v0.9.0 instances lock `release/win-unpacked`) and
 `release/Pi-Agent-App-0.9.0-portable.zip` replaced (145MB).
 
+## v0.17.0 → v0.18.0 (`174bff96..2daa0d13`) — synced 2026-11
+
+34 non-merge commits; census: `.scratch/upstream-sync-v0.18.0/commit-census.md`.
+**SDK 1.5.2 → 1.6.0** (all eight `@earendil-works/*` exact-pinned; pi-packages
+guard green). Executed as a file-level three-way merge (base 174bff96): 43
+wholesale, 29 three-way (13 files, 18 conflict hunks by hand), 15 new, 2
+fork-absent (deliberate); 5 app/api re-homes onto electron services.
+
+| Theme | Status | Notes |
+|---|---|---|
+| pi-web-bun squash (51fd0e76): IME key field, atomic child rewrite, resume turn limiter, sidebar startup perf, `isPathWithinRoot` helper | ported | UNC guard re-homed into the new helper as `return false` (file-authorization check HOLDS at 3000 and 20000 cases); WSL explorer half n/a (electron open-in-explorer service runs native win32/darwin) |
+| New session on a mid-run prompt (af37255a/#1746): `user_message_entry`, `forkEntryId` | ported | **fork/fork_branch now allow a running source** — the fork's stale refusals (upstream dropped them at #1023) deleted; `keepSource` + `UNSAVED_SESSION_FORK_ERROR` taken; rpc-manager.test's mid-run expectation swapped to clone |
+| terminal cluster: deleted-folder refusal (8a6bc878), startup queries (b5e24407/#1736), replayed-history replies (a897a548/#1725), touch autofocus (631e8379/#1703), paste markers (15a05b48/#1719) | ported | `pi:terminal:create` answers `cwdMissingBody` 400 for a gone folder (was 403); TerminalPanel's EventSource history logic re-expressed for the IPC subscription (`awaitingHistory` in `connect()`, `drawingHistory` in `applyEvent`, replay = first output) |
+| files: stream backpressure (a834df33/#1748), git env scrub (c89e39ab/#1732), plugin-update env scrub (cfac6bc2/#1693) | ported | pifile:// `createFileBodyStream` pauses on `desiredSize` ≤ 0, resumes on `pull()`; electron workspace `ls-files` runs under `projectGitEnvironment()`; plugin-updates keeps `runNpm` but rides `updateCheckEnvironment` |
+| drafts survive reload (9e49f585/#1740), fork into another folder (029e5896/#1699) | ported | `pi:sessions:fork` options gain `cwd`; SessionSidebar clears a family's drafts on delete, gated on the IPC 200 |
+| usage in batches (5921408b/#1728), search cache (0001640d/#1692), plantuml on click (a06dfde3/#1741), tree glyphs (f97292ee/#1707), escapes/emoji/streaming/stats/models fixes | ported | fetchAgentUsage re-homed onto pi:sessions:stats IPC batching; plantuml zlib vectors adapted to round-trip (node 26's zlib 1.2.12); noto stays out of `--font-mono-default` (guard 0) |
+| subagents: steer keeps report (36812c2f), report into parent's run (d40a8dd3), resumed rename (84b5884c), slash in model id (4fc8fde4), live model on branch (77b69f1f/#1734) | ported | `recordModelOnBranch` on `preflightResult("started")`; fork's `disposeMcpHost` kept alongside |
+| web-auth throttle (3af17b7a), Next 16.4.6 + json-response (c7be0e0a), webpack export import (1017a50c), docs/demo/e2e/AGENTS.md | n/a | form factor / upstream-internal |
+| Release v0.18.0 (2daa0d13) | n/a | local version aligned 0.18.0 |
+
+Verification: typecheck clean (renderer + electron); `npm test` 3060 =
+**3053 pass / 0 fail** / 7 skip (same environmental skips as baseline);
+`npm run test:e2e` **13/13**; file-authorization check HOLDS (seeds 20261115,
+777×20k); app-drive journeys on the built app: shell, session-history,
+prompt-reply (live LLM on SDK 1.6.0) **PASS**; the terminal and
+bash-full-output journeys are red identically on pre-sync HEAD (journey
+defects, ticketed at `.scratch/upstream-sync-v0.18.0/issues/01`; their paths
+pass in the spec suite on the same build). Post-sync cross-model review
+(1 P1 / 3 P2 / 1 P3, all confirmed): the fork-into-cwd flow had kept
+upstream's `/api/sessions/[id]/fork` fetch and was dead under file:// —
+re-homed onto `window.pi.sessionsFork(sid, { cwd })` with a transport-guard
+test (`useAgentSession.test.mjs`, no bare `/api` fetch in `forkIntoCwd`);
+draft clearing gated on the IPC's real `{ ok: true }` (sidebar) and
+`deleteSideChat` no longer treats the guard's `{ error }` as success; the
+electron single-delete's hand-ported re-parent body (plain `writeFileSync`)
+replaced by delegation to `deleteSessions([id])`, upstream's own route shape
+(atomic child rewrites, surviving-parent walk); the P3 (cross-directory fork
+copies keep a dangling `parentSession` when the source is deleted) is
+upstream-identical dir-scoped scanning — ticketed as issue 02, not diverged.
+`npm run package:mac` + packaged probe **13/13** (incl. terminal IPC round
+trip in the packaged app). Local version aligned 0.18.0. One more in-the-wild
+bug from this tree: the Plugins panel's per-package switch had been 400'ing
+with "packages must be a list of {source, scope}" since the v0.9.3 bulk port —
+the service gated the bulk form on the action instead of on `packages` being
+present (upstream's gate), leaving the single-package enable/disable branches
+unreachable; regated to upstream's shape, service tests added
+(`plugins-route.test.mjs`).
+
 ## v0.15.0 → v0.17.0 (`9416a058..174bff96`) — synced 2026-11
 
 106 non-merge commits; census: `.scratch/upstream-sync-v0.17.0/commit-census.md`.
