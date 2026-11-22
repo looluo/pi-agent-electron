@@ -13,6 +13,7 @@
  *   session-history   open a fixture session from the sidebar; context renders
  *   bash-full-output  truncated bash log loads over IPC from the UI button
  *   terminal          workspace PTY round-trips over typed IPC
+ *   plugins           Settings › Plugins disables and re-enables a package
  *   prompt-reply      live LLM round trip through the same facade the UI uses
  *
  * Exit codes: 0 pass, 1 fail, 2 usage error, 3 skipped (precondition unmet).
@@ -189,7 +190,7 @@ async function doctor() {
 
 async function journeyShell(runDir) {
   const agentDir = await stageAgentHome(runDir);
-  const { app, page } = await launchApp(runDir);
+  const { app, page } = await launchApp(runDir, { PI_CODING_AGENT_DIR: agentDir });
   currentApp = app;
 
   const title = await page.title();
@@ -291,16 +292,19 @@ async function journeyBashFullOutput(runDir) {
   await row.click();
   step("opened session", "fixture session selected");
 
+  // Upstream's footer redesign draws the view-full button inside the bash
+  // card, under the result — the card must be expanded first (the e2e spec
+  // was reordered the same way; bash-output.spec.ts).
+  const bashHeader = page.getByRole("button", { name: /bash echo fixture-long-output/ });
+  await visible(bashHeader, 10_000, "bash tool-call block");
+  await bashHeader.click();
+  step("expanded the bash block", "collapsed tool-call pane opened");
+
   // Localized label: the app runs zh-CN by default; keep the en fallback.
   const viewFull = page.getByRole("button", { name: /查看完整输出|View full output/i });
   await visible(viewFull, 20_000, "view-full-output button");
   await viewFull.click();
   step("clicked view full output", "requested the full bash log over IPC (pi:agent:bash-output)");
-
-  const bashHeader = page.getByRole("button", { name: /bash echo fixture-long-output/ });
-  await visible(bashHeader, 10_000, "bash tool-call block");
-  await bashHeader.click();
-  step("expanded the bash block", "collapsed tool-call pane opened");
 
   await visible(page.getByText(new RegExp(marker)).first(), 10_000, "full log content");
   const failedFetch = await page.getByText(/Failed to fetch/).count();
@@ -320,6 +324,14 @@ async function journeyTerminal(runDir) {
   const result = await page.evaluate(async (workdir) => {
     const collected = [];
     const marker = `verify-${Date.now()}`;
+    // A terminal belongs to an authorized folder. The real UI only ever opens
+    // one for a cwd that is already an allowed file root (session cwd, or a
+    // folder adopted through the picker); the journey mirrors the picker's
+    // cwdValidate, which grants the root.
+    const validated = await window.pi.cwdValidate(workdir);
+    if (validated.status !== 200) {
+      return { ok: false, stage: "authorize", validated };
+    }
     const created = await window.pi.terminalCreate(workdir, 80, 24, "verify-terminal-1");
     if (created.status !== 200 || created.body.id !== "verify-terminal-1") {
       return { ok: false, stage: "create", created };
@@ -336,6 +348,21 @@ async function journeyTerminal(runDir) {
       sub.stop();
       return { ok: false, stage: "clone-leak", handshake };
     }
+    // Wait for the shell's first output (its prompt; the replay may already
+    // hold it) before typing: a fresh shell's line editor flushes pending
+    // input when it starts, so a write that lands before the prompt is eaten
+    // and the command never runs.
+    const replayText = String(handshake.body?.replay?.data ?? "");
+    let shellReady = replayText.length > 0;
+    const readyDeadline = Date.now() + 10_000;
+    while (!shellReady && Date.now() < readyDeadline) {
+      if (collected.join("").length > 0) shellReady = true;
+      else await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    if (!shellReady) {
+      sub.stop();
+      return { ok: false, stage: "prompt", transcript: collected.join("") };
+    }
     await window.pi.terminalWrite("verify-terminal-1", `echo ${marker}\r`);
     const deadline = Date.now() + 15_000;
     let sawMarker = false;
@@ -344,8 +371,9 @@ async function journeyTerminal(runDir) {
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
     sub.stop();
+    // pi:terminal:kill resolves a plain boolean, not an HTTP-shaped body.
     const killed = await window.pi.terminalKill("verify-terminal-1");
-    return { ok: sawMarker && killed.status === 200, stage: "echo", transcript: collected.join("") };
+    return { ok: sawMarker && killed === true, stage: "echo", replayBytes: replayText.length, transcript: collected.join("") };
   }, workspace);
 
   mkdirSync(evidenceDir, { recursive: true });
@@ -354,8 +382,87 @@ async function journeyTerminal(runDir) {
   record.evidence.terminalTranscript = transcriptPath;
 
   if (!result?.ok) throw new VerifyError(`terminal round trip failed at stage ${result?.stage}: ${JSON.stringify(result).slice(0, 400)}`);
-  step("PTY round trip", "create → subscribe (replay resolved, no clone leak) → echo marker read from output frames → kill");
+  step("PTY round trip", `authorize → create → subscribe (replay ${result.replayBytes}B, no clone leak) → prompt seen → echo marker read from output frames → kill resolved true`);
   await shot(page, "terminal");
+}
+
+async function journeyPlugins(runDir) {
+  // One staged package configured in the staged home's settings.json — the
+  // exact shape the Plugins panel renders. Guards the per-package switch's
+  // single-package request form (the bug class where the bulk form's gate
+  // swallowed it: "packages must be a list of {source, scope}").
+  const pkgName = "verify-plugin-pkg";
+  const pkgDir = join(runDir, pkgName);
+  mkdirSync(join(pkgDir, "extensions"), { recursive: true });
+  writeFileSync(join(pkgDir, "package.json"), JSON.stringify({ name: pkgName, version: "0.0.1" }));
+  writeFileSync(join(pkgDir, "extensions", "index.ts"), "export default () => {};\n");
+  const agentDir = await stageAgentHome(runDir);
+  writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ packages: [pkgDir] }));
+
+  // The Plugins section needs an open project: seed one session in the same
+  // staged home (cwd = the journey workspace) and open it, as a user with a
+  // project would have.
+  const workspace = join(runDir, "workspace");
+  mkdirSync(workspace, { recursive: true });
+  const { SessionManager } = await import("@earendil-works/pi-coding-agent");
+  const sessionDir = dirname(SessionManager.create(workspace, join(agentDir, "sessions", "fixture")).getSessionFile());
+  mkdirSync(sessionDir, { recursive: true });
+  const first = "plugins fixture e2e";
+  writeFileSync(
+    join(sessionDir, "2026-09-08T00-00-00-000Z_01e2e000-0000-7000-8000-00000000f2b7.jsonl"),
+    [
+      JSON.stringify({ type: "session", version: 3, id: "01e2e000-0000-7000-8000-00000000f2b7", timestamp: "2026-09-08T00:00:00.000Z", cwd: workspace }),
+      JSON.stringify({ type: "message", id: "verify-pu1", parentId: null, timestamp: "2026-09-08T00:00:01.000Z", message: { role: "user", content: [{ type: "text", text: first }] } }),
+    ].join("\n") + "\n",
+  );
+  const { app, page } = await launchApp(runDir, { PI_CODING_AGENT_DIR: agentDir });
+  currentApp = app;
+
+  const sessionRow = page.getByText(first).first();
+  await visible(sessionRow, 20_000, "fixture session row in sidebar");
+  await sessionRow.click();
+  step("opened the project session", "Plugins needs an open project; selected the fixture session");
+
+  const settings = page.getByRole("button", { name: /^设置$|^Settings$/ });
+  await visible(settings, 10_000, "Settings button in the sidebar footer");
+  await settings.click();
+  step("opened Settings", "sidebar Settings button");
+
+  const tab = page.getByRole("button", { name: /^插件$|^Plugins$/ });
+  await visible(tab, 10_000, "Plugins section tab");
+  await tab.click();
+  step("opened the Plugins panel", "Settings › Plugins");
+
+  const row = page.getByText(pkgName).first();
+  await visible(row, 20_000, "staged package row");
+  await row.click();
+  step("selected the staged package", `${pkgName} detail opened`);
+
+  // The switch's accessible name is its action; it flips when the state does.
+  const disableSwitch = page.getByRole("switch", { name: /^禁用包$|^Disable package$/ });
+  await visible(disableSwitch, 10_000, "disable switch");
+  await disableSwitch.click();
+  const enableSwitch = page.getByRole("switch", { name: /^启用包$|^Enable package$/ });
+  await visible(enableSwitch, 10_000, "state flipped to disabled");
+  const disabledState = await page.evaluate(async ([source, cwd]) => {
+    const res = await window.pi.pluginsList(cwd);
+    const pkg = (res.body?.packages ?? []).find((entry) => entry.source === source);
+    return pkg ? pkg.disabled : null;
+  }, [pkgDir, workspace]);
+  if (disabledState !== true) throw new VerifyError(`pluginsList reports disabled=${JSON.stringify(disabledState)} after the switch`);
+  step("package disabled", "single-package disable rode pi:plugins:action; facade confirms disabled");
+
+  await enableSwitch.click();
+  await visible(disableSwitch, 10_000, "state flipped back to enabled");
+  const enabledState = await page.evaluate(async ([source, cwd]) => {
+    const res = await window.pi.pluginsList(cwd);
+    const pkg = (res.body?.packages ?? []).find((entry) => entry.source === source);
+    return pkg ? pkg.disabled : null;
+  }, [pkgDir, workspace]);
+  if (enabledState === true || enabledState === null) throw new VerifyError(`pluginsList reports disabled=${JSON.stringify(enabledState)} after re-enable`);
+  step("package re-enabled", "switch round trip complete");
+
+  await shot(page, "plugins-panel");
 }
 
 async function journeyPromptReply(runDir) {
@@ -422,6 +529,7 @@ const JOURNEYS = {
   "session-history": journeySessionHistory,
   "bash-full-output": journeyBashFullOutput,
   terminal: journeyTerminal,
+  plugins: journeyPlugins,
   "prompt-reply": journeyPromptReply,
 };
 

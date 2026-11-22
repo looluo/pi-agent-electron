@@ -23,5 +23,6 @@ Preconditions:
 
 ## Gotchas
 
-- An empty list from `sessionsList` is correct here — the staged agent home has no sessions.
+- An empty list from `sessionsList` is correct here — the journey launches with `PI_CODING_AGENT_DIR` pointed at the staged home, which has no sessions (the app's real home is never read).
+- The native window title is "Pi Agent App"; once React mounts, the document title becomes "Pi Web" / "<project> - Pi Web" — still contains "Pi", which is what the journey asserts.
 - If the bridge check fails, the preload bundle is broken (sandbox/ContextBridge), not the shell.

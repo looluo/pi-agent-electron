@@ -30,3 +30,9 @@ This directory is the maintained source for verifying the user-facing behavior o
 - [Prompt → reply](./prompt-reply.md) — live LLM round trip through the facade the UI uses.
 - [Terminal](./terminal.md) — workspace PTY over typed IPC.
 - [Bash full output](./bash-full-output.md) — truncated tool-call log loads over IPC from the UI button.
+- [Plugins](./plugins.md) — Settings › Plugins switches a package off and on through the real UI.
+
+## Not yet mapped (candidates for the next generation pass)
+
+- Fork a session whose folder is gone into another folder (`MissingCwdBanner` → `forkIntoCwd`, pi-web/src/hooks/useAgentSession.ts; transport unit-guarded in `useAgentSession.test.mjs`, no live UI drive yet).
+- Unsent drafts surviving a reload (`draft-store` write-through, pi-web/src/lib/draft-store.ts; covered by unit tests only).

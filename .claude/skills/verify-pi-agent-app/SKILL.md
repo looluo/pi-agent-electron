@@ -37,7 +37,7 @@ Read-only. Checks: `out/main/main.mjs` exists, `electron` + `@playwright/test` i
 node .claude/skills/verify-pi-agent-app/scripts/drive.mjs <journey> [--keep] [--evidence-dir <dir>]
 ```
 
-Journeys map 1:1 to the [feature map](./features/README.md): `shell`, `session-history`, `bash-full-output`, `terminal`, `prompt-reply`. Each exercises the real user path (sidebar clicks, localized buttons, the typed IPC bridge) — no test-only endpoints.
+Journeys map 1:1 to the [feature map](./features/README.md): `shell`, `session-history`, `bash-full-output`, `terminal`, `plugins`, `prompt-reply`. Each exercises the real user path (sidebar clicks, localized buttons, the typed IPC bridge) — no test-only endpoints.
 
 Driving conventions:
 

@@ -1,10 +1,10 @@
 # Session history
 
-The sidebar lists saved sessions by their first user message; opening one loads the full context (user and assistant messages) into the chat pane from the session `.jsonl` on disk.
+The sidebar lists saved sessions, titled by a stored name when one exists and otherwise by the first user message; opening one loads the newest slice of the context (default: the last 50 entries) into the chat pane from the session `.jsonl` on disk, with earlier turns paging in on demand.
 
 ## Sub-features
 
-- `history-list` — the sidebar shows the fixture session titled by its first user message.
+- `history-list` — the sidebar shows the fixture session (unnamed, so titled by its first user message).
 - `history-open` — clicking the row renders the saved assistant reply in the chat pane.
 - `history-facade` — `window.pi.sessionsList()` reports the session.
 
@@ -24,6 +24,7 @@ Preconditions:
 
 ## Gotchas
 
-- Session rows are clickable divs, not buttons — match the row by its first-message text, not a role.
+- Session rows are clickable divs; a persisted session's title is a real anchor inside that div (plain click opens, middle/Cmd-click deep-links). Match the row by its first-message text, not a role.
+- A named session (renamed or auto-named) shows the stored name, not the first message; the first paint can also show a brief "…" pending row while summary details hydrate.
 - The first paint can take up to ~20 s on a cold start; the driver waits, don't race it.
 - Deferred content inside history (thinking blocks) loads only on expand — see the [thinking spec](../../../../tests/e2e/thinking.spec.ts) for that path.
