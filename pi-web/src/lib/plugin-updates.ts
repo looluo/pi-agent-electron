@@ -10,8 +10,10 @@ import {
 import { gt, maxSatisfying, rcompare, valid, validRange } from "semver";
 import type { PluginScope, PluginUpdateResult } from "@/lib/api-types";
 import { runNpm } from "./npx";
+import { isPiOffline } from "./pi-offline";
 import { sanitizeProjectCommandEnvironment } from "./project-command-env";
 import { getProjectTrustStatus } from "./project-trust";
+import { errorMessage } from "./errors";
 
 const execFileAsync = promisify(execFile);
 
@@ -39,7 +41,8 @@ export type ParsedNpmSource = {
   version?: string;
 };
 
-function toPluginScope(scope: ConfiguredPackage["scope"]): PluginScope {
+/** `project` stays `project`; anything else is a global package. */
+export function toPluginScope(scope: unknown): PluginScope {
   return scope === "project" ? "project" : "global";
 }
 
@@ -205,10 +208,6 @@ async function checkGitPackage(
   return result(pkg, local === remote ? "up-to-date" : "update-available");
 }
 
-function isOffline(): boolean {
-  return /^(1|true|yes)$/i.test(process.env.PI_OFFLINE ?? "");
-}
-
 export async function checkPluginUpdates(
   cwd: string,
   filter?: { source?: string; scope?: PluginScope },
@@ -236,15 +235,15 @@ export async function checkPluginUpdates(
     if (!isPluginSourceCheckable(pkg.source)) {
       return result(pkg, "unsupported", "Pinned or local packages cannot be checked automatically.");
     }
-    if (isOffline()) {
-      return result(pkg, "error", "Update checks are disabled while PI_OFFLINE=1.");
+    if (isPiOffline()) {
+      return result(pkg, "error", "Update checks are disabled while PI_OFFLINE is set.");
     }
     try {
       return parseNpmSource(pkg.source)
         ? await checkNpmPackage(pkg, cwd, npmCommand, runner)
         : await checkGitPackage(pkg, runner);
     } catch (error) {
-      return result(pkg, "error", error instanceof Error ? error.message : String(error));
+      return result(pkg, "error", errorMessage(error));
     }
   }));
 }

@@ -3,6 +3,23 @@ import { chmodSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSyn
 import { basename, dirname, join } from "path";
 
 /**
+ * Renames over the target, waiting out Windows antivirus and indexers, which
+ * briefly hold a just-written file, and readers that hold the target open.
+ */
+function renameReplacing(from: string, to: string): void {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      renameSync(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (attempt >= 5 || (code !== "EPERM" && code !== "EBUSY" && code !== "EACCES")) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25 * 2 ** attempt);
+    }
+  }
+}
+
+/**
  * Replace a file atomically: the bytes land in a sibling temp file that is then
  * renamed onto the destination, so a process killed mid-write leaves the old
  * file whole. The caller must create the parent directory first.
@@ -13,15 +30,17 @@ function writeFileAtomicSync(path: string, contents: string, mode: number, exact
   let operationFailed = false;
 
   try {
+    // `wx`: nothing already at the temporary path is written through. An exact mode is set
+    // by chmod after the bytes are written at 0600, so text that may hold secrets is never
+    // readable by others meanwhile; otherwise `mode` passes through the umask.
     writeFileSync(tempPath, contents, {
       encoding: "utf8",
       flag: "wx",
-      mode,
+      mode: exactMode ? 0o600 : mode,
       flush: true,
     });
-    // The umask masked `mode`; a replaced file gets its exact bits back before it takes the name.
     if (exactMode) chmodSync(tempPath, mode);
-    renameSync(tempPath, path);
+    renameReplacing(tempPath, path);
   } catch (error) {
     operationFailed = true;
     throw error;
@@ -55,4 +74,12 @@ export function writeSessionFileAtomicSync(path: string, contents: string): void
   const existingMode = statSync(target, { throwIfNoEntry: false })?.mode;
   if (existingMode === undefined) writeFileAtomicSync(target, contents, 0o644);
   else writeFileAtomicSync(target, contents, existingMode & 0o777, true);
+}
+
+/**
+ * Replace a file atomically and give it exactly `mode`, whatever the umask.
+ * The caller must create the parent directory first.
+ */
+export function writeFileExactModeAtomicSync(path: string, contents: string, mode: number): void {
+  writeFileAtomicSync(path, contents, mode, true);
 }

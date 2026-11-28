@@ -49,7 +49,9 @@ export function agentStatusUrl(sessionId: string): string {
 export async function sendAgentCommand<T = unknown>(
   sessionId: string,
   command: Record<string, unknown>,
+  options?: { signal?: AbortSignal },
 ): Promise<T> {
+  void options;
   const result = await window.pi.agentCommand(sessionId, command);
   if (!result.ok) {
     throw new AgentCommandError(

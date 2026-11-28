@@ -7,7 +7,6 @@ import { toSummaryTree } from "@/lib/project-tree";
 import { getRpcSession, getRpcSessionInfos, startRpcSession } from "@/lib/rpc-manager";
 import {
   buildSessionContext,
-  getSessionEntries,
   getSessionListVersion,
   invalidateSessionListCache,
   listAllSessions,
@@ -18,6 +17,8 @@ import {
   openSessionManager,
   resolveSessionPath,
 } from "@/lib/session-reader";
+import { readSessionEntryById } from "@/lib/session-entry-read";
+import { attachTranscriptNotices, readSessionTranscriptNotices } from "@/lib/transcript-notices-server";
 import { deleteSessions, MAX_SESSION_DELETE_IDS } from "@/lib/session-delete";
 import { SESSION_ID_PATTERN } from "@/lib/session-ui-state-shared";
 import { MAX_TOOL_RESULT_IMAGE_BYTES, TOOL_RESULT_IMAGE_MIMES } from "@/lib/tool-result-images";
@@ -110,22 +111,30 @@ export async function sessionsGet(
   // disk fingerprint and the actual read source; null tells the client the
   // snapshot is unstable and must not be cached as fresh.
   const latestEntry = entries[entries.length - 1] as { id?: string } | undefined;
-  const snapshotRevision = computeSessionRevision({
-    filePath,
-    sourceId: liveRpc ? `runtime:${String(liveRpc.inner.sessionId)}` : "disk",
-    entryCount: entries.length,
-    latestEntryId: typeof latestEntry?.id === "string" ? latestEntry.id : null,
-    leafId: leafId ?? null,
-  });
   const summaryTree = options.tree === "summary";
   const tree = summaryTree ? toSummaryTree(projectTreeForResponse(sm.getTree())) : projectTreeForResponse(sm.getTree());
   const rawTail = Number(options.tail);
   const tail = Number.isFinite(rawTail) && rawTail > 0 ? Math.min(rawTail, 1000) : 50;
-  const context = buildSessionContext(entries as never, leafId, {
+  // pi's notices.* (#1265): cache, cost and provider notices on the messages they follow.
+  const transcriptNotices = readSessionTranscriptNotices({
+    entries: entries as unknown as SessionEntry[],
+    cwd: sm.getHeader()?.cwd ?? "",
+    leafId,
+    models: liveRpc?.inner.modelRuntime,
+  });
+  const context = attachTranscriptNotices(buildSessionContext(entries as never, leafId, {
     deferThinking: options.deferThinking,
     deferToolResultImages: options.deferMedia,
     tail,
     sessionId: id, // local: lazy URLs for historical tool-result images
+  }), transcriptNotices);
+  const snapshotRevision = computeSessionRevision({
+    filePath,
+    // The notices switch changes the messages without touching the file.
+    sourceId: `${liveRpc ? `runtime:${String(liveRpc.inner.sessionId)}` : "disk"}${transcriptNotices ? "+notices" : ""}`,
+    entryCount: entries.length,
+    latestEntryId: typeof latestEntry?.id === "string" ? latestEntry.id : null,
+    leafId: leafId ?? null,
   });
   const ownEntries = sideOwnEntries(entries) as typeof entries;
   const totalActiveMs = computeSessionTotalActiveMs(ownEntries);
@@ -211,17 +220,24 @@ export async function sessionsContext(
   const before = options.before ?? undefined;
 
   const sm = liveRpc?.inner.sessionManager ?? openSessionManager(filePath!);
+  const entries = sm.getEntries();
   // Without a leaf, pi's own, as the full read walks from: the reply names it.
   const branchLeafId = options.leafId ?? sm.getLeafId();
+  const transcriptNotices = readSessionTranscriptNotices({
+    entries: entries as unknown as SessionEntry[],
+    cwd: sm.getHeader()?.cwd ?? "",
+    leafId: branchLeafId,
+    models: liveRpc?.inner.modelRuntime,
+  });
   // `before` is the oldest entry already on the client; fetch its ancestors
   // only (excludeLeaf) so prepending the page does not duplicate `before`.
-  const context = buildSessionContext(sm.getEntries() as never, before ?? branchLeafId, {
+  const context = attachTranscriptNotices(buildSessionContext(entries as never, before ?? branchLeafId, {
     deferThinking: options.deferThinking,
     deferToolResultImages: options.deferMedia,
     tail,
     excludeLeaf: Boolean(before),
     sessionId: id,
-  });
+  }), transcriptNotices);
   return { context, tail, before: before ?? null, leafId: branchLeafId };
 }
 
@@ -305,10 +321,10 @@ export async function sessionsThinking(id: string, entryId: string, blockIndex: 
   if (!Number.isSafeInteger(blockIndex) || blockIndex < 0) {
     return { badRequest: true as const, error: "Valid blockIndex is required" };
   }
-  const filePath = await resolveSessionPath(id);
-  if (!filePath) return { notFound: true as const };
+  const read = await readSessionEntryById(id, entryId);
+  if (!read) return { notFound: true as const };
 
-  const entry = getSessionEntries(filePath).find((candidate) => candidate.id === entryId);
+  const { entry } = read;
   if (!entry || entry.type !== "message" || entry.message.role !== "assistant") {
     return { notFound: true as const };
   }
@@ -332,10 +348,10 @@ export async function sessionToolResultImage(
     return { error: "Valid blockIndex is required", status: 400 };
   }
 
-  const filePath = await resolveSessionPath(id);
-  if (!filePath) return { error: "Session not found", status: 404 };
+  const read = await readSessionEntryById(id, entryId);
+  if (!read) return { error: "Session not found", status: 404 };
 
-  const entry = getSessionEntries(filePath).find((candidate) => candidate.id === entryId);
+  const { entry } = read;
   if (!entry || entry.type !== "message" || entry.message.role !== "toolResult") {
     return { error: "Tool result not found", status: 404 };
   }

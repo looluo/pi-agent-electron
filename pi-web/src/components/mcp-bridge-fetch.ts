@@ -61,6 +61,10 @@ export const mcpBridgeFetch: BridgeFetchLike = async (input, init) => {
   if (path === "/api/mcp/test" && method === "POST") {
     return invoke("mcpTest", [body]);
   }
+  // PUT /api/tools/settings — codemode preference / mode / inlineBudget
+  if (path === "/api/tools/settings" && method === "PUT") {
+    return invoke("toolsSettingsPut", [body]);
+  }
   // POST /api/mcp/sign-in — start
   if (path === "/api/mcp/sign-in" && method === "POST") {
     return invoke("mcpSignInStart", [body]);

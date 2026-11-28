@@ -34,6 +34,7 @@ import {
   type ModelCatalogEntry,
 } from "@/lib/model-catalog";
 import { getPiWebReleaseUrl, isNewerStableVersion } from "@/lib/app-update";
+import { isPiOffline } from "@/lib/pi-offline";
 import type { AuthEvent, AuthPrompt } from "@earendil-works/pi-ai";
 
 /**
@@ -784,6 +785,12 @@ async function fetchLatestRelease(): Promise<Record<string, unknown>> {
 }
 
 export async function appUpdateStatus(): Promise<StatusBody> {
+  if (process.env.PI_WEB_SKIP_VERSION_CHECK === "1" || isPiOffline()) {
+    return {
+      status: 200,
+      body: { currentVersion: app.getVersion(), latestVersion: "", updateAvailable: false, releaseUrl: null },
+    };
+  }
   const cache = getUpdateCache();
   if (cache.value && cache.expiresAt > Date.now()) return { status: 200, body: cache.value };
   if (!cache.inFlight) {

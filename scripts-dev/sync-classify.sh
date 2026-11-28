@@ -11,6 +11,8 @@ map_fork_path() {
     components/*|hooks/*|lib/*) echo "pi-web/src/$1" ;;
     app/globals.css) echo "pi-web/src/globals.css" ;;
     app/settings.css) echo "pi-web/src/settings.css" ;;
+    app/sidebar.css) echo "pi-web/src/sidebar.css" ;;
+    app/sidebar-menu.css) echo "pi-web/src/sidebar-menu.css" ;;
     public/provider-icons.svg) echo "pi-web/src/public/provider-icons.svg" ;;
     *) echo "" ;;
   esac

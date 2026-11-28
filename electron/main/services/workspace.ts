@@ -30,6 +30,7 @@ import { destroyRpcSessionsForCwd, hasBusyRpcSessionForCwd } from "@/lib/rpc-man
 import { invalidateModelsCache } from "@/lib/models-cache";
 import { getGitStatus, getGitFileDiff } from "@/lib/git-changes";
 import { projectGitEnvironment } from "@/lib/git-environment";
+import { hasParentDirectorySegment } from "@/lib/path-security";
 import { buildEntriesFromFiles, filterFileEntries, type FileIndexEntry } from "@/lib/file-fuzzy";
 
 /**
@@ -280,7 +281,7 @@ export async function gitStatus(cwd: string | null) {
 /** GET /api/git/diff?cwd=&path= */
 /** A deleted file (or its parent) may be absent: authorize the nearest existing entry, never past a dangling link or an access error. */
 function isDiffPathAllowed(filePath: string, allowedRoots: Set<string>): boolean {
-  if (filePath.includes(".." + path.sep) || filePath.startsWith(".." + path.sep)) return false;
+  if (hasParentDirectorySegment(filePath)) return false;
   let candidate = filePath;
   while (isFilePathAllowed(candidate, allowedRoots)) {
     try {
@@ -366,7 +367,9 @@ async function listWithGit(cwd: string): Promise<FileListing | null> {
       ["-C", cwd, "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
       { timeout: 10_000, maxBuffer: 64 * 1024 * 1024, env: projectGitEnvironment() },
     );
-    const all = stdout.split("\0").filter(Boolean);
+    // --cached lists a path once per index stage, so a file in a merge conflict
+    // would show two or three times.
+    const all = [...new Set(stdout.split("\0").filter(Boolean))];
     if (all.length > GIT_HARD_CAP) {
       return { files: all.slice(0, GIT_HARD_CAP), hardTruncated: true };
     }

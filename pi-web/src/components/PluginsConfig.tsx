@@ -47,12 +47,13 @@ import {
   ConfigSwitch,
   ConfigTrustNotice,
 } from "./SettingsUi";
-import { itemsToSwitch, projectTrustReloadKey } from "./settings-ui-helpers";
+import { itemsToSwitch, projectTrustReloadKey, scopeLabel } from "./settings-ui-helpers";
+import type { Translate } from "@/lib/i18n/types";
+import { readJsonOrThrow } from "@/lib/fetch-json";
+import { errorMessage } from "@/lib/errors";
 
 type PluginScope = PluginPackageInfo["scope"];
 type PluginAction = "install" | "remove" | "update" | "disable" | "enable";
-type Translate = ReturnType<typeof useI18n>["t"];
-
 const PLUGIN_SOURCE_EXAMPLES = ["npm:@scope/pi-plugin", "git:https://github.com/user/repo", "/absolute/path/to/plugin"];
 
 function normalizePluginSourceInput(value: string): string {
@@ -87,10 +88,6 @@ export function filteredPackagesKeptOn<T extends Pick<PluginPackageInfo, "disabl
 
 function extensionKey(extension: PluginStandaloneExtensionInfo): string {
   return `extension\0${extension.path}`;
-}
-
-function scopeLabel(scope: PluginScope, t: Translate): string {
-  return scope === "project" ? t("skills.scope.project") : t("skills.scope.global");
 }
 
 /** A package status as shown; English keeps the lower-case API value. */
@@ -628,7 +625,7 @@ export function PluginsConfig({
             : null;
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -684,7 +681,7 @@ export function PluginsConfig({
         return next;
       });
     } catch (err) {
-      setUpdateError(err instanceof Error ? err.message : String(err));
+      setUpdateError(errorMessage(err));
     } finally {
       setCheckingUpdates((current) => {
         const next = new Set(current);
@@ -711,7 +708,7 @@ export function PluginsConfig({
         setActionMessage(`${t("i18n.packagesUpdated")} ${t("agents.reloadRequired")}`);
       }
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err));
+      setActionError(errorMessage(err));
     } finally {
       setUpdatingAll(false);
     }
@@ -758,7 +755,7 @@ export function PluginsConfig({
         }
       }
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err));
+      setActionError(errorMessage(err));
     } finally {
       setBusyKey(null);
     }
@@ -808,7 +805,7 @@ export function PluginsConfig({
         });
       }
     } catch (err) {
-      setGroupStatus({ scope, note, error: err instanceof Error ? err.message : String(err) });
+      setGroupStatus({ scope, note, error: errorMessage(err) });
     } finally {
       setBusyKey(null);
     }
@@ -834,7 +831,7 @@ export function PluginsConfig({
       setInstallSource("");
       setActionMessage(t("i18n.packageInstalled"));
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err));
+      setActionError(errorMessage(err));
     } finally {
       setBusyKey(null);
     }
@@ -852,7 +849,7 @@ export function PluginsConfig({
       await loadPlugins();
       setActionMessage(t("i18n.sessionReloaded"));
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err));
+      setActionError(errorMessage(err));
     } finally {
       setBusyKey(null);
     }

@@ -15,7 +15,7 @@ import { dropAgentEvents, openAgentEvents } from "./services/agent-events";
 import { openFileWatch } from "./services/files";
 import { frameOf, terminalCreate, terminalKill, terminalResize, terminalSubscribe, terminalWrite } from "./services/terminal";
 import type { IpcUploadFile } from "./services/files-upload";
-import { filesUpload, filesUploadCheck } from "./services/files-upload";
+import { filesManage, filesUpload, filesUploadCheck } from "./services/files-upload";
 import {
   cwdBrowse,
   cwdValidate,
@@ -46,6 +46,9 @@ import {
 } from "./services/subagents";
 import { toolsSettingsGet, toolsSettingsPut } from "./services/tools-settings";
 import { cacheMissNoticesGet, cacheMissNoticesPut } from "./services/cache-miss-notices";
+import { noticesGet, noticesPut } from "./services/notices";
+import { queueModesGet, queueModesPut } from "./services/queue-modes";
+import { httpProxyGet, httpProxyPut } from "./services/http-proxy";
 
 /** Route-era error semantics: resolve { error } instead of rejecting. */
 async function guard<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
@@ -120,9 +123,11 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("pi:sessions:thinking", (_e, id: string, entryId: string, blockIndex: number) =>
     guard(() => sessionsThinking(id, entryId, blockIndex)));
 
-  // ---- files: upload (POST route port; GET goes through pifile://) -----------
-  ipcMain.handle("pi:files:upload-check", (_e, directory: string, fileNames: string[]) =>
-    filesUploadCheck(directory, fileNames));
+  // ---- files: upload & manage (POST route port; GET goes through pifile://) ---
+  ipcMain.handle("pi:files:manage", (_e, target: string, type: string, body: unknown) =>
+    filesManage(target, type, body));
+  ipcMain.handle("pi:files:upload-check", (_e, directory: string, paths: string[]) =>
+    filesUploadCheck(directory, paths));
   ipcMain.handle("pi:files:upload", (e, directory: string, files: IpcUploadFile[], conflict: string | null) =>
     filesUpload(directory, files, conflict, (done, total, fileName) => {
       pushEvent(e.sender, "progress", "upload-progress", { done, total, fileName });
@@ -204,7 +209,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("pi:default-cwd", () => defaultCwd());
   ipcMain.handle("pi:home", () => home());
   ipcMain.handle("pi:open-in-explorer:get", () => openInExplorerAvailable());
-  ipcMain.handle("pi:open-in-explorer:post", (_e, cwd: string) => openInExplorer(cwd));
+  ipcMain.handle("pi:open-in-explorer:post", (_e, request: string | { cwd?: string; reveal?: string }) => openInExplorer(request));
   ipcMain.handle("pi:project-trust:get", (_e, cwd: string | null) => projectTrustGet(cwd));
   ipcMain.handle("pi:project-trust:post", (_e, cwd: unknown) => projectTrustPost(cwd));
   ipcMain.handle("pi:worktrees:get", (_e, cwd: string | null) => worktreesGet(cwd));
@@ -226,11 +231,17 @@ export function registerIpcHandlers(): void {
 
   // ---- tools settings -----------------------------------------------------------
   ipcMain.handle("pi:tools:settings:get", () => toolsSettingsGet());
-  ipcMain.handle("pi:tools:settings:put", (_e, changes: unknown) => toolsSettingsPut((changes ?? {}) as { enabled?: unknown; codemode?: unknown; codemodeInlineBudget?: unknown }));
+  ipcMain.handle("pi:tools:settings:put", (_e, changes: unknown) => toolsSettingsPut((changes ?? {}) as { enabled?: unknown; builtinTools?: unknown; codemode?: unknown; codemodeMode?: unknown; codemodeInlineBudget?: unknown }));
 
-  // ---- cache-miss notices (pi's showCacheMissNotices, upstream 653cd7c) ---------
+  // ---- notices, queue modes, HTTP proxy (Settings › General) --------------------
   ipcMain.handle("pi:settings:cache-miss-notices:get", () => cacheMissNoticesGet());
   ipcMain.handle("pi:settings:cache-miss-notices:put", (_e, enabled: unknown) => cacheMissNoticesPut(enabled));
+  ipcMain.handle("pi:settings:notices:get", () => noticesGet());
+  ipcMain.handle("pi:settings:notices:put", (_e, body: unknown) => noticesPut(body));
+  ipcMain.handle("pi:settings:queue-modes:get", () => queueModesGet());
+  ipcMain.handle("pi:settings:queue-modes:put", (_e, body: unknown) => queueModesPut(body));
+  ipcMain.handle("pi:settings:http-proxy:get", () => httpProxyGet());
+  ipcMain.handle("pi:settings:http-proxy:put", (_e, body: unknown) => httpProxyPut(body));
 }
 
 function dropFileWatch(token: string): void {

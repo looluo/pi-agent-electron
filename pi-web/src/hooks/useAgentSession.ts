@@ -938,7 +938,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           oldestEntryId: historyCursorRef.current,
           hasMore: hasEarlierMessagesRef.current,
           turnsBefore: earlierTurnCountRef.current,
-          summaryTree: d.tree,
+          summaryTree: d.treeFormat === "summary" ? d.tree : cached?.summaryTree,
           thinkingLevel: d.context.thinkingLevel,
           model: d.context.model,
           stats: d.stats,
@@ -964,11 +964,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       setCurrentModelOverride((current) => modelSwitchPendingRef.current ? current : null);
       setCurrentThinkingOverride(null);
       setError(null);
-      if (d.treeFormat === "summary" && d.snapshotRevision) {
+      if (!revisionUnchanged && d.treeFormat === "summary" && d.snapshotRevision) {
         setSessionViewSnapshot({
           sessionId: sid,
           revision: d.snapshotRevision,
-          messages: persistedMessages,
+          messages: d.context.messages,
           entryIds: d.context.entryIds ?? [],
           leafId: d.leafId,
           oldestEntryId: d.context.oldestEntryId,
@@ -1064,6 +1064,17 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         // Older page: prepend so scroll position stays anchored.
         setMessages((prev) => [...d.context.messages, ...prev]);
         setEntryIds((prev) => [...d.context.entryIds, ...prev]);
+        // Record the paged-in ids in the cached view so the unmount check
+        // (`snapshotCoversLoadedEntries`) keeps the wider window instead of
+        // dropping the snapshot.
+        const addedEntryIds = d.context.entryIds ?? [];
+        const snapshot = getSessionViewSnapshot(sid);
+        if (snapshot && addedEntryIds.length > 0) {
+          setSessionViewSnapshot({
+            ...snapshot,
+            loadedEntryIds: [...addedEntryIds, ...snapshot.loadedEntryIds],
+          });
+        }
       } else {
         setMessages(d.context.messages);
         setEntryIds(d.context.entryIds ?? []);
@@ -1269,6 +1280,17 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   }, [ensureNewSession, replaceSlashCommands, withSessionStartStream]);
 
   const loadSlashCommands = useCallback(async () => (await requestSlashCommands()) ?? [], [requestSlashCommands]);
+
+  const requestArgumentCompletions = useCallback(async (name: string, prefix: string, signal: AbortSignal) => {
+    const sid = sessionIdRef.current ?? await ensureNewSession();
+    if (!sid || signal.aborted || sid !== sessionIdRef.current) return null;
+    const data = await withSessionStartStream(sid, () => sendAgentCommand<Array<{ value: string; label: string; description?: string }> | null>(sid, {
+      type: "get_argument_completions",
+      name,
+      prefix,
+    }, { signal }));
+    return signal.aborted || sid !== sessionIdRef.current ? null : data;
+  }, [ensureNewSession, withSessionStartStream]);
 
   // The list a bare /mcp is decided by: the request under way, else the list
   // already loaded, else a new request. Null when it cannot be read: guessing
@@ -1871,11 +1893,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         if (state.extensionStatuses !== undefined) setExtensionStatuses(state.extensionStatuses ?? []);
         if (state.extensionWidgets !== undefined) setExtensionWidgets(state.extensionWidgets ?? []);
         // The poll leaves the prompt out: read the one the run ended with once, as agent_end does.
-        fetch(`/api/agent/${encodeURIComponent(sid)}`)
-          .then((r) => r.ok ? r.json() : null)
-          .then((d: { state?: AgentStateResponse } | null) => {
-            if (!d || !sessionHookMountedRef.current || sessionIdRef.current !== sid) return;
-            if (d.state?.systemPrompt !== undefined) setSystemPrompt(d.state.systemPrompt ?? null);
+        window.pi.agentState(sid)
+          .then((d) => {
+            const stateObj = (d as { state?: AgentStateResponse } | null)?.state;
+            if (!stateObj || !sessionHookMountedRef.current || sessionIdRef.current !== sid) return;
+            if (stateObj.systemPrompt !== undefined) setSystemPrompt(stateObj.systemPrompt ?? null);
           })
           .catch(() => {});
       }
@@ -1930,10 +1952,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const idleReadAfterBashRef = useRef<string | null>(null);
   const readIdleMessages = useCallback(async (sid: string) => {
     // `tail` counts user and assistant entries: 1 reads from the newest of them to the leaf.
-    const params = new URLSearchParams({ deferThinking: "1", deferMedia: "1", tail: "1" });
-    const res = await fetch(`/api/sessions/${encodeURIComponent(sid)}/context?${params}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const { context, leafId } = await res.json() as { context: SessionData["context"]; leafId?: string | null };
+    const raw = await window.pi.sessionsContext(sid, { deferThinking: true, deferMedia: true, tail: 1 });
+    const data = (raw ?? {}) as { context?: SessionData["context"]; leafId?: string | null; error?: string; notFound?: boolean };
+    if (data.error || data.notFound || !data.context) throw new Error(data.error ?? "Failed to read session context");
+    const { context, leafId } = data;
     // A run started meanwhile shows its own messages, and its end reads them all.
     if (!idleMessageReadWanted(sid)) return;
     // The window as it is now: a read that landed meanwhile started after the
@@ -2215,7 +2237,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             return [...prev, delivered];
           });
         } else if (completed) {
-          // pi's showCacheMissNotices (#1265): the wrapper sends them beside the message.
+          // pi's notices.* (#1265): the wrapper sends them beside the message.
           const notices = Array.isArray(event.transcriptNotices) ? event.transcriptNotices as TranscriptNotice[] : undefined;
           setMessages((prev) => [...prev, withTranscriptNotices(normalizeToolCalls(completed), notices)]);
           if (completed.role === "toolResult") {
@@ -3462,6 +3484,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           },
           stats: cached.stats as SessionData["stats"],
         });
+        activeLeafIdRef.current = cached.leafId;
+        messagesRef.current = cached.messages;
+        entryIdsRef.current = cached.entryIds;
+        historyCursorRef.current = cached.oldestEntryId;
+        hasEarlierMessagesRef.current = cached.hasMore;
+        earlierTurnCountRef.current = cached.turnsBefore;
         setActiveLeafId(cached.leafId);
         setMessages(cached.messages);
         setEntryIds(cached.entryIds);
@@ -3736,7 +3764,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     cancelEdit: editEntryId ? cancelEdit : undefined,
     addNotice,
     setNoticePaused: setPausedNoticeId,
-    handleToolPresetChange, handleThinkingLevelChange, handleSetDefaultModel, handleSetDefaultThinkingLevel, loadTools, loadSlashCommands, loadAllModels, setActiveLeafId, setData, setMessages, loadContext,
+    handleToolPresetChange, handleThinkingLevelChange, handleSetDefaultModel, handleSetDefaultThinkingLevel, loadTools, loadSlashCommands, requestArgumentCompletions, loadAllModels, setActiveLeafId, setData, setMessages, loadContext,
     scrollToBottom, scrollUserMsgToTop, scrollToMessage,
     dispatch, setAgentRunning, setForkingEntryId,
     bashRunning, pendingBash,

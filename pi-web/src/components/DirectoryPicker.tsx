@@ -3,6 +3,8 @@
 import { type CSSProperties, type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "@/hooks/useI18n";
+import { readJsonOrThrow } from "@/lib/fetch-json";
+import { errorMessage } from "@/lib/errors";
 
 interface DirectoryEntry {
   name: string;
@@ -79,10 +81,8 @@ async function createDirectory(parentPath: string, name: string): Promise<string
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path: parentPath, name }),
   });
-  const data = await response.json() as CreateDirectoryResponse;
-  if (!response.ok || data.error || !data.path) {
-    throw new Error(data.error ?? `HTTP ${response.status}`);
-  }
+  const data = await readJsonOrThrow<CreateDirectoryResponse>(response);
+  if (!data.path) throw new Error(`HTTP ${response.status}`);
   return data.path;
 }
 
@@ -149,7 +149,7 @@ export function DirectoryPicker({ onCancel, onSelect, initialPath, busy = false,
       setDrives(data.drives ?? null);
       return nextPath;
     } catch (cause) {
-      setLoadError(cause instanceof Error ? cause.message : String(cause));
+      setLoadError(errorMessage(cause));
       return null;
     } finally {
       setLoading(false);
@@ -200,7 +200,7 @@ export function DirectoryPicker({ onCancel, onSelect, initialPath, busy = false,
       setDirectoryName("");
       await navigateTo(createdPath);
     } catch (cause) {
-      setCreateError(cause instanceof Error ? cause.message : String(cause));
+      setCreateError(errorMessage(cause));
     } finally {
       setCreating(false);
     }

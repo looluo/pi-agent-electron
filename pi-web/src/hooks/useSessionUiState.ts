@@ -10,6 +10,7 @@ import {
   type SessionUiState,
   type SessionUiStateRequest,
 } from "@/lib/session-ui-state-shared";
+import { errorMessage } from "@/lib/errors";
 
 
 export interface SessionUiStateApi {
@@ -50,10 +51,6 @@ async function responseError(response: Response): Promise<string> {
     // Not JSON: fall back to the status.
   }
   return `HTTP ${response.status}`;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /** The IPC answer carries the same { state } body the route responded with;

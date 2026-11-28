@@ -1,19 +1,26 @@
 import fs from "fs";
-import path from "path";
-import {
-  getAllowedFileRoots,
-  isFilePathAllowed,
-} from "@/lib/file-access";
+import { getAllowedFileRoots } from "@/lib/file-access";
 import {
   inspectUploadTargets,
   parseUploadConflictStrategy,
+  prepareUploadDestination,
   replaceUploadFile,
-  validateUploadFileNames,
+  validateUploadPaths,
 } from "@/lib/file-upload";
+import {
+  createDirectory,
+  deleteEntry,
+  FileManageError,
+  moveEntry,
+  resolveManagedDirectory,
+} from "@/lib/file-manage";
+import { errorMessage } from "@/lib/errors";
 
 /**
- * Port of app/api/files/[...path] (POST). The HTTP multipart body is replaced
- * by an IPC payload of typed byte arrays; size limits are enforced identically.
+ * Port of app/api/files/[...path] (POST): folder/file uploads (including
+ * nested subfolders) and file-tree management (`mkdir`, `move`, `delete`).
+ * The HTTP multipart body is replaced by an IPC payload of typed byte arrays;
+ * size limits and security checks are enforced identically.
  */
 
 // One limit for a request's files together; a single file may use all of it.
@@ -22,56 +29,65 @@ const MAX_UPLOAD_TOTAL_BYTES = 100 * 1024 * 1024;
 async function getUploadDirectory(directory: string): Promise<
   { directory: string } | { error: string; status: number }
 > {
-  const allowedRoots = await getAllowedFileRoots();
-  if (!isFilePathAllowed(directory, allowedRoots)) {
-    return { error: "Access denied", status: 403 };
-  }
-
-  let stat: fs.Stats;
   try {
-    stat = fs.statSync(directory);
-  } catch {
-    return { error: "Upload directory not found", status: 404 };
-  }
-  if (!stat.isDirectory()) {
-    return { error: "Upload target is not a directory", status: 400 };
-  }
-
-  // A browsable directory can be a symlink. Resolve both sides before writes
-  // so a symlink inside an allowed root cannot redirect uploads outside it.
-  const realDirectory = fs.realpathSync(directory);
-  const realRoots = new Set<string>();
-  for (const root of allowedRoots) {
-    try {
-      realRoots.add(fs.realpathSync(root));
-    } catch {
-      // Ignore stale session roots that no longer exist.
+    return { directory: resolveManagedDirectory(directory, await getAllowedFileRoots()) };
+  } catch (error) {
+    if (error instanceof FileManageError) {
+      return { error: error.message, status: error.status };
     }
+    throw error;
   }
-  if (!isFilePathAllowed(realDirectory, realRoots)) {
-    return { error: "Access denied", status: 403 };
-  }
+}
 
-  return { directory: realDirectory };
+export async function filesManage(
+  target: string,
+  type: string,
+  rawBody: unknown,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const body = rawBody && typeof rawBody === "object"
+    ? rawBody as { name?: unknown; destination?: unknown }
+    : null;
+  const roots = await getAllowedFileRoots();
+  try {
+    if (type === "mkdir") {
+      return { status: 200, body: { path: await createDirectory(target, body?.name, roots) } };
+    }
+    if (type === "move") {
+      if (typeof body?.destination !== "string" || !body.destination) {
+        return { status: 400, body: { error: "destination must be a folder path" } };
+      }
+      return { status: 200, body: { path: await moveEntry(target, body.destination, body.name, roots) } };
+    }
+    if (type === "delete") {
+      await deleteEntry(target, roots);
+      return { status: 200, body: { ok: true } };
+    }
+    return { status: 400, body: { error: "Invalid file manage request type" } };
+  } catch (error) {
+    if (error instanceof FileManageError) {
+      return { status: error.status, body: { error: error.message } };
+    }
+    return { status: 500, body: { error: errorMessage(error) } };
+  }
 }
 
 export async function filesUploadCheck(
   directory: string,
-  fileNames: string[],
+  paths: string[],
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-  if (!Array.isArray(fileNames) || !fileNames.every((item) => typeof item === "string")) {
-    return { status: 400, body: { error: "fileNames must be an array of strings" } };
+  if (!Array.isArray(paths) || !paths.every((item) => typeof item === "string")) {
+    return { status: 400, body: { error: "paths must be an array of strings" } };
   }
   const target = await getUploadDirectory(directory);
   if ("error" in target) return { status: target.status, body: { error: target.error } };
-  const validationError = validateUploadFileNames(fileNames);
+  const validationError = validateUploadPaths(paths);
   if (validationError) {
     return { status: 400, body: { error: validationError } };
   }
-  return { status: 200, body: inspectUploadTargets(target.directory, fileNames) as unknown as Record<string, unknown> };
+  return { status: 200, body: inspectUploadTargets(target.directory, paths) as unknown as Record<string, unknown> };
 }
 
-export type IpcUploadFile = { name: string; bytes: Uint8Array };
+export type IpcUploadFile = { name: string; path?: string; bytes: Uint8Array };
 
 export async function filesUpload(
   directory: string,
@@ -86,8 +102,8 @@ export async function filesUpload(
   if (files.reduce((total, file) => total + file.bytes.byteLength, 0) > MAX_UPLOAD_TOTAL_BYTES) {
     return { status: 413, body: { error: "Uploads must total 100MB or less" } };
   }
-  const fileNames = files.map((file) => file.name);
-  const validationError = validateUploadFileNames(fileNames);
+  const uploadPaths = files.map((file) => file.path ?? file.name);
+  const validationError = validateUploadPaths(uploadPaths);
   if (validationError) {
     return { status: 400, body: { error: validationError } };
   }
@@ -96,7 +112,7 @@ export async function filesUpload(
   if ("error" in target) return { status: target.status, body: { error: target.error } };
   const uploadDir = target.directory;
 
-  const inspection = inspectUploadTargets(uploadDir, fileNames);
+  const inspection = inspectUploadTargets(uploadDir, uploadPaths);
   if (strategy === "error" && inspection.conflicts.length > 0) {
     return {
       status: 409,
@@ -115,37 +131,38 @@ export async function filesUpload(
   const errors: Array<{ name: string; error: string }> = [];
 
   let done = 0;
-  for (const file of files) {
-    const destination = path.join(uploadDir, file.name);
-    if (conflictSet.has(file.name) && strategy === "skip") {
-      skipped.push(file.name);
+  for (const [index, file] of files.entries()) {
+    const uploadPath = uploadPaths[index];
+    if (conflictSet.has(uploadPath) && strategy === "skip") {
+      skipped.push(uploadPath);
       done += 1;
-      onProgress?.(done, files.length, file.name);
+      onProgress?.(done, files.length, uploadPath);
       continue;
     }
-    if (conflictSet.has(file.name) && nonReplaceableSet.has(file.name)) {
-      errors.push({ name: file.name, error: "Cannot replace a directory or symbolic link" });
+    if (conflictSet.has(uploadPath) && nonReplaceableSet.has(uploadPath)) {
+      errors.push({ name: uploadPath, error: "Cannot replace a directory or symbolic link" });
       done += 1;
-      onProgress?.(done, files.length, file.name);
+      onProgress?.(done, files.length, uploadPath);
       continue;
     }
 
     try {
-      if (conflictSet.has(file.name)) {
+      const destination = prepareUploadDestination(uploadDir, uploadPath);
+      if (conflictSet.has(uploadPath)) {
         // Keep the old entry intact until its complete replacement can be renamed over it
         // (a failed write must not lose the previous file).
-        // Async writes: a 100MB file written synchronously would stall the main
-        // process's IPC and every watcher until the disk catches up.
         await replaceUploadFile(destination, Buffer.from(file.bytes));
       } else {
+        // `wx` refuses whatever appeared there since, a link included.
         await fs.promises.writeFile(destination, file.bytes, { flag: "wx" });
       }
-      uploaded.push(file.name);
+      uploaded.push(uploadPath);
     } catch (error) {
-      errors.push({ name: file.name, error: error instanceof Error ? error.message : String(error) });
+      const exists = (error as NodeJS.ErrnoException).code === "EEXIST";
+      errors.push({ name: uploadPath, error: exists ? "Already exists" : errorMessage(error) });
     }
     done += 1;
-    onProgress?.(done, files.length, file.name);
+    onProgress?.(done, files.length, uploadPath);
   }
 
   return { status: errors.length > 0 ? 207 : 200, body: { uploaded, skipped, errors } };

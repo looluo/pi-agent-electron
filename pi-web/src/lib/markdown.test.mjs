@@ -145,6 +145,87 @@ describe("normalizeDisplayMath", () => {
       }
     });
   });
+
+  describe("raw HTML code tags", () => {
+    it("leaves content inside a raw <pre> untouched until it closes", () => {
+      assert.equal(normalizeDisplayMath("<pre>\n\\(x\\)\n</pre>\n\\(y\\)"), "<pre>\n\\(x\\)\n</pre>\n$y$");
+    });
+
+    it("does not take a tag named in inline code for an open raw tag", () => {
+      for (const tag of ["<pre>", "<code>", "<script>", "<style>"]) {
+        assert.equal(
+          normalizeDisplayMath(`Wrap it in \`${tag}\` tags.\n\n\\[\nx^2\n\\]\n\nand \\(y\\) here`),
+          `Wrap it in \`${tag}\` tags.\n\n$$\nx^2\n$$\n\nand $y$ here`,
+          tag,
+        );
+      }
+      assert.equal(normalizeDisplayMath("``<pre>`` then <pre>\n\\(x\\)\n</pre>"), "``<pre>`` then <pre>\n\\(x\\)\n</pre>");
+    });
+
+    it("closes a raw tag on its own line even where backticks surround the closing tag", () => {
+      assert.equal(normalizeDisplayMath("<pre>x `</pre>`\n\\(y\\)"), "<pre>x `</pre>`\n$y$");
+    });
+  });
+
+  // Safari before 16.4 cannot parse RegExp lookbehind, and a literal it cannot
+  // parse fails the whole chunk, leaving iOS 16.2 on a blank page (#753). The
+  // inline rewrites now run without lookbehind; the lookbehind versions they
+  // replaced stay here, where Node parses them, as the reference behavior.
+  describe("inline rewrites without lookbehind", () => {
+    function referenceEscapedInlineCode(line) {
+      return line.replace(/(?<![\\`])`((?:[^`\n]|\\`)+?)(?<![\\`])`(?!`)/g, (match, content) => {
+        const code = content.replace(/\\`/g, "`");
+        if (code === content) return match;
+        const marker = "`".repeat(Math.max(...(code.match(/`+/g)?.map((run) => run.length) ?? [0])) + 1);
+        return `${marker}${code}${marker}`;
+      });
+    }
+
+    function referenceInlineLatexMath(line) {
+      return line.replace(/(?<!\\)\\\(([^`\r\n$]+?)(?<!\\)\\\)/g, (match, math) =>
+        math.trim() ? `$${math}$` : match,
+      );
+    }
+
+    // Deterministic lines over a small alphabet, so every escape and delimiter
+    // combination shows up many times. The leading "a" keeps a line away from
+    // the block-level branches (fences, indented code, `$$` and `\[` openers).
+    function* randomLines(alphabet, count) {
+      let seed = 753;
+      const next = () => (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 2 ** 32;
+      for (let i = 0; i < count; i++) {
+        let line = "a";
+        const length = Math.floor(next() * 24);
+        for (let j = 0; j < length; j++) line += alphabet[Math.floor(next() * alphabet.length)];
+        yield line;
+      }
+    }
+
+    it("rewrites escaped backticks inside inline code", () => {
+      assert.equal(normalizeDisplayMath("run `a\\`b` now"), "run ``a`b`` now");
+      assert.equal(normalizeDisplayMath("keep \\`a\\`b` as is"), "keep \\`a\\`b` as is");
+    });
+
+    it("converts \\( … \\) unless the opening delimiter is escaped", () => {
+      assert.equal(normalizeDisplayMath("the \\(x^2\\) term"), "the $x^2$ term");
+      assert.equal(normalizeDisplayMath("x \\(a\\), \\(b\\)"), "x $a$, $b$");
+      assert.equal(normalizeDisplayMath("keep \\\\(x\\\\) literal"), "keep \\\\(x\\\\) literal");
+      // A skipped escaped opener must not swallow a real pair that starts inside it.
+      assert.equal(normalizeDisplayMath("x \\\\(a \\(b\\)"), "x \\\\(a $b$");
+    });
+
+    it("matches the lookbehind escaped-inline-code rewrite", () => {
+      for (const line of randomLines(["a", " ", "`", "\\", "x"], 20000)) {
+        assert.equal(normalizeDisplayMath(line), referenceEscapedInlineCode(line), JSON.stringify(line));
+      }
+    });
+
+    it("matches the lookbehind \\( … \\) rewrite", () => {
+      for (const line of randomLines(["a", " ", "\\", "(", ")", "$", "x"], 20000)) {
+        assert.equal(normalizeDisplayMath(line), referenceInlineLatexMath(line), JSON.stringify(line));
+      }
+    });
+  });
 });
 
 describe("splitAutolinkLiteralsAtCjkPunctuation", () => {
@@ -279,7 +360,7 @@ describe("Windows drive links through the complete Markdown pipeline", () => {
         assert.equal(render(`[open](<${url}>)`, remarkPlugins, rehypePlugins), expected, `${name}: ${url}`);
         assert.equal(render(`[open][report]\n\n[report]: <${url}>`, remarkPlugins, rehypePlugins), expected, `${name}: reference ${url}`);
         assert.match(expected, /href="file:\/\/\//);
-        assert.match(render(`[open](<${url}>)`, remarkPlugins, rehypePlugins, markdownAppUrlTransform), /href=""/);
+        assert.equal(render(`[open](<${url}>)`, remarkPlugins, rehypePlugins, markdownAppUrlTransform), "<p><a>open</a></p>");
       }
     }
   });
@@ -361,9 +442,41 @@ describe("app link schemes (#1108)", () => {
 
   it("keeps file: links only for renderers that open local files", () => {
     assert.equal(markdownUrlTransform("file:///home/me/a.md"), "file:///home/me/a.md");
-    assert.equal(markdownAppUrlTransform("file:///home/me/a.md"), "");
+    assert.equal(markdownAppUrlTransform("file:///home/me/a.md"), undefined);
     assert.equal(markdownAppUrlTransform("https://example.com"), "https://example.com");
     assert.equal(markdownAppUrlTransform("docs/a.md#intro"), "docs/a.md#intro");
+  });
+
+  it("keeps a bare file name with a line suffix for renderers that open local files", () => {
+    // `README.md:10` reads as the scheme `README.md:`, which react-markdown's
+    // filter empties; a path with a folder (`src/app.ts:42`) never did.
+    for (const href of ["README.md:10", "AppShell.tsx:42:7", "app.ts:10-20"]) {
+      assert.equal(markdownUrlTransform(href), href);
+      assert.equal(markdownAppUrlTransform(href), undefined);
+    }
+    assert.equal(markdownUrlTransform("example.app:open"), undefined);
+  });
+
+  it("lets a bare file name with a line suffix through the sanitizer to the URL filter", () => {
+    // rehype-sanitize reads `app.ts:` as an unknown scheme; only the URL filter
+    // knows whether the renderer opens local files. Order: chat with, chat
+    // without, file preview with, file preview without a file handler.
+    for (const href of ["app.ts:42", "README.md:10", "AppShell.tsx:42:7", "app.ts:10-20", "a.ts:1#x"]) {
+      for (const markdown of [`[open](${href})`, `<a href="${href}">open</a>`]) {
+        assert.deepEqual(hrefs(markdown), [[href], [null], [href], [null]], markdown);
+      }
+    }
+    // The prefix that carries it through the sanitizer unwraps nothing else.
+    const wrapped = "file:bare-file-line:javascript:alert(1)";
+    assert.deepEqual(hrefs(`[open](${wrapped})`), [[wrapped], [null], [wrapped], [null]]);
+    assert.deepEqual(hrefs("[open](javascript:alert(1)) [open](example.app:open)"), Array(4).fill([null, null]));
+  });
+
+  it("keeps the same bare file links that resolveLocalFileHref() opens", async () => {
+    const { isBareFileLineHref } = await import("./file-links.ts");
+    for (const href of ["README.md:10", "a.ts:1:2", "a.ts:1-9", "a.ts:1#x", "a.ts:", "a:1", "a.ts:1/b", "x.y:z", "a b.ts:1"]) {
+      assert.equal(markdownUrlTransform(href) === href, isBareFileLineHref(href), href);
+    }
   });
 
   it("does not load images from app schemes", () => {

@@ -9,6 +9,7 @@ import { hasUnsettledSubagentRun } from "@/lib/subagent-runtime";
 import { getSessionUiStateRevision } from "@/lib/session-ui-state";
 import { getSessionListVersion, invalidateSessionListCache, resolveSessionPath } from "@/lib/session-reader";
 import { EXTENSION_REPORTED_CODE } from "@/lib/wire-codes";
+import { isThinkingLevel } from "@/lib/thinking-levels";
 import {
   MAX_INLINE_BASH_OUTPUT_BYTES,
   openRegularFileNoFollow,
@@ -17,13 +18,9 @@ import {
 } from "@/lib/bash-output";
 import { isBashOutputPathReferencedBySession } from "@/lib/session-file-references";
 
-const THINKING_LEVELS = new Set<ThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
-
 function parseThinkingLevel(value: unknown): ThinkingLevel | undefined {
   if (value === undefined) return undefined;
-  if (typeof value === "string" && THINKING_LEVELS.has(value as ThinkingLevel)) {
-    return value as ThinkingLevel;
-  }
+  if (isThinkingLevel(value)) return value;
   throw new Error(`Invalid thinking level: ${String(value)}`);
 }
 

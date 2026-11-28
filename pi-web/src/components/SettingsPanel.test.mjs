@@ -10,14 +10,22 @@ test("the trust dialog Settings › MCP opens stacks above Settings", () => {
 });
 
 
-test("the cache-miss switch reads and writes over the typed IPC, never a bare /api fetch", async () => {
-  // The Electron renderer has no HTTP origin (file://): upstream 653cd7c's
-  // fetch("/api/cache-miss-notices") surfaced as "Failed to fetch" until
-  // re-homed onto pi:settings:cache-miss-notices.
-  const source = await readFile(new URL("./SettingsPanel.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(source, /fetch\([`"']\/api\/cache-miss-notices/);
-  assert.match(source, /window\.pi\.cacheMissNoticesGet\(\)/);
-  assert.match(source, /window\.pi\.cacheMissNoticesPut\(enabled\)/);
+test("Settings General switches read and write over typed IPC, never bare /api fetches", async () => {
+  // The Electron renderer has no HTTP origin (file://): notices, queue-modes,
+  // tools/settings, and http-proxy must all go through window.pi.* IPC.
+  const panelSource = await readFile(new URL("./SettingsPanel.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(panelSource, /fetch\([`"']\/api\/(notices|queue-modes|tools\/settings|cache-miss-notices)/);
+  assert.match(panelSource, /window\.pi\.noticesGet\(\)/);
+  assert.match(panelSource, /window\.pi\.noticesPut\(/);
+  assert.match(panelSource, /window\.pi\.queueModesGet\(\)/);
+  assert.match(panelSource, /window\.pi\.queueModesPut\(/);
+  assert.match(panelSource, /window\.pi\.toolsSettingsGet\(\)/);
+  assert.match(panelSource, /window\.pi\.toolsSettingsPut\(/);
+
+  const proxySource = await readFile(new URL("./HttpProxyForm.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(proxySource, /fetch\([`"']\/api\/http-proxy/);
+  assert.match(proxySource, /window\.pi\.httpProxyGet\(\)/);
+  assert.match(proxySource, /window\.pi\.httpProxyPut\(/);
 });
 
 test("signing out removes the stored drafts once the server signed out", async () => {

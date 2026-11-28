@@ -62,10 +62,12 @@ contextBridge.exposeInMainWorld("pi", {
   sessionsThinking: (id: string, entryId: string, blockIndex: number) =>
     ipcRenderer.invoke("pi:sessions:thinking", id, entryId, blockIndex),
 
-  // files: upload + watch (GET goes through the pifile:// protocol)
-  filesUploadCheck: (directory: string, fileNames: string[]) =>
-    ipcRenderer.invoke("pi:files:upload-check", directory, fileNames),
-  filesUpload: (directory: string, files: Array<{ name: string; bytes: Uint8Array }>, conflict: string | null) =>
+  // files: manage + upload + watch (GET goes through the pifile:// protocol)
+  filesManage: (target: string, type: "mkdir" | "move" | "delete", body: unknown) =>
+    ipcRenderer.invoke("pi:files:manage", target, type, body),
+  filesUploadCheck: (directory: string, paths: string[]) =>
+    ipcRenderer.invoke("pi:files:upload-check", directory, paths),
+  filesUpload: (directory: string, files: Array<{ name: string; path?: string; bytes: Uint8Array }>, conflict: string | null) =>
     ipcRenderer.invoke("pi:files:upload", directory, files, conflict),
   onUploadProgress(listener: (progress: { done: number; total: number; fileName: string }) => void): () => void {
     const handler = (_e: Electron.IpcRendererEvent, payload: { event: string; data: { done: number; total: number; fileName: string } }) => {
@@ -120,7 +122,7 @@ contextBridge.exposeInMainWorld("pi", {
   defaultCwd: () => ipcRenderer.invoke("pi:default-cwd"),
   home: () => ipcRenderer.invoke("pi:home"),
   openInExplorerAvailable: () => ipcRenderer.invoke("pi:open-in-explorer:get"),
-  openInExplorer: (cwd: string) => ipcRenderer.invoke("pi:open-in-explorer:post", cwd),
+  openInExplorer: (request: string | { cwd: string } | { reveal: string }) => ipcRenderer.invoke("pi:open-in-explorer:post", request),
   projectTrustGet: (cwd: string | null) => ipcRenderer.invoke("pi:project-trust:get", cwd),
   projectTrustPost: (cwd: unknown) => ipcRenderer.invoke("pi:project-trust:post", cwd),
   worktreesGet: (cwd: string | null) => ipcRenderer.invoke("pi:worktrees:get", cwd),
@@ -201,11 +203,18 @@ contextBridge.exposeInMainWorld("pi", {
 
   // tools settings
   toolsSettingsGet: () => ipcRenderer.invoke("pi:tools:settings:get"),
-  toolsSettingsPut: (changes: { enabled?: boolean; builtinTools?: string[]; codemode?: "automatic" | "always" }) =>
+  toolsSettingsPut: (changes: { enabled?: boolean; builtinTools?: string[]; codemode?: "automatic" | "always"; codemodeMode?: "on" | "only"; codemodeInlineBudget?: number | null }) =>
     ipcRenderer.invoke("pi:tools:settings:put", changes),
   cacheMissNoticesGet: (): Promise<{ status: number; body: { enabled?: boolean; error?: string } }> =>
     ipcRenderer.invoke("pi:settings:cache-miss-notices:get"),
   cacheMissNoticesPut: (enabled: boolean): Promise<{ status: number; body: { enabled?: boolean; error?: string } }> =>
     ipcRenderer.invoke("pi:settings:cache-miss-notices:put", enabled),
+  noticesGet: () => ipcRenderer.invoke("pi:settings:notices:get"),
+  noticesPut: (body: { key: string; shown: boolean }) => ipcRenderer.invoke("pi:settings:notices:put", body),
+  queueModesGet: () => ipcRenderer.invoke("pi:settings:queue-modes:get"),
+  queueModesPut: (body: { steeringMode?: "one-at-a-time" | "all"; followUpMode?: "one-at-a-time" | "all" }) =>
+    ipcRenderer.invoke("pi:settings:queue-modes:put", body),
+  httpProxyGet: () => ipcRenderer.invoke("pi:settings:http-proxy:get"),
+  httpProxyPut: (body: { enabled: boolean; httpProxy?: string }) => ipcRenderer.invoke("pi:settings:http-proxy:put", body),
   sessionExport: (id: string) => ipcRenderer.invoke("pi:sessions:export", id),
 });

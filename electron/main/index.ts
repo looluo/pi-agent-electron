@@ -6,16 +6,15 @@ import { registerSkillsPluginsHandlers } from "./ipc-skills-plugins";
 import { registerMcpHandlers } from "./ipc-mcp";
 import { registerEarlySchemes, registerFilesProtocol } from "./files-protocol";
 import { repairPathAtStartup } from "./services/shell-path";
-import { configureHttpDispatcher, readHttpIdleTimeoutMs } from "@/lib/http-dispatcher";
+import { configureHttpDispatcherFromSettings } from "@/lib/http-dispatcher";
 import { applyCodemodeWorkerDefault } from "@/lib/codemode-workers";
 
 registerEarlySchemes();
 
 // Undici proxy/h2/timeout configuration (ported from Next instrumentation.ts).
-// Apply the user's global settings.json httpIdleTimeoutMs the way the pi CLI
-// does (upstream 650d7a3): without it the built-in five minutes aborts a
-// provider stream that stays quiet for longer.
-configureHttpDispatcher(readHttpIdleTimeoutMs());
+// Apply the user's global settings.json httpIdleTimeoutMs and httpProxy the
+// way the pi CLI does (upstream 650d7a3, 46ae7469).
+configureHttpDispatcherFromSettings();
 // pi-web 0.13.0 (#837/#1444): raise pi's codemode worker limit before any
 // agent starts; the SDK reads PI_CODEMODE_MAX_WORKERS per call.
 applyCodemodeWorkerDefault();

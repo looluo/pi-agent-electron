@@ -66,8 +66,9 @@ export interface PiBridge {
   sessionsAutoName(id: string, options?: { skipIfNamed?: boolean }): Promise<unknown>;
   sessionsThinking(id: string, entryId: string, blockIndex: number): Promise<unknown>;
 
-  filesUploadCheck(directory: string, fileNames: string[]): Promise<{ status: number; body: Record<string, unknown> | null }>;
-  filesUpload(directory: string, files: Array<{ name: string; bytes: Uint8Array }>, conflict: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  filesManage(target: string, type: "mkdir" | "move" | "delete", body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  filesUploadCheck(directory: string, paths: string[]): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  filesUpload(directory: string, files: Array<{ name: string; path?: string; bytes: Uint8Array }>, conflict: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
   onUploadProgress(listener: (progress: { done: number; total: number; fileName: string }) => void): () => void;
   subscribeFileWatch(filePath: string, onFrame: (frame: { event: string; data: Record<string, unknown> }) => void): () => void;
   terminalCreate(cwd: string, cols: number, rows: number, id?: string): Promise<{ status: number; body: { id?: string; error?: string } }>;
@@ -91,7 +92,7 @@ export interface PiBridge {
   defaultCwd(): Promise<{ cwd?: string; error?: string }>;
   home(): Promise<{ home?: string }>;
   openInExplorerAvailable(): Promise<{ supported: boolean; reason: string | null; platform: string }>;
-  openInExplorer(cwd: string): Promise<{ ok: boolean; status: number; error?: string }>;
+  openInExplorer(request: string | { cwd: string } | { reveal: string }): Promise<{ ok: boolean; status: number; error?: string }>;
   projectTrustGet(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
   projectTrustPost(cwd: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   worktreesGet(cwd: string | null): Promise<{ status: number; body: Record<string, unknown> | null }>;
@@ -148,9 +149,15 @@ export interface PiBridge {
   mcpSignInPaste(flowId: string, redirectUrl: unknown): Promise<{ status: number; body: Record<string, unknown> | null }>;
   mcpSignInCancel(flowId: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
   toolsSettingsGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
-  toolsSettingsPut(changes: { enabled?: boolean; builtinTools?: string[]; codemode?: "automatic" | "always"; codemodeInlineBudget?: number | null }): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  toolsSettingsPut(changes: { enabled?: boolean; builtinTools?: string[]; codemode?: "automatic" | "always"; codemodeMode?: "on" | "only"; codemodeInlineBudget?: number | null }): Promise<{ status: number; body: Record<string, unknown> | null }>;
   cacheMissNoticesGet(): Promise<{ status: number; body: { enabled?: boolean; error?: string } }>;
   cacheMissNoticesPut(enabled: boolean): Promise<{ status: number; body: { enabled?: boolean; error?: string } }>;
+  noticesGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  noticesPut(body: { key: string; shown: boolean }): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  queueModesGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  queueModesPut(body: { steeringMode?: "one-at-a-time" | "all"; followUpMode?: "one-at-a-time" | "all" }): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  httpProxyGet(): Promise<{ status: number; body: Record<string, unknown> | null }>;
+  httpProxyPut(body: { enabled: boolean; httpProxy?: string }): Promise<{ status: number; body: Record<string, unknown> | null }>;
   sessionExport(id: string): Promise<{ status: number; body: Record<string, unknown> | null }>;
 }
 

@@ -27,6 +27,36 @@ Fork-local re-homes to remember when porting: `hasFinalAssistantAnswer` and
 to ChatWindow's copies into the lib versions, and keep `splitFinalAssistantBlocks`'
 trailing-run exemption for extension/MCP tools in mind.
 
+## v0.18.0 → v0.20.0 (`2daa0d13..ef517d7c`) — synced 2026-11
+
+55 non-merge commits (v0.19.0 + v0.20.0); census:
+`.scratch/upstream-sync-v0.20.0/commit-census.md`.
+**SDK 1.6.0 → 1.7.0** (all eight `@earendil-works/*` exact-pinned; `pi-packages`
+guard green). Executed as a file-level three-way merge (base `2daa0d13`): 129
+wholesale (incl. `app/sidebar.css` & `app/sidebar-menu.css` added to
+`sync-classify.sh`), 60 three-way (32 clean, 28 files / 62 conflict hunks by
+hand), 47 new (2 web-only `frame-ancestors` files dropped), 5 fork-absent
+(deliberate); behavioral `app/api/**` additions/changes re-homed onto Electron
+services + typed IPC.
+
+| Theme | Status | Notes |
+|---|---|---|
+| SDK 1.6.1 + 1.7.0 (ea36a8f9, 0de48724) | ported | all eight `@earendil-works/*` exact-pinned at 1.7.0 |
+| Global HTTP proxy UI (46ae7469/#1811), queue modes (29654472/#1818, 7e9d663a/#1819), `notices.*` settings (pi 1.6.1) | ported | new `http-proxy.ts`, `queue-modes.ts`, `notices.ts` services + IPC channels; `electron/main/index.ts` calls `configureHttpDispatcherFromSettings()`; `sessions.ts` attaches transcript notices; `HttpProxyForm.tsx` & `SettingsPanel.tsx` re-homed onto `window.pi.*` (web push omitted) |
+| File tree management (0ce50c52/#1838) + folder uploads with subfolders (3288d545/#1786/#1840) + drop hint (a1e112ee) | ported | `filesManage` (`pi:files:manage`) + relative `path` uploads in `files-upload.ts`; `open-in-explorer.ts` adds `{ reveal }` via `shell.showItemInFolder` with allowed-roots check; `file-manage-client.ts` & `file-upload-client.ts` re-homed onto IPC; `FileExplorer.tsx` menu download uses `pifile://local/...` |
+| `#` session references (daf24fff/#1801, bf81275e, 450471d6), extension slash-arg completion (08250338/#1829), sidebar date sort & row sizing (03fc9ef9/#1822, 25425543) | ported | `ChatInput.tsx` `#` session list re-homed onto `window.pi.sessionsList()`; `useAgentSession.ts` `requestArgumentCompletions` rides `pi:agent:command` |
+| File link jump-to-line & split Git diff (1cea5e8d/#1792), large Git diffs (3a03bdb7/#1789), oversize session single-entry read (5e52245a/#1816), paged view cache alignment (64553be3/#1836) | ported | `sessions.ts` `sessionsThinking` & `sessionToolResultImage` switched to `readSessionEntryById`; `workspace.ts` `listWithGit` dedupes merge-conflict stages and `isDiffPathAllowed` uses `hasParentDirectorySegment` |
+| Models bulk delete (685f17ac/#1831), unresolved stored API key (6c49208f/#1826), `input_modalities` & nested efforts (8a681588/#1820) | ported | `ModelsConfig.tsx` keeps fork `applyProviderRename` alongside bulk selection |
+| Subagents: manual compaction wait (81988de0/#1798), package names in profile extensions (fc869ee0/#1802), default `subagent_type` gate (2161b858/#1833) | ported | `subagent-package-scope.integration.test.mjs` isolates `HOME`/`USERPROFILE` |
+| Chat/composer/markdown/offline/MCP refactors (folded cost sum a78cb4f4, offscreen rows 4b9f693a, `PI_OFFLINE` 73acfdee, `atomic-file` 56d14139, shared helpers) | ported | Windows `renameReplacing` retry moved into `lib/atomic-file.ts`; `mcp-bridge-fetch.ts` adds `PUT /api/tools/settings` for codemode mode/budget; `models-auth.ts` `appUpdateStatus` honors `isPiOffline()`; bare fetches in `ChatWindow.tsx` (`appUpdate`), `ProjectTrustDialog.tsx` (`projectTrustGet`), and `useAgentSession.ts` (`agentState`/`sessionsContext`) re-homed onto IPC |
+| Page framing CSP (`proxy.ts` / `lib/frame-ancestors.ts`, 23f318cd/#1827), Releases v0.19.0 & v0.20.0 | n/a | web proxy form factor; local version aligned `0.20.0` |
+
+Verification: typecheck clean (renderer + electron); `npm run build` clean;
+`npm test` 3247 = **3240 pass / 0 fail** / 7 skip; `npx playwright test`
+**13/13**; file-authorization check HOLDS (seeds 20261115 ×3000, 777 ×20000);
+app-drive journeys on built `out/`: `shell`, `session-history`, `terminal`
+**PASS**; `grep -c font-noto-mono pi-web/src/globals.css` = 0.
+
 ## v0.17.0 → v0.18.0 (`174bff96..2daa0d13`) — synced 2026-11
 
 34 non-merge commits; census: `.scratch/upstream-sync-v0.18.0/commit-census.md`.

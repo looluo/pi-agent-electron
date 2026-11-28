@@ -24,6 +24,7 @@ import {
   revealHiddenCharacters,
 } from "@/lib/mcp-server-display";
 import { openStackedDialog } from "@/lib/stacked-dialog";
+import { errorMessage } from "@/lib/errors";
 
 /** How long the dialog waits for the listing before it stops holding Trust back. */
 export const MCP_LISTING_TIMEOUT_MS = 10_000;
@@ -48,10 +49,6 @@ export type ProjectTrustMcpListing =
 
 const STATUS_ID = "project-trust-mcp-status";
 const NOTICE_ID = "project-trust-notice";
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 function trustStatusFrom(data: ProjectTrustResponse): ProjectTrustStatus {
   const status: ProjectTrustStatus = {
@@ -139,11 +136,11 @@ export function ProjectTrustDialog({
       timedOut = true;
       controller.abort();
     }, MCP_LISTING_TIMEOUT_MS);
-    fetch(`/api/project-trust?cwd=${encodeURIComponent(cwd)}`, { signal: controller.signal, cache: "no-store" })
-      .then(async (response) => {
-        const data = await response.json() as Partial<ProjectTrustResponse & McpErrorResponse>;
+    window.pi.projectTrustGet(cwd)
+      .then((response) => {
+        const data = (response.body ?? {}) as Partial<ProjectTrustResponse & McpErrorResponse>;
         if (!active) return;
-        const next = projectTrustListingFrom(response.ok, response.status, data);
+        const next = projectTrustListingFrom(response.status === 200, response.status, data);
         setListing(next);
         if (next.state === "loaded" && next.status) onStatusRef.current?.(next.status);
       })
